@@ -25,6 +25,10 @@ Having a memory pool can speed-up allocation and deallocation. Using CUDA and CU
 
 **Q**: how to support languages other than CUDA?
 
+## Multiple instances of the memory manager can coexist
+
+A multi-threaded app may need to create multiple memory managers so that each thread has its own. The memory manager manages its own resources but does not own the GPU, that can then be shared.
+
 # Programming Languages
 
 - C++
@@ -37,3 +41,19 @@ Having a memory pool can speed-up allocation and deallocation. Using CUDA and CU
 
 Could have we used something else, instead of writing yet another memory manager?
 
+# API
+
+# Implementation Details
+
+## C++
+
+- The user creates the memory manager, and keeps using it until it is not anymore useful
+- The destructor deallocates all memory previously allocated and not released yet
+
+## CUDA
+
+- Each memory manager has a stream associated with, that can be accessed by third-parties that want to schedule kernels on it
+- The stream is managed by the memory manager for its all life
+- The memory manager does not own the GPU, so device, context and so on need to be stored internally but not exposed
+
+## Julia
