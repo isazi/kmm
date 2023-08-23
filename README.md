@@ -47,6 +47,7 @@ Could have we used something else, instead of writing yet another memory manager
 
 ## C++
 
+- Not header-only, it needs to be compiled into a shared object to be available in other languages
 - The user creates the memory manager, and keeps using it until it is not anymore useful
 - The destructor deallocates all memory previously allocated and not released yet
 
