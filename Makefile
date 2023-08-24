@@ -1,5 +1,5 @@
 pretty:
-	clang-format --verbose -i include/*.hpp src/*.cpp src/*.cu
+	clang-format --verbose -i include/*.hpp src/*.cu
 
 all: pretty
 
