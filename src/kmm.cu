@@ -16,7 +16,12 @@ MemoryManager::MemoryManager() {
     this->stream = nullptr;
 }
 
-MemoryManager::~MemoryManager() {}
+MemoryManager::~MemoryManager() {
+    for (auto const& [allocation_id, device_buffer] : this->allocations) {
+        this->release(allocation_id);
+    }
+    cudaStreamDestroy(*(this->stream));
+}
 
 unsigned int MemoryManager::allocate(std::size_t size) {
     cudaError_t err = cudaSuccess;
