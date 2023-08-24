@@ -23,6 +23,8 @@ class MemoryManager {
     void release(unsigned int device_buffer, std::size_t size, void* host_buffer);
     // Return a pointer to the used CUDA stream
     inline cudaStream_t* getStream();
+    // Return a pointer to a particular allocation
+    inline void* getPointer(unsigned int device_buffer);
 
   private:
     unsigned int next_allocation;

@@ -89,4 +89,9 @@ void MemoryManager::release(unsigned int device_buffer, std::size_t size, void* 
 inline cudaStream_t* MemoryManager::getStream() {
     return this->stream;
 }
+
+inline void* MemoryManager::getPointer(unsigned int device_buffer) {
+    return this->allocations[device_buffer];
+}
+
 }  // namespace kmm
