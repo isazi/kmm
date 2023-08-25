@@ -49,9 +49,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cudart_static)
 target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cuda_driver)
 target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::nvrtc)
 
-# Installation of library files
-install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
-
 # Unit testing
 enable_testing()
 find_package(GTest)
