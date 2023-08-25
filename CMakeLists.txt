@@ -1,17 +1,26 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(PROJECT_NAME "kmm")
-project(${PROJECT_NAME} LANGUAGES CXX CUDA)
-
-# Directory where libraries will be placed after building
-set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}")
+project(${PROJECT_NAME} LANGUAGES CXX CUDA VERSION 0.1)
 
 file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
 file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
 add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
-target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/src")
+
+# Install
+set_target_properties(
+    ${PROJECT_NAME}
+    PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION 1
+    PUBLIC_HEADER ${includes}
+)
+install(TARGETS ${PROJECT_NAME}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
 
 # The CUDA compiler struggles with the "Werror" options, so we need to explicitly forward it to the host compiler
 # using `-Xcompiler=-Werror` if we are compiling CUDA code.
@@ -59,6 +68,7 @@ target_include_directories(
 )
 target_link_libraries(
   kmmTest
+  PRIVATE
   GTest::gtest
   GTest::gtest_main
 )
