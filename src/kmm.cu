@@ -20,7 +20,9 @@ MemoryManager::~MemoryManager() {
     for (auto const& [allocation_id, device_buffer] : this->allocations) {
         this->release(allocation_id);
     }
-    cudaStreamDestroy(*(this->stream));
+    if ( this->stream != nullptr ) {
+        cudaStreamDestroy(*(this->stream));
+    }
 }
 
 unsigned int MemoryManager::allocate(std::size_t size) {
