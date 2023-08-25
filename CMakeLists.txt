@@ -70,3 +70,6 @@ target_link_libraries(
   GTest::gtest
   GTest::gtest_main
 )
+
+include(GoogleTest)
+gtest_discover_tests(hello_test)
