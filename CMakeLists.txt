@@ -44,17 +44,14 @@ target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::nvrtc)
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 
 # Unit testing
+find_package(GoogleTest)
 enable_testing()
 
 add_executable(
   kmmTest
-  kmmTest.cu
+  test/kmmTest.cu
 )
 target_link_libraries(
-  kmm
-  GTest::gtest_main
+  kmmTest
+  gtest
 )
-
-include(GoogleTest)
-gtest_discover_tests(kmmTest)
-
