@@ -52,8 +52,10 @@ add_executable(
   test/kmmTest.cu
 )
 target_include_directories(
-    kmmtest
+    kmmTest
+    PRIVATE
     ${GTEST_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/include
 )
 target_link_libraries(
   kmmTest
