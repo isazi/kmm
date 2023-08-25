@@ -66,6 +66,7 @@ target_include_directories(
 target_link_libraries(
   kmmTest
   PRIVATE
+  kmm
   GTest::gtest
   GTest::gtest_main
 )

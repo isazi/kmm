@@ -32,4 +32,12 @@ class MemoryManager {
     std::map<unsigned int, void*> allocations;
 };
 
+inline cudaStream_t* MemoryManager::getStream() {
+    return this->stream;
+}
+
+inline void* MemoryManager::getPointer(unsigned int device_buffer) {
+    return this->allocations[device_buffer];
+}
+
 }  // namespace kmm
