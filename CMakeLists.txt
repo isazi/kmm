@@ -51,7 +51,10 @@ add_executable(
   kmmTest
   test/kmmTest.cu
 )
-target_include_directories(${GTEST_INCLUDE_DIRS})
+target_include_directories(
+    kmmtest
+    ${GTEST_INCLUDE_DIRS}
+)
 target_link_libraries(
   kmmTest
   GTest::gtest
