@@ -7,7 +7,8 @@ project(${PROJECT_NAME} LANGUAGES CXX CUDA)
 set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}")
 
 file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
-add_library(${PROJECT_NAME} STATIC ${sources})
+file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
+add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/src")
@@ -25,6 +26,7 @@ set(CXXFLAGS
 target_compile_options(${PROJECT_NAME} PRIVATE ${CXXFLAGS})
 
 # Enable C++17 support
+set(CMAKE_CXX_STANDARD 17)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 # Enable PIC
