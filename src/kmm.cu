@@ -20,7 +20,7 @@ MemoryManager::~MemoryManager() {
     for (auto const& [allocation_id, device_buffer] : this->allocations) {
         this->release(allocation_id);
     }
-    if ( this->stream != nullptr ) {
+    if (this->stream != nullptr) {
         cudaStreamDestroy(*(this->stream));
     }
 }
