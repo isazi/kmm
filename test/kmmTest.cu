@@ -9,8 +9,6 @@ TEST(MemoryManager, StreamInitialized) {
 
 TEST(MemoryManager, StreamAllocated) {
     auto manager = kmm::MemoryManager();
-    unsigned int allocation_id = 0;
-
-    allocation_id = manager.allocate(32);
+    manager.allocate(32);
     EXPECT_NE(manager.getStream(), nullptr);
 }
