@@ -21,7 +21,7 @@ MemoryManager::~MemoryManager() {
         this->release(allocation_id);
     }
     if (this->stream != nullptr) {
-        cudaStreamDestroy(*(this->stream));
+        cudaStreamDestroy(this->stream);
     }
 }
 
@@ -30,13 +30,13 @@ unsigned int MemoryManager::allocate(std::size_t size) {
     unsigned int allocation_id;
 
     if (!(this->stream)) {
-        err = cudaStreamCreate(this->stream);
+        err = cudaStreamCreate(&(this->stream));
         cudaErrorCheck(err, "Impossible to create stream.");
     }
 
     allocation_id = this->next_allocation++;
     this->allocations[allocation_id] = nullptr;
-    err = cudaMallocAsync(&(this->allocations[allocation_id]), size, *(this->stream));
+    err = cudaMallocAsync(&(this->allocations[allocation_id]), size, this->stream);
     cudaErrorCheck(err, "Impossible to allocate memory.");
 
     return allocation_id;
@@ -59,7 +59,7 @@ void MemoryManager::copy_to(unsigned int device_buffer, std::size_t size, void* 
         host_buffer,
         size,
         cudaMemcpyHostToDevice,
-        *(this->stream));
+        this->strea));
     cudaErrorCheck(err, "Impossible to copy memory to device.");
 }
 
@@ -71,14 +71,14 @@ void MemoryManager::copy_from(unsigned int device_buffer, std::size_t size, void
         this->allocations[device_buffer],
         size,
         cudaMemcpyDeviceToHost,
-        *(this->stream));
+        this->stream);
     cudaErrorCheck(err, "Impossible to copy memory to host.");
 }
 
 void MemoryManager::release(unsigned int device_buffer) {
     cudaError_t err = cudaSuccess;
 
-    err = cudaFreeAsync(this->allocations[device_buffer], *(this->stream));
+    err = cudaFreeAsync(this->allocations[device_buffer], this->stream);
     cudaErrorCheck(err, "Impossible to release memory.");
     this->allocations.erase(device_buffer);
 }

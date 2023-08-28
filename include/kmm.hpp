@@ -22,17 +22,17 @@ class MemoryManager {
     // Copy the content of GPU memory to the host and then free it
     void release(unsigned int device_buffer, std::size_t size, void* host_buffer);
     // Return a pointer to the used CUDA stream
-    inline cudaStream_t* getStream();
+    inline cudaStream_t getStream();
     // Return a pointer to a particular allocation
     inline void* getPointer(unsigned int device_buffer);
 
   private:
     unsigned int next_allocation;
-    cudaStream_t* stream;
+    cudaStream_t stream;
     std::map<unsigned int, void*> allocations;
 };
 
-inline cudaStream_t* MemoryManager::getStream() {
+inline cudaStream_t MemoryManager::getStream() {
     return this->stream;
 }
 
