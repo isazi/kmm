@@ -59,7 +59,7 @@ void MemoryManager::copy_to(unsigned int device_buffer, std::size_t size, void* 
         host_buffer,
         size,
         cudaMemcpyHostToDevice,
-        this->strea));
+        this->stream);
     cudaErrorCheck(err, "Impossible to copy memory to device.");
 }
 
