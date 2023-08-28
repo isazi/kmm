@@ -80,7 +80,6 @@ void MemoryManager::release(unsigned int device_buffer) {
 
     err = cudaFreeAsync(this->allocations[device_buffer], this->stream);
     cudaErrorCheck(err, "Impossible to release memory.");
-    this->allocations.erase(device_buffer);
 }
 
 void MemoryManager::release(unsigned int device_buffer, std::size_t size, void* host_buffer) {
