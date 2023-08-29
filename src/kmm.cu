@@ -18,7 +18,9 @@ MemoryManager::MemoryManager() {
 
 MemoryManager::~MemoryManager() {
     for (auto const& [allocation_id, device_buffer] : this->allocations) {
-        this->release(allocation_id);
+        if (device_buffer != nullptr) {
+            this->release(allocation_id);
+        }
     }
     if (this->stream != nullptr) {
         cudaStreamDestroy(this->stream);
@@ -80,6 +82,7 @@ void MemoryManager::release(unsigned int device_buffer) {
 
     err = cudaFreeAsync(this->allocations[device_buffer], this->stream);
     cudaErrorCheck(err, "Impossible to release memory.");
+    this->allocations[device_buffer] = nullptr;
 }
 
 void MemoryManager::release(unsigned int device_buffer, std::size_t size, void* host_buffer) {
