@@ -15,7 +15,9 @@ __global__ void vector_add(float* A, float* B, float* C, unsigned int size) {
 int main(void) {
     unsigned int threads_per_block = 1024;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
-    float *A_h, B_h, C_h;
+    float* A_h;
+    float* B_h;
+    float* C_h;
     std::size_t n = SIZE * sizeof(float);
     auto manager = kmm::MemoryManager();
 
