@@ -73,3 +73,19 @@ target_link_libraries(
 
 include(GoogleTest)
 gtest_discover_tests(kmmTest)
+
+# Examples
+add_executable(
+  vector_add
+  examples/vector_add.cu
+)
+target_include_directories(
+    vector_add
+    PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+target_link_libraries(
+  vector_add
+  PRIVATE
+  kmm
+)
