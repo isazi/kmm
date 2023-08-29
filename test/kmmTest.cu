@@ -12,3 +12,10 @@ TEST(MemoryManager, StreamAllocated) {
     manager.allocate(32);
     EXPECT_NE(manager.getStream(), nullptr);
 }
+
+TEST(MemoryManager, Release) {
+    auto manager = kmm::MemoryManager();
+    auto id = manager.allocate(1024);
+    manager.release(id);
+    EXPECT_EQ(manager.getPointer(id), nullptr);
+}
