@@ -15,6 +15,7 @@ __global__ void vector_add(float* A, float* B, float* C, unsigned int size) {
 int main(void) {
     unsigned int threads_per_block = 1024;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
+    unsigned int A_d, B_d, C_d;
     float* A_h;
     float* B_h;
     float* C_h;
