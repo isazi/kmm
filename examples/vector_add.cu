@@ -33,9 +33,9 @@ int main(void) {
     B_d = manager.allocate(n, reinterpret_cast<void*>(B_h));
     C_d = manager.allocate(n);
     vector_add<<<threads_per_block, n_blocks, 0, manager.getStream()>>>(
-        manager.getPointer(A_d),
-        manager.getPointer(B_d),
-        manager.getPointer(C_d),
+        reinterpret_cast<float*>(manager.getPointer(A_d)),
+        reinterpret_cast<float*>(manager.getPointer(B_d)),
+        reinterpret_cast<float*>(manager.getPointer(C_d)),
         SIZE);
     manager.release(A_d);
     manager.release(B_d);
