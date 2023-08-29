@@ -46,5 +46,6 @@ int main(void) {
             return -1;
         }
     }
+    std::cout << "SUCCESS" << std::endl;
     return 0;
 }
