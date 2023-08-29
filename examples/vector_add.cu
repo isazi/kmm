@@ -47,5 +47,8 @@ int main(void) {
         }
     }
     std::cout << "SUCCESS" << std::endl;
+    free(A_h);
+    free(B_h);
+    free(C_h);
     return 0;
 }
