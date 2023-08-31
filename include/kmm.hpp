@@ -5,31 +5,70 @@
 
 namespace kmm {
 
-class MemoryManager {
+enum DataType { UInteger, Integer, FP_Single, FP_Double };
+
+enum DeviceType { CPU, CUDA };
+
+class Manager {
   public:
-    MemoryManager();
-    ~MemoryManager();
-    // Allocate buffer of size bytes on the GPU
-    unsigned int allocate(std::size_t size);
-    // Allocate buffer of size bytes on the GPU, and copy the content of host_buffer to it
-    unsigned int allocate(std::size_t size, void* host_buffer);
+    Manager();
+    ~Manager();
+    // Allocate buffer of size bytes on a device
+    unsigned int create(DeviceType device, std::size_t size, unsigned int device_id = 0);
     // Copy the content of host_buffer to the GPU
-    void copy_to(unsigned int device_buffer, std::size_t size, void* host_buffer);
+    void copy_to(
+        DeviceType device,
+        unsigned int device_buffer,
+        std::size_t size,
+        void* host_buffer,
+        unsigned int device_id = 0);
     // Copy the content of GPU memory to host buffer
-    void copy_from(unsigned int device_buffer, std::size_t size, void* host_buffer);
+    void copy_from(
+        DeviceType device,
+        unsigned int device_buffer,
+        std::size_t size,
+        void* host_buffer,
+        unsigned int device_id = 0);
     // Free the memory on the GPU
     void release(unsigned int device_buffer);
     // Copy the content of GPU memory to the host and then free it
     void release(unsigned int device_buffer, std::size_t size, void* host_buffer);
-    // Return a pointer to the used CUDA stream
-    cudaStream_t getStream();
-    // Return a pointer to a particular allocation
-    void* getPointer(unsigned int device_buffer);
 
   private:
     unsigned int next_allocation;
-    cudaStream_t stream;
-    std::map<unsigned int, void*> allocations;
+    std::map<unsigned int, Stream> streams;
+    std::map<unsigned int, Buffer> allocations;
+};
+
+class Buffer {
+  public:
+    Buffer(DeviceType device);
+    ~Buffer();
+    // Return true if the buffer is allocated
+    bool is_allocated() const;
+    // Allocate memory buffer
+    unsigned int allocate(std::size_t size, Stream& stream = NULL);
+    // Destroy the allocate buffer
+    void destroy(Stream& stream = NULL);
+    // Return a pointer to the allocated buffer
+    void* getPointer();
+
+  private:
+    void* buffer;
+    DataType buffer_type;
+    DeviceType device;
+};
+
+class Stream {
+  public:
+    Stream(DeviceType device);
+    ~Stream();
+    // Return a CUDA stream
+    cudaStream_t cudaGetStream();
+
+  private:
+    DeviceType device;
+    cudaStream_t cuda_stream;
 };
 
 }  // namespace kmm

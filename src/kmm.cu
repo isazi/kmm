@@ -4,80 +4,93 @@
 #include "kmm.hpp"
 
 namespace kmm {
+
 inline void cudaErrorCheck(cudaError_t err, std::string message) {
     if (err != cudaSuccess) {
         throw std::runtime_error(message);
     }
 }
 
-MemoryManager::MemoryManager() {
+Manager::Manager() {
     this->next_allocation = 0;
-    this->allocations = std::map<unsigned int, void*>();
-    this->stream = nullptr;
+    this->allocations = std::map<unsigned int, Buffer>();
+    this->streams = std::map<unsigned int, Stream>();
 }
 
-MemoryManager::~MemoryManager() {
-    for (auto const& [allocation_id, device_buffer] : this->allocations) {
-        if (device_buffer != nullptr) {
-            this->release(allocation_id);
-        }
-    }
-    if (this->stream != nullptr) {
-        cudaStreamDestroy(this->stream);
-    }
-}
+Manager::~Manager() {}
 
-unsigned int MemoryManager::allocate(std::size_t size) {
-    cudaError_t err = cudaSuccess;
+unsigned int Manager::create(DeviceType device, std::size_t size, unsigned int device_id) {
     unsigned int allocation_id;
-
-    if (!(this->stream)) {
-        err = cudaStreamCreate(&(this->stream));
-        cudaErrorCheck(err, "Impossible to create stream.");
-    }
 
     allocation_id = this->next_allocation++;
-    this->allocations[allocation_id] = nullptr;
-    err = cudaMallocAsync(&(this->allocations[allocation_id]), size, this->stream);
-    cudaErrorCheck(err, "Impossible to allocate memory.");
+    this->allocations[allocation_id] = Buffer(device);
+    switch (device) {
+        case CPU:
+            this->allocations[allocation_id].allocate(size);
+            break;
+
+        case CUDA:
+            if (this->streams.find(device_id) == this->streams.end()) {
+                this->streams[device_id] = Stream(device);
+            }
+            this->allocations[allocation_id].allocate(size, this->streams[device_id]);
+
+        default:
+            break;
+    }
 
     return allocation_id;
 }
 
-unsigned int MemoryManager::allocate(std::size_t size, void* host_buffer) {
-    unsigned int allocation_id;
-
-    allocation_id = this->allocate(size);
-    this->copy_to(allocation_id, size, host_buffer);
-
-    return allocation_id;
-}
-
-void MemoryManager::copy_to(unsigned int device_buffer, std::size_t size, void* host_buffer) {
+void Manager::copy_to(
+    DeviceType device,
+    unsigned int device_buffer,
+    std::size_t size,
+    void* host_buffer,
+    unsigned int device_id) {
     cudaError_t err = cudaSuccess;
 
-    err = cudaMemcpyAsync(
-        this->allocations[device_buffer],
-        host_buffer,
-        size,
-        cudaMemcpyHostToDevice,
-        this->stream);
-    cudaErrorCheck(err, "Impossible to copy memory to device.");
+    switch (device) {
+        case CUDA:
+            err = cudaMemcpyAsync(
+                this->allocations[device_buffer].getPointer(),
+                host_buffer,
+                size,
+                cudaMemcpyHostToDevice,
+                this->streams[device_id]);
+            cudaErrorCheck(err, "Impossible to copy memory to device.");
+            break;
+
+        default:
+            break;
+    }
 }
 
-void MemoryManager::copy_from(unsigned int device_buffer, std::size_t size, void* host_buffer) {
+void Manager::copy_from(
+    DeviceType device,
+    unsigned int device_buffer,
+    std::size_t size,
+    void* host_buffer,
+    unsigned int device_id = 0) {
     cudaError_t err = cudaSuccess;
 
-    err = cudaMemcpyAsync(
-        host_buffer,
-        this->allocations[device_buffer],
-        size,
-        cudaMemcpyDeviceToHost,
-        this->stream);
-    cudaErrorCheck(err, "Impossible to copy memory to host.");
+    switch (device) {
+        case CUDA:
+            err = cudaMemcpyAsync(
+                host_buffer,
+                this->allocations[device_buffer].getPointer(),
+                size,
+                cudaMemcpyDeviceToHost,
+                this->streams[device_id]);
+            cudaErrorCheck(err, "Impossible to copy memory to host.");
+            break;
+
+        default:
+            break;
+    }
 }
 
-void MemoryManager::release(unsigned int device_buffer) {
+void Manager::release(unsigned int device_buffer) {
     cudaError_t err = cudaSuccess;
 
     err = cudaFreeAsync(this->allocations[device_buffer], this->stream);
@@ -85,17 +98,86 @@ void MemoryManager::release(unsigned int device_buffer) {
     this->allocations[device_buffer] = nullptr;
 }
 
-void MemoryManager::release(unsigned int device_buffer, std::size_t size, void* host_buffer) {
+void Manager::release(unsigned int device_buffer, std::size_t size, void* host_buffer) {
     this->copy_from(device_buffer, size, host_buffer);
     this->release(device_buffer);
 }
 
-cudaStream_t MemoryManager::getStream() {
-    return this->stream;
+Buffer::Buffer(DeviceType device) {
+    this->device = device;
+    this->buffer = nullptr;
 }
 
-void* MemoryManager::getPointer(unsigned int device_buffer) {
-    return this->allocations[device_buffer];
+Buffer::~Buffer() {}
+
+bool Buffer::is_allocated() const {
+    return this->buffer != nullptr;
+}
+
+unsigned int Buffer::allocate(std::size_t size, Stream& stream) {
+    switch (this->device) {
+        case CPU:
+            this->buffer = malloc(size);
+            break;
+
+        case CUDA:
+            cudaError_t err = cudaMallocAsync(&(this->buffer), size, stream.cudaGetStream());
+            cudaErrorCheck(err, "Impossible to allocate CUDA memory.");
+
+        default:
+            break;
+    }
+}
+
+void Buffer::destroy(Stream& stream) {
+    switch (this->device) {
+        case CPU:
+            free(this->buffer);
+            break;
+
+        case CUDA:
+            auto err = cudaFreeAsync(this->buffer, this->stream);
+            cudaErrorCheck(err, "Impossible to release memory.");
+            break;
+
+        default:
+            break;
+    }
+}
+
+void* Buffer::getPointer() {
+    return this->buffer;
+}
+
+Stream::Stream(DeviceType device) {
+    this->device = device;
+    this->cuda_stream = nullptr;
+
+    switch (this->device) {
+        case CUDA:
+            auto err = cudaStreamCreate(&(this->cuda_stream));
+            cudaErrorCheck(err, "Impossible to create CUDA stream.");
+            break;
+
+        default:
+            break;
+    }
+}
+
+Stream::~Stream() {
+    switch (this->device) {
+        case CUDA:
+            auto err = cudaStreamDestroy(this->cuda_stream);
+            cudaErrorCheck(err, "Impossible to destroy CUDA stream.");
+            break;
+
+        default:
+            break;
+    }
+}
+
+cudaStream_t Stream::cudaGetStream() {
+    return this->cuda_stream;
 }
 
 }  // namespace kmm
