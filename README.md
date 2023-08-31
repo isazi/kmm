@@ -54,6 +54,8 @@ A multi-threaded app may want to create multiple memory managers so that each th
 Could have we used something else, instead of writing yet another memory manager?
 This needs some work, but the general idea is that we want something light, not a huge dependency, and want to be able to write code in the language we prefer (current targets CUDA and HIP) and not have another intermediate step in between.
 
+[Read more...](RELATED_WORK.md)
+
 # API
 
 # Implementation Details
