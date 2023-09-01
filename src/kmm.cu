@@ -190,7 +190,7 @@ void Buffer::destroy() {
 void Buffer::destroy(Stream& stream) {
     switch (this->device) {
         case CUDA:
-            auto err = cudaFreeAsync(this->buffer, this->stream);
+            auto err = cudaFreeAsync(this->buffer, stream.cudaGetStream());
             cudaErrorCheck(err, "Impossible to release memory.");
             break;
 
