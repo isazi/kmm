@@ -15,23 +15,25 @@ __global__ void vector_add(float* A, float* B, float* C, unsigned int size) {
 int main(void) {
     unsigned int threads_per_block = 1024;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
+    unsigned int A_h, B_h, C_h;
     unsigned int A_d, B_d, C_d;
-    float* A_h;
-    float* B_h;
-    float* C_h;
     std::size_t n = SIZE * sizeof(float);
-    auto manager = kmm::MemoryManager();
+    auto manager = kmm::Manager();
 
-    A_h = reinterpret_cast<float*>(malloc(n));
-    B_h = reinterpret_cast<float*>(malloc(n));
-    C_h = reinterpret_cast<float*>(malloc(n));
+    A_h = manager.create(kmm::DeviceType::CPU, n);
+    B_h = manager.create(kmm::DeviceType::CPU, n);
+    C_h = manager.create(kmm::DeviceType::CPU, n);
+    // TODO: reimplement initialization
     for (unsigned int item = 0; item < SIZE; item++) {
         A_h[item] = 1.0;
         B_h[item] = 2.0;
     }
-    A_d = manager.allocate(n, reinterpret_cast<void*>(A_h));
-    B_d = manager.allocate(n, reinterpret_cast<void*>(B_h));
-    C_d = manager.allocate(n);
+    A_d = manager.create(kmm::DeviceType::CUDA, n, 0);
+    B_d = manager.create(kmm::DeviceType::CUDA, n, 0);
+    C_d = manager.create(kmm::DeviceType::CUDA, n, 0);
+    manager.copy_to(kmm::DeviceType::CUDA, A_d, n, A_h, 0);
+    manager.copy_to(kmm::DeviceType::CUDA, B_d, n, B_h, 0);
+    // TODO: reimplement execution
     vector_add<<<threads_per_block, n_blocks, 0, manager.getStream()>>>(
         reinterpret_cast<float*>(manager.getPointer(A_d)),
         reinterpret_cast<float*>(manager.getPointer(B_d)),
@@ -47,8 +49,8 @@ int main(void) {
         }
     }
     std::cout << "SUCCESS" << std::endl;
-    free(A_h);
-    free(B_h);
-    free(C_h);
+    manager.release(A_h);
+    manager.release(B_h);
+    manager.release(C_h);
     return 0;
 }
