@@ -146,14 +146,17 @@ bool Buffer::is_allocated() const {
 }
 
 void Buffer::allocate(std::size_t size) {
+    cudaError_t err = cudaSuccess;
+
     switch (this->device) {
         case CPU:
             this->buffer = malloc(size);
             break;
 
         case CUDA:
-            cudaError_t err = cudaMalloc(&(this->buffer), size);
+            err = cudaMalloc(&(this->buffer), size);
             cudaErrorCheck(err, "Impossible to allocate CUDA memory.");
+            break;
 
         default:
             break;
@@ -161,10 +164,13 @@ void Buffer::allocate(std::size_t size) {
 }
 
 void Buffer::allocate(std::size_t size, Stream& stream) {
+    cudaError_t err = cudaSuccess;
+
     switch (this->device) {
         case CUDA:
-            cudaError_t err = cudaMallocAsync(&(this->buffer), size, stream.cudaGetStream());
+            err = cudaMallocAsync(&(this->buffer), size, stream.cudaGetStream());
             cudaErrorCheck(err, "Impossible to allocate CUDA memory.");
+            break;
 
         default:
             break;
@@ -172,13 +178,15 @@ void Buffer::allocate(std::size_t size, Stream& stream) {
 }
 
 void Buffer::destroy() {
+    cudaError_t err = cudaSuccess;
+
     switch (this->device) {
         case CPU:
             free(this->buffer);
             break;
 
         case CUDA:
-            auto err = cudaFree(this->buffer);
+            err = cudaFree(this->buffer);
             cudaErrorCheck(err, "Impossible to release memory.");
             break;
 
@@ -188,9 +196,11 @@ void Buffer::destroy() {
 }
 
 void Buffer::destroy(Stream& stream) {
+    cudaError_t err = cudaSuccess;
+
     switch (this->device) {
         case CUDA:
-            auto err = cudaFreeAsync(this->buffer, stream.cudaGetStream());
+            err = cudaFreeAsync(this->buffer, stream.cudaGetStream());
             cudaErrorCheck(err, "Impossible to release memory.");
             break;
 
@@ -219,10 +229,11 @@ Stream::Stream() {
 Stream::Stream(DeviceType device) {
     this->device = device;
     this->cuda_stream = nullptr;
+    cudaError_t err = cudaSuccess;
 
     switch (this->device) {
         case CUDA:
-            auto err = cudaStreamCreate(&(this->cuda_stream));
+            err = cudaStreamCreate(&(this->cuda_stream));
             cudaErrorCheck(err, "Impossible to create CUDA stream.");
             break;
 
@@ -232,9 +243,11 @@ Stream::Stream(DeviceType device) {
 }
 
 Stream::~Stream() {
+    cudaError_t err = cudaSuccess;
+
     switch (this->device) {
         case CUDA:
-            auto err = cudaStreamDestroy(this->cuda_stream);
+            err = cudaStreamDestroy(this->cuda_stream);
             cudaErrorCheck(err, "Impossible to destroy CUDA stream.");
             break;
 
