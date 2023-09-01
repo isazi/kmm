@@ -65,14 +65,14 @@ class Manager {
         DeviceType device,
         unsigned int device_buffer,
         std::size_t size,
-        void* host_buffer,
+        unsigned int host_buffer,
         unsigned int device_id);
     // Copy the content of GPU memory to host buffer
     void copy_from(
         DeviceType device,
         unsigned int device_buffer,
         std::size_t size,
-        void* host_buffer,
+        unsigned int host_buffer,
         unsigned int device_id);
     // Free the allocation
     void release(unsigned int device_buffer);

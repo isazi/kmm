@@ -59,7 +59,7 @@ void Manager::copy_to(
     DeviceType device,
     unsigned int device_buffer,
     std::size_t size,
-    void* host_buffer,
+    unsigned int host_buffer,
     unsigned int device_id) {
     cudaError_t err = cudaSuccess;
 
@@ -67,7 +67,7 @@ void Manager::copy_to(
         case CUDA:
             err = cudaMemcpyAsync(
                 this->allocations[device_buffer].getPointer(),
-                host_buffer,
+                this->allocations[host_buffer].getPointer(),
                 size,
                 cudaMemcpyHostToDevice,
                 this->streams[device_id].cudaGetStream());
@@ -83,14 +83,14 @@ void Manager::copy_from(
     DeviceType device,
     unsigned int device_buffer,
     std::size_t size,
-    void* host_buffer,
+    unsigned int host_buffer,
     unsigned int device_id) {
     cudaError_t err = cudaSuccess;
 
     switch (device) {
         case CUDA:
             err = cudaMemcpyAsync(
-                host_buffer,
+                this->allocations[host_buffer].getPointer(),
                 this->allocations[device_buffer].getPointer(),
                 size,
                 cudaMemcpyDeviceToHost,
