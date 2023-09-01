@@ -83,7 +83,7 @@ class Manager {
         DeviceType device,
         unsigned int device_buffer,
         std::size_t size,
-        void* host_buffer,
+        unsigned int host_buffer,
         unsigned int device_id);
 
   private:

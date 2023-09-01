@@ -115,7 +115,7 @@ void Manager::release(
     DeviceType device,
     unsigned int device_buffer,
     std::size_t size,
-    void* host_buffer,
+    unsigned int host_buffer,
     unsigned int device_id) {
     this->copy_from(device, device_buffer, size, host_buffer, device_id);
     this->release(device_buffer, device_id);
