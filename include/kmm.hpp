@@ -74,10 +74,17 @@ class Manager {
         std::size_t size,
         void* host_buffer,
         unsigned int device_id);
-    // Free the memory on the GPU
+    // Free the allocation
     void release(unsigned int device_buffer);
+    // Free the allocation
+    void release(unsigned int device_buffer, unsigned int device_id);
     // Copy the content of GPU memory to the host and then free it
-    void release(unsigned int device_buffer, std::size_t size, void* host_buffer);
+    void release(
+        DeviceType device,
+        unsigned int device_buffer,
+        std::size_t size,
+        void* host_buffer,
+        unsigned int device_id);
 
   private:
     unsigned int next_allocation;

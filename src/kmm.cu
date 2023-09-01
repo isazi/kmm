@@ -70,7 +70,7 @@ void Manager::copy_to(
                 host_buffer,
                 size,
                 cudaMemcpyHostToDevice,
-                this->streams[device_id]);
+                this->streams[device_id].cudaGetStream());
             cudaErrorCheck(err, "Impossible to copy memory to device.");
             break;
 
@@ -94,7 +94,7 @@ void Manager::copy_from(
                 this->allocations[device_buffer].getPointer(),
                 size,
                 cudaMemcpyDeviceToHost,
-                this->streams[device_id]);
+                this->streams[device_id].cudaGetStream());
             cudaErrorCheck(err, "Impossible to copy memory to host.");
             break;
 
@@ -104,16 +104,21 @@ void Manager::copy_from(
 }
 
 void Manager::release(unsigned int device_buffer) {
-    cudaError_t err = cudaSuccess;
-
-    err = cudaFreeAsync(this->allocations[device_buffer], this->stream);
-    cudaErrorCheck(err, "Impossible to release memory.");
-    this->allocations[device_buffer] = nullptr;
+    this->allocations[device_buffer].destroy();
 }
 
-void Manager::release(unsigned int device_buffer, std::size_t size, void* host_buffer) {
-    this->copy_from(device_buffer, size, host_buffer);
-    this->release(device_buffer);
+void Manager::release(unsigned int device_buffer, unsigned int device_id) {
+    this->allocations[device_buffer].destroy(this->streams[device_id]);
+}
+
+void Manager::release(
+    DeviceType device,
+    unsigned int device_buffer,
+    std::size_t size,
+    void* host_buffer,
+    unsigned int device_id) {
+    this->copy_from(device, device_buffer, size, host_buffer, device_id);
+    this->release(device_buffer, device_id);
 }
 
 Buffer::Buffer() {
