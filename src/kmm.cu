@@ -19,7 +19,7 @@ Manager::Manager() {
 
 Manager::~Manager() {}
 
-unsigned int Manager::create(DeviceType device, std::size_t size, unsigned int device_id) {
+unsigned int Manager::create(DeviceType device, std::size_t size) {
     unsigned int allocation_id;
 
     allocation_id = this->next_allocation++;
@@ -29,6 +29,19 @@ unsigned int Manager::create(DeviceType device, std::size_t size, unsigned int d
             this->allocations[allocation_id].allocate(size);
             break;
 
+        default:
+            break;
+    }
+
+    return allocation_id;
+}
+
+unsigned int Manager::create(DeviceType device, std::size_t size, unsigned int device_id) {
+    unsigned int allocation_id;
+
+    allocation_id = this->next_allocation++;
+    this->allocations[allocation_id] = Buffer(device);
+    switch (device) {
         case CUDA:
             if (this->streams.find(device_id) == this->streams.end()) {
                 this->streams[device_id] = Stream(device);
@@ -103,6 +116,18 @@ void Manager::release(unsigned int device_buffer, std::size_t size, void* host_b
     this->release(device_buffer);
 }
 
+Buffer::Buffer() {
+    this->device = Undefined;
+    this->device_id = 0;
+    this->buffer = nullptr;
+}
+
+Buffer::Buffer(DeviceType device) {
+    this->device = device;
+    this->device_id = 0;
+    this->buffer = nullptr;
+}
+
 Buffer::Buffer(DeviceType device, unsigned int device_id) {
     this->device = device;
     this->device_id = device_id;
@@ -115,12 +140,23 @@ bool Buffer::is_allocated() const {
     return this->buffer != nullptr;
 }
 
-unsigned int Buffer::allocate(std::size_t size, Stream& stream) {
+void Buffer::allocate(std::size_t size) {
     switch (this->device) {
         case CPU:
             this->buffer = malloc(size);
             break;
 
+        case CUDA:
+            cudaError_t err = cudaMalloc(&(this->buffer), size);
+            cudaErrorCheck(err, "Impossible to allocate CUDA memory.");
+
+        default:
+            break;
+    }
+}
+
+void Buffer::allocate(std::size_t size, Stream& stream) {
+    switch (this->device) {
         case CUDA:
             cudaError_t err = cudaMallocAsync(&(this->buffer), size, stream.cudaGetStream());
             cudaErrorCheck(err, "Impossible to allocate CUDA memory.");
@@ -130,12 +166,24 @@ unsigned int Buffer::allocate(std::size_t size, Stream& stream) {
     }
 }
 
-void Buffer::destroy(Stream& stream) {
+void Buffer::destroy() {
     switch (this->device) {
         case CPU:
             free(this->buffer);
             break;
 
+        case CUDA:
+            auto err = cudaFree(this->buffer);
+            cudaErrorCheck(err, "Impossible to release memory.");
+            break;
+
+        default:
+            break;
+    }
+}
+
+void Buffer::destroy(Stream& stream) {
+    switch (this->device) {
         case CUDA:
             auto err = cudaFreeAsync(this->buffer, this->stream);
             cudaErrorCheck(err, "Impossible to release memory.");
@@ -156,6 +204,11 @@ DeviceType Buffer::getDeviceType() {
 
 unsigned int Buffer::getDeviceId() {
     return this->device_id;
+}
+
+Stream::Stream() {
+    this->device = Undefined;
+    this->cuda_stream = nullptr;
 }
 
 Stream::Stream(DeviceType device) {

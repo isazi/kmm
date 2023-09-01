@@ -7,10 +7,11 @@ namespace kmm {
 
 enum DataType { UInteger, Integer, FP_Single, FP_Double };
 
-enum DeviceType { CPU, CUDA };
+enum DeviceType { Undefined, CPU, CUDA };
 
 class Stream {
   public:
+    Stream();
     Stream(DeviceType device);
     ~Stream();
     // Return a CUDA stream
@@ -23,14 +24,20 @@ class Stream {
 
 class Buffer {
   public:
-    Buffer(DeviceType device, unsigned int device_id = 0);
+    Buffer();
+    Buffer(DeviceType device);
+    Buffer(DeviceType device, unsigned int device_id);
     ~Buffer();
     // Return true if the buffer is allocated
     bool is_allocated() const;
     // Allocate memory buffer
-    unsigned int allocate(std::size_t size, Stream& stream = NULL);
+    void allocate(std::size_t size);
+    // Allocate memory buffer using a Stream
+    void allocate(std::size_t size, Stream& stream);
     // Destroy the allocate buffer
-    void destroy(Stream& stream = NULL);
+    void destroy();
+    // Destroy the allocate buffer
+    void destroy(Stream& stream);
     // Return a pointer to the allocated buffer
     void* getPointer();
     // Return the device type
@@ -50,21 +57,23 @@ class Manager {
     Manager();
     ~Manager();
     // Allocate buffer of size bytes on a device
-    unsigned int create(DeviceType device, std::size_t size, unsigned int device_id = 0);
+    unsigned int create(DeviceType device, std::size_t size);
+    // Allocate buffer of size bytes on a device
+    unsigned int create(DeviceType device, std::size_t size, unsigned int device_id);
     // Copy the content of host_buffer to the GPU
     void copy_to(
         DeviceType device,
         unsigned int device_buffer,
         std::size_t size,
         void* host_buffer,
-        unsigned int device_id = 0);
+        unsigned int device_id);
     // Copy the content of GPU memory to host buffer
     void copy_from(
         DeviceType device,
         unsigned int device_buffer,
         std::size_t size,
         void* host_buffer,
-        unsigned int device_id = 0);
+        unsigned int device_id);
     // Free the memory on the GPU
     void release(unsigned int device_buffer);
     // Copy the content of GPU memory to the host and then free it
