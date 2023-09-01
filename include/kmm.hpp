@@ -85,11 +85,30 @@ class Manager {
         std::size_t size,
         unsigned int host_buffer,
         unsigned int device_id);
+    // Execute a function on a device
+    template<typename... Args>
+    void run(void* function, DeviceType device, unsigned int device_id, Args... args);
 
   private:
     unsigned int next_allocation;
     std::map<unsigned int, Stream> streams;
     std::map<unsigned int, Buffer> allocations;
 };
+
+template<typename... Args>
+void Manager::run(void* function, DeviceType device, unsigned int device_id, Args... args) {
+    switch (device) {
+        case CPU:
+            (*function)(args);
+            break;
+
+        case CUDA:
+            //TODO: currently not implementing CUDA kernel call, expecting a C++ function that does that
+            (*function)(device_id, args);
+
+        default:
+            break;
+    }
+}
 
 }  // namespace kmm

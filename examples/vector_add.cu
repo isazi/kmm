@@ -12,6 +12,13 @@ __global__ void vector_add(float* A, float* B, float* C, unsigned int size) {
     }
 }
 
+void initialize(void* A, void* B, unsigned int size) {
+    for (unsigned int item = 0; item < size; item++) {
+        reinterpret_cast<float*>(A)[item] = 1.0;
+        reinterpret_cast<float*>(B)[item] = 2.0;
+    }
+}
+
 int main(void) {
     unsigned int threads_per_block = 1024;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
@@ -23,11 +30,7 @@ int main(void) {
     A_h = manager.create(kmm::DeviceType::CPU, n);
     B_h = manager.create(kmm::DeviceType::CPU, n);
     C_h = manager.create(kmm::DeviceType::CPU, n);
-    // TODO: reimplement initialization
-    for (unsigned int item = 0; item < SIZE; item++) {
-        A_h[item] = 1.0;
-        B_h[item] = 2.0;
-    }
+    manager.run(&initialize, kmm::DeviceType::CPU, 0, A_h, B_h, SIZE);
     A_d = manager.create(kmm::DeviceType::CUDA, n, 0);
     B_d = manager.create(kmm::DeviceType::CUDA, n, 0);
     C_d = manager.create(kmm::DeviceType::CUDA, n, 0);
