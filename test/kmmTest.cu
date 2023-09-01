@@ -2,21 +2,11 @@
 
 #include "kmm.hpp"
 
-TEST(MemoryManager, StreamInitialized) {
-    auto manager = kmm::MemoryManager();
-    EXPECT_EQ(manager.getStream(), nullptr);
+TEST(Stream, NullInitialized) {
+    auto stream = kmm::Stream(kmm::DeviceType::CPU) EXPECT_EQ(stream.cudaGetStream(), nullptr);
 }
 
-TEST(MemoryManager, StreamAllocated) {
-    auto manager = kmm::MemoryManager();
-    manager.allocate(32);
-    EXPECT_NE(manager.getStream(), nullptr);
-}
-
-TEST(MemoryManager, AllocateRelease) {
-    auto manager = kmm::MemoryManager();
-    auto id = manager.allocate(1024);
-    EXPECT_NE(manager.getPointer(id), nullptr);
-    manager.release(id);
-    EXPECT_EQ(manager.getPointer(id), nullptr);
+TEST(Stream, StreamInitialized) {
+    auto stream = kmm::Stream(kmm::DeviceType::CUDA);
+    EXPECT_NE(stream.cudaGetStream(), nullptr);
 }

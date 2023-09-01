@@ -103,8 +103,9 @@ void Manager::release(unsigned int device_buffer, std::size_t size, void* host_b
     this->release(device_buffer);
 }
 
-Buffer::Buffer(DeviceType device) {
+Buffer::Buffer(DeviceType device, unsigned int device_id) {
     this->device = device;
+    this->device_id = device_id;
     this->buffer = nullptr;
 }
 
@@ -147,6 +148,14 @@ void Buffer::destroy(Stream& stream) {
 
 void* Buffer::getPointer() {
     return this->buffer;
+}
+
+DeviceType Buffer::getDeviceType() {
+    return this->device;
+}
+
+unsigned int Buffer::getDeviceId() {
+    return this->device_id;
 }
 
 Stream::Stream(DeviceType device) {

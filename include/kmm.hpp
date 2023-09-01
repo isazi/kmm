@@ -42,7 +42,7 @@ class Manager {
 
 class Buffer {
   public:
-    Buffer(DeviceType device);
+    Buffer(DeviceType device, unsigned int device_id = 0);
     ~Buffer();
     // Return true if the buffer is allocated
     bool is_allocated() const;
@@ -52,8 +52,13 @@ class Buffer {
     void destroy(Stream& stream = NULL);
     // Return a pointer to the allocated buffer
     void* getPointer();
+    // Return the device type
+    DeviceType getDeviceType();
+    // Return the device id
+    unsigned int getDeviceId();
 
   private:
+    unsigned int device_id;
     void* buffer;
     DataType buffer_type;
     DeviceType device;
