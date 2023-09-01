@@ -3,7 +3,8 @@
 #include "kmm.hpp"
 
 TEST(Stream, NullInitialized) {
-    auto stream = kmm::Stream(kmm::DeviceType::CPU) EXPECT_EQ(stream.cudaGetStream(), nullptr);
+    auto stream = kmm::Stream(kmm::DeviceType::CPU);
+    EXPECT_EQ(stream.cudaGetStream(), nullptr);
 }
 
 TEST(Stream, StreamInitialized) {
