@@ -40,6 +40,9 @@ class Buffer {
     void destroy(Stream& stream);
     // Return a pointer to the allocated buffer
     void* getPointer();
+    // Return a typed pointer
+    template<typename T>
+    T* getTypedPointer();
     // Return the device type
     DeviceType getDeviceType();
     // Return the device id
@@ -94,6 +97,26 @@ class Manager {
     std::map<unsigned int, Stream> streams;
     std::map<unsigned int, Buffer> allocations;
 };
+
+template<typename T>
+T* Buffer::getTypedPointer() {
+    switch (this->buffer_type) {
+        case UInteger:
+            return reinterpret_cast<unsigned int*>(this->buffer);
+
+        case Integer:
+            return reinterpret_cast<int*>(this->buffer);
+
+        case FP_Single:
+            return reinterpret_cast<float*>(this->buffer);
+
+        case FP_Double:
+            return reinterpret_cast<double*>(this->buffer);
+
+        default:
+            return this->buffer;
+    }
+}
 
 template<typename... Args>
 void Manager::run(void* function, DeviceType device, unsigned int device_id, Args... args) {
