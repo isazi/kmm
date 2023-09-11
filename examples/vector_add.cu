@@ -31,9 +31,9 @@ int main(void) {
     B_h = manager.create(kmm::DeviceType::CPU, n);
     C_h = manager.create(kmm::DeviceType::CPU, n);
     manager.run(&initialize, kmm::DeviceType::CPU, 0, A_h, B_h, SIZE);
-    A_d = manager.create(kmm::DeviceType::CUDA, n, 0);
-    B_d = manager.create(kmm::DeviceType::CUDA, n, 0);
-    C_d = manager.create(kmm::DeviceType::CUDA, n, 0);
+    A_d = manager.create(kmm::DeviceType::CUDA, 0, n);
+    B_d = manager.create(kmm::DeviceType::CUDA, 0, n);
+    C_d = manager.create(kmm::DeviceType::CUDA, 0, n);
     manager.copy_to(kmm::DeviceType::CUDA, A_d, n, A_h, 0);
     manager.copy_to(kmm::DeviceType::CUDA, B_d, n, B_h, 0);
     // TODO: reimplement execution
