@@ -11,6 +11,10 @@ inline void cudaErrorCheck(cudaError_t err, std::string message) {
     }
 }
 
+bool Manager::stream_exist(unsigned int stream) {
+    return this->streams.find(stream) != this->streams.end();
+}
+
 Manager::Manager() {
     this->next_allocation = 0;
     this->allocations = std::map<unsigned int, Buffer>();
@@ -36,17 +40,18 @@ unsigned int Manager::create(DeviceType device, std::size_t size) {
     return allocation_id;
 }
 
-unsigned int Manager::create(DeviceType device, std::size_t size, unsigned int device_id) {
+unsigned int Manager::create(DeviceType device, unsigned int device_id, std::size_t size) {
     unsigned int allocation_id;
 
     allocation_id = this->next_allocation++;
     this->allocations[allocation_id] = Buffer(device);
     switch (device) {
         case CUDA:
-            if (this->streams.find(device_id) == this->streams.end()) {
+            if (!this->stream_exist(device_id)) {
                 this->streams[device_id] = Stream(device);
             }
             this->allocations[allocation_id].allocate(size, this->streams[device_id]);
+            break;
 
         default:
             break;
@@ -153,11 +158,6 @@ void Buffer::allocate(std::size_t size) {
             this->buffer = malloc(size);
             break;
 
-        case CUDA:
-            err = cudaMalloc(&(this->buffer), size);
-            cudaErrorCheck(err, "Impossible to allocate CUDA memory.");
-            break;
-
         default:
             break;
     }
@@ -185,14 +185,10 @@ void Buffer::destroy() {
             free(this->buffer);
             break;
 
-        case CUDA:
-            err = cudaFree(this->buffer);
-            cudaErrorCheck(err, "Impossible to release memory.");
-            break;
-
         default:
             break;
     }
+    this->buffer = nullptr;
 }
 
 void Buffer::destroy(Stream& stream) {
@@ -207,6 +203,7 @@ void Buffer::destroy(Stream& stream) {
         default:
             break;
     }
+    this->buffer = nullptr;
 }
 
 void* Buffer::getPointer() {

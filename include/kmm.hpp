@@ -62,7 +62,7 @@ class Manager {
     // Allocate buffer of size bytes on a device
     unsigned int create(DeviceType device, std::size_t size);
     // Allocate buffer of size bytes on a device
-    unsigned int create(DeviceType device, std::size_t size, unsigned int device_id);
+    unsigned int create(DeviceType device, unsigned int device_id, std::size_t size);
     // Copy the content of host_buffer to the GPU
     void copy_to(
         DeviceType device,
@@ -96,6 +96,7 @@ class Manager {
     unsigned int next_allocation;
     std::map<unsigned int, Stream> streams;
     std::map<unsigned int, Buffer> allocations;
+    bool stream_exist(unsigned int stream);
 };
 
 template<typename T>
