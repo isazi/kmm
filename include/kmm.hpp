@@ -5,9 +5,26 @@
 
 namespace kmm {
 
-enum DataType { UInteger, Integer, FP_Single, FP_Double };
+class DataType {};
 
-enum DeviceType { Undefined, CPU, CUDA };
+class UInteger: public DataType {};
+
+class Integer: public DataType {};
+
+class FP_Single: public DataType {};
+
+class FP_Double: public DataType {};
+
+class DeviceType {};
+
+class CPU: public DeviceType {};
+
+class CUDA: public DeviceType {
+  public:
+    CUDA();
+    CUDA(unsigned int device_id);
+    unsigned int device_id;
+};
 
 class Pointer {
   public:
@@ -19,86 +36,62 @@ class Pointer {
 class Stream {
   public:
     Stream();
-    Stream(DeviceType device);
+    Stream(CUDA& device);
     ~Stream();
     // Return a CUDA stream
-    template<typename T>
-    T getStream();
+    cudaStream_t getStream(CUDA& device);
 
   private:
-    DeviceType device;
     cudaStream_t cuda_stream;
 };
 
 class Buffer {
   public:
     Buffer();
-    Buffer(DeviceType device);
-    Buffer(DeviceType device, unsigned int device_id);
+    Buffer(DeviceType& device);
     ~Buffer();
     // Return true if the buffer is allocated
     bool is_allocated() const;
     // Allocate memory buffer
     void allocate(std::size_t size);
     // Allocate memory buffer using a Stream
-    void allocate(std::size_t size, Stream& stream);
+    void allocate(CUDA& device, std::size_t size, Stream& stream);
     // Destroy the allocate buffer
     void destroy();
     // Destroy the allocate buffer
-    void destroy(Stream& stream);
+    void destroy(CUDA& device, Stream& stream);
     // Return a pointer to the allocated buffer
     void* getPointer();
     // Return a typed pointer
-    template<typename T>
-    T* getTypedPointer();
-    // Return the device type
-    DeviceType getDeviceType();
-    // Return the device id
-    unsigned int getDeviceId();
+    unsigned int* getPointer(UInteger& type);
+    int* getPointer(Integer& type);
+    float* getPointer(FP_Single& type);
+    double* getPointer(FP_Double& type);
 
   private:
-    unsigned int device_id;
     void* buffer;
-    DataType buffer_type;
-    DeviceType device;
 };
 
 class Manager {
   public:
     Manager();
     ~Manager();
-    // Allocate buffer of size bytes on a device
-    Pointer create(DeviceType device, std::size_t size);
-    // Allocate buffer of size bytes on a device
-    Pointer create(DeviceType device, unsigned int device_id, std::size_t size);
-    // Copy the content of host_buffer to the GPU
-    void copy_to(
-        DeviceType device,
-        Pointer device_buffer,
-        std::size_t size,
-        Pointer host_buffer,
-        unsigned int device_id);
+    // Allocate buffer of size bytes on the host
+    Pointer create(CPU& device, std::size_t size);
+    // Allocate buffer of size bytes on a GPU
+    Pointer create(CUDA& device, std::size_t size);
+    // Copy data from the host to a GPU
+    void copy_to(CUDA& device, Pointer& device_buffer, std::size_t size, Pointer& host_buffer);
     // Copy the content of GPU memory to host buffer
-    void copy_from(
-        DeviceType device,
-        Pointer device_buffer,
-        std::size_t size,
-        Pointer host_buffer,
-        unsigned int device_id);
+    void copy_from(CUDA& device, Pointer& device_buffer, std::size_t size, Pointer& host_buffer);
     // Free the allocation
-    void release(Pointer device_buffer);
+    void release(Pointer& device_buffer);
     // Free the allocation
-    void release(Pointer device_buffer, unsigned int device_id);
+    void release(CUDA& device, Pointer& device_buffer);
     // Copy the content of GPU memory to the host and then free it
-    void release(
-        DeviceType device,
-        Pointer device_buffer,
-        std::size_t size,
-        Pointer host_buffer,
-        unsigned int device_id);
+    void release(CUDA& device, Pointer& device_buffer, std::size_t size, Pointer& host_buffer);
     // Execute a function on a device
-    template<typename... Args>
-    void run(void* function, DeviceType device, unsigned int device_id, Args... args);
+    // TODO
 
   private:
     unsigned int next_allocation;
@@ -106,52 +99,5 @@ class Manager {
     std::map<unsigned int, Buffer> allocations;
     bool stream_exist(unsigned int stream);
 };
-
-template<typename T>
-T Stream::getStream() {
-    switch (this->device) {
-        case CUDA:
-            return this->cuda_stream;
-
-        default:
-            return nullptr;
-    }
-}
-
-template<typename T>
-T* Buffer::getTypedPointer() {
-    switch (this->buffer_type) {
-        case UInteger:
-            return reinterpret_cast<unsigned int*>(this->buffer);
-
-        case Integer:
-            return reinterpret_cast<int*>(this->buffer);
-
-        case FP_Single:
-            return reinterpret_cast<float*>(this->buffer);
-
-        case FP_Double:
-            return reinterpret_cast<double*>(this->buffer);
-
-        default:
-            return this->buffer;
-    }
-}
-
-template<typename... Args>
-void Manager::run(void* function, DeviceType device, unsigned int device_id, Args... args) {
-    switch (device) {
-        case CPU:
-            (*function)(args);
-            break;
-
-        case CUDA:
-            //TODO: currently not implementing CUDA kernel call, expecting a C++ function that does that
-            (*function)(device_id, args);
-
-        default:
-            break;
-    }
-}
 
 }  // namespace kmm
