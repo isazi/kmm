@@ -9,13 +9,19 @@ enum DataType { UInteger, Integer, FP_Single, FP_Double };
 
 enum DeviceType { Undefined, CPU, CUDA };
 
+class Pointer {
+  public:
+    unsigned int id;
+};
+
 class Stream {
   public:
     Stream();
     Stream(DeviceType device);
     ~Stream();
     // Return a CUDA stream
-    cudaStream_t cudaGetStream();
+    template<typename T>
+    T getStream();
 
   private:
     DeviceType device;
@@ -66,27 +72,27 @@ class Manager {
     // Copy the content of host_buffer to the GPU
     void copy_to(
         DeviceType device,
-        unsigned int device_buffer,
+        Pointer device_buffer,
         std::size_t size,
-        unsigned int host_buffer,
+        Pointer host_buffer,
         unsigned int device_id);
     // Copy the content of GPU memory to host buffer
     void copy_from(
         DeviceType device,
-        unsigned int device_buffer,
+        Pointer device_buffer,
         std::size_t size,
-        unsigned int host_buffer,
+        Pointer host_buffer,
         unsigned int device_id);
     // Free the allocation
-    void release(unsigned int device_buffer);
+    void release(Pointer device_buffer);
     // Free the allocation
-    void release(unsigned int device_buffer, unsigned int device_id);
+    void release(Pointer device_buffer, unsigned int device_id);
     // Copy the content of GPU memory to the host and then free it
     void release(
         DeviceType device,
-        unsigned int device_buffer,
+        Pointer device_buffer,
         std::size_t size,
-        unsigned int host_buffer,
+        Pointer host_buffer,
         unsigned int device_id);
     // Execute a function on a device
     template<typename... Args>
@@ -98,6 +104,17 @@ class Manager {
     std::map<unsigned int, Buffer> allocations;
     bool stream_exist(unsigned int stream);
 };
+
+template<typename T>
+T Stream::getStream() {
+    switch (this->device) {
+        case CUDA:
+            return this->cuda_stream;
+
+        default:
+            return nullptr;
+    }
+}
 
 template<typename T>
 T* Buffer::getTypedPointer() {
