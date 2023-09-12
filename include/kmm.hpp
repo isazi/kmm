@@ -11,6 +11,8 @@ enum DeviceType { Undefined, CPU, CUDA };
 
 class Pointer {
   public:
+    Pointer();
+    Pointer(unsigned int id);
     unsigned int id;
 };
 
@@ -66,9 +68,9 @@ class Manager {
     Manager();
     ~Manager();
     // Allocate buffer of size bytes on a device
-    unsigned int create(DeviceType device, std::size_t size);
+    Pointer create(DeviceType device, std::size_t size);
     // Allocate buffer of size bytes on a device
-    unsigned int create(DeviceType device, unsigned int device_id, std::size_t size);
+    Pointer create(DeviceType device, unsigned int device_id, std::size_t size);
     // Copy the content of host_buffer to the GPU
     void copy_to(
         DeviceType device,

@@ -23,7 +23,7 @@ Manager::Manager() {
 
 Manager::~Manager() {}
 
-unsigned int Manager::create(DeviceType device, std::size_t size) {
+Pointer Manager::create(DeviceType device, std::size_t size) {
     unsigned int allocation_id;
 
     allocation_id = this->next_allocation++;
@@ -37,10 +37,10 @@ unsigned int Manager::create(DeviceType device, std::size_t size) {
             break;
     }
 
-    return allocation_id;
+    return Pointer(allocation_id);
 }
 
-unsigned int Manager::create(DeviceType device, unsigned int device_id, std::size_t size) {
+Pointer Manager::create(DeviceType device, unsigned int device_id, std::size_t size) {
     unsigned int allocation_id;
 
     allocation_id = this->next_allocation++;
@@ -57,7 +57,7 @@ unsigned int Manager::create(DeviceType device, unsigned int device_id, std::siz
             break;
     }
 
-    return allocation_id;
+    return Pointer(allocation_id);
 }
 
 void Manager::copy_to(
@@ -251,6 +251,12 @@ Stream::~Stream() {
         default:
             break;
     }
+}
+
+Pointer::Pointer() {}
+
+Pointer::Pointer(unsigned int id) {
+    this->id = id;
 }
 
 }  // namespace kmm
