@@ -36,6 +36,16 @@ Pointer Manager::create(CPU& device, std::size_t size) {
     return Pointer(allocation_id);
 }
 
+Pointer Manager::create(CPU& device, std::size_t size, DataType& type) {
+    unsigned int allocation_id;
+
+    allocation_id = this->next_allocation++;
+    this->allocations[allocation_id] = Buffer(device);
+    this->allocations[allocation_id].allocate(size);
+
+    return Pointer(allocation_id, type);
+}
+
 Pointer Manager::create(CUDA& device, std::size_t size) {
     unsigned int allocation_id;
 
@@ -47,6 +57,19 @@ Pointer Manager::create(CUDA& device, std::size_t size) {
     this->allocations[allocation_id].allocate(device, size, this->streams[device.device_id]);
 
     return Pointer(allocation_id);
+}
+
+Pointer Manager::create(CUDA& device, std::size_t size, DataType& type) {
+    unsigned int allocation_id;
+
+    allocation_id = this->next_allocation++;
+    this->allocations[allocation_id] = Buffer(device);
+    if (!this->stream_exist(device.device_id)) {
+        this->streams[device.device_id] = Stream(device);
+    }
+    this->allocations[allocation_id].allocate(device, size, this->streams[device.device_id]);
+
+    return Pointer(allocation_id, type);
 }
 
 void Manager::copy_to(
@@ -189,13 +212,18 @@ Pointer::Pointer(unsigned int id) {
     this->id = id;
 }
 
+Pointer::Pointer(unsigned int id, DataType& type) {
+    this->id = id;
+    this->type = type;
+}
+
 // CUDA
 
-CUDA::CUDA() {
+GPU::GPU() {
     this->device_id = 0;
 }
 
-CUDA::CUDA(unsigned int device_id) {
+GPU::GPU(unsigned int device_id) {
     this->device_id = device_id;
 }
 

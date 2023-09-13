@@ -5,7 +5,10 @@
 
 namespace kmm {
 
-class DataType {};
+class DataType {
+  public:
+    virtual ~DataType() = default;
+};
 
 class UInteger: public DataType {};
 
@@ -15,22 +18,29 @@ class FP_Single: public DataType {};
 
 class FP_Double: public DataType {};
 
-class DeviceType {};
+class DeviceType {
+  public:
+    virtual ~DeviceType() = default;
+};
 
 class CPU: public DeviceType {};
 
-class CUDA: public DeviceType {
+class GPU: public DeviceType {
   public:
-    CUDA();
-    CUDA(unsigned int device_id);
+    GPU();
+    GPU(unsigned int device_id);
     unsigned int device_id;
 };
+
+class CUDA: public GPU {};
 
 class Pointer {
   public:
     Pointer();
     Pointer(unsigned int id);
+    Pointer(unsigned int id, DataType& type);
     unsigned int id;
+    DataType type;
 };
 
 class Stream {
@@ -52,9 +62,9 @@ class Buffer {
     ~Buffer();
     // Return true if the buffer is allocated
     bool is_allocated() const;
-    // Allocate memory buffer
+    // Allocate memory buffer on the host
     void allocate(std::size_t size);
-    // Allocate memory buffer using a Stream
+    // Allocate memory buffer on a GPU
     void allocate(CUDA& device, std::size_t size, Stream& stream);
     // Destroy the allocate buffer
     void destroy();
@@ -78,8 +88,10 @@ class Manager {
     ~Manager();
     // Allocate buffer of size bytes on the host
     Pointer create(CPU& device, std::size_t size);
+    Pointer create(CPU& device, std::size_t size, DataType& type);
     // Allocate buffer of size bytes on a GPU
     Pointer create(CUDA& device, std::size_t size);
+    Pointer create(CUDA& device, std::size_t size, DataType& type);
     // Copy data from the host to a GPU
     void copy_to(CUDA& device, Pointer& device_buffer, std::size_t size, Pointer& host_buffer);
     // Copy the content of GPU memory to host buffer
