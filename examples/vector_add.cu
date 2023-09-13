@@ -34,23 +34,23 @@ void verify(float* C, unsigned int size) {
 int main(void) {
     unsigned int threads_per_block = 1024;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
-    kmm::Pointer A_h, B_h, C_h;
-    kmm::Pointer A_d, B_d, C_d;
     std::size_t n = SIZE * sizeof(float);
+    auto real_type = kmm::FP_Single();
+    
+    // Create memory manager
     auto manager = kmm::Manager();
-
     // Create devices
     auto cpu = kmm::CPU();
     auto gpu = kmm::CUDA();
     // Allocate memory on the host
-    A_h = manager.create(cpu, n);
-    B_h = manager.create(cpu, n);
-    C_h = manager.create(cpu, n);
+    auto A_h = manager.create(cpu, n, real_type);
+    auto B_h = manager.create(cpu, n, real_type);
+    auto C_h = manager.create(cpu, n, real_type);
     // TODO: run initialization
     // Allocate memory on the GPU
-    A_d = manager.create(gpu, n);
-    B_d = manager.create(gpu, n);
-    C_d = manager.create(gpu, n);
+    auto A_d = manager.create(gpu, n, real_type);
+    auto B_d = manager.create(gpu, n, real_type);
+    auto C_d = manager.create(gpu, n, real_type);
     // Copy data to the GPU
     manager.copy_to(gpu, A_d, n, A_h);
     manager.copy_to(gpu, B_d, n, B_h);
