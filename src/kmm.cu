@@ -217,7 +217,7 @@ Pointer::Pointer(unsigned int id, DataType& type) {
     this->type = type;
 }
 
-// CUDA
+// GPU
 
 GPU::GPU() {
     this->device_id = 0;

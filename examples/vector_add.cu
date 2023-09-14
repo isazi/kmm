@@ -36,7 +36,7 @@ int main(void) {
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
     std::size_t n = SIZE * sizeof(float);
     auto real_type = kmm::FP_Single();
-    
+
     // Create memory manager
     auto manager = kmm::Manager();
     // Create devices
