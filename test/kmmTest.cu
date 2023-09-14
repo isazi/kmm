@@ -9,12 +9,12 @@ TEST(GPU, ZeroInitialization) {
 }
 
 TEST(GPU, Initialization) {
-    auto gpu = KMM::GPU(2);
+    auto gpu = kmm::GPU(2);
     EXPECT_EQ(gpu.device_id, 2);
 }
 
 TEST(GPU, Copy) {
-    auto gpu = KMM::GPU(2);
+    auto gpu = kmm::GPU(2);
     auto new_gpu = gpu;
     EXPECT_EQ(new_gpu.device_id, gpu.device_id);
 }
