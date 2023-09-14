@@ -2,12 +2,7 @@
 
 #include "kmm.hpp"
 
-TEST(Stream, NullInitialized) {
-    auto stream = kmm::Stream(kmm::DeviceType::CPU);
-    EXPECT_EQ(stream.cudaGetStream(), nullptr);
-}
-
-TEST(Stream, StreamInitialized) {
-    auto stream = kmm::Stream(kmm::DeviceType::CUDA);
-    EXPECT_NE(stream.cudaGetStream(), nullptr);
+TEST(GPU, DeviceZero) {
+    auto gpu = kmm::GPU();
+    EXPECT_EQ(gpu.device_id, 0);
 }
