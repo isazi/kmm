@@ -27,5 +27,5 @@ TEST(Pointer, Initialized) {
     auto new_pointer = kmm::Pointer(3, uint_type);
     EXPECT_EQ(new_pointer.id, 3);
     EXPECT_TRUE(dynamic_cast<kmm::FP_Double*>(&new_pointer.type) == nullptr);
-    EXPECT_TRUE(dynamic_cast<kmm::UInteger*>(&new_pointer.type) =! nullptr);
+    EXPECT_TRUE(dynamic_cast<kmm::UInteger*>(&new_pointer.type) != nullptr);
 }
