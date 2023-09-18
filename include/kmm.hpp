@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <map>
+#include <memory>
 
 namespace kmm {
 
@@ -23,12 +24,15 @@ class DeviceType {
     virtual ~DeviceType() = default;
 };
 
+class UnknownDevice: public DeviceType {};
+
 class CPU: public DeviceType {};
 
 class GPU: public DeviceType {
   public:
     GPU();
     GPU(unsigned int device_id);
+    virtual ~GPU() = default;
     unsigned int device_id;
 };
 
@@ -39,8 +43,14 @@ class Pointer {
     Pointer();
     Pointer(unsigned int id);
     Pointer(unsigned int id, DataType& type);
+    bool dirty;
     unsigned int id;
     DataType type;
+};
+
+class WritePointer: public Pointer {
+  public:
+    WritePointer(Pointer& pointer);
 };
 
 class Stream {
@@ -58,17 +68,25 @@ class Stream {
 class Buffer {
   public:
     Buffer();
-    Buffer(DeviceType& device);
+    Buffer(std::size_t size);
+    Buffer(CPU& device, std::size_t size);
+    Buffer(CUDA& device, std::size_t size);
     ~Buffer();
+    // Manipulate size
+    std::size_t getSize() const;
+    void setSize(std::size_t size);
+    // Manipulate device
+    std::shared_ptr<DeviceType> getDevice();
+    void setDevice(CPU& device);
+    void setDevice(CUDA& device);
     // Return true if the buffer is allocated
     bool is_allocated() const;
-    // Allocate memory buffer on the host
-    void allocate(std::size_t size);
-    // Allocate memory buffer on a GPU
-    void allocate(CUDA& device, std::size_t size, Stream& stream);
-    // Destroy the allocate buffer
+    bool is_allocated(CUDA& device) const;
+    // Allocate memory
+    void allocate();
+    void allocate(CUDA& device, Stream& stream);
+    // Free memory
     void destroy();
-    // Destroy the allocate buffer
     void destroy(CUDA& device, Stream& stream);
     // Return a pointer to the allocated buffer
     void* getPointer();
@@ -80,28 +98,24 @@ class Buffer {
 
   private:
     void* buffer;
+    std::size_t size;
+    std::shared_ptr<DeviceType> device;
 };
 
 class Manager {
   public:
     Manager();
     ~Manager();
-    // Allocate buffer of size bytes on the host
-    Pointer create(CPU& device, std::size_t size);
-    Pointer create(CPU& device, std::size_t size, DataType& type);
-    // Allocate buffer of size bytes on a GPU
-    Pointer create(CUDA& device, std::size_t size);
-    Pointer create(CUDA& device, std::size_t size, DataType& type);
+    // Request memory
+    Pointer create(std::size_t size, DataType& type);
     // Copy data from the host to a GPU
-    void copy_to(CUDA& device, Pointer& device_buffer, std::size_t size, Pointer& host_buffer);
-    // Copy the content of GPU memory to host buffer
-    void copy_from(CUDA& device, Pointer& device_buffer, std::size_t size, Pointer& host_buffer);
-    // Free the allocation
-    void release(Pointer& device_buffer);
-    // Free the allocation
-    void release(CUDA& device, Pointer& device_buffer);
+    void copy_to(CUDA& device, Pointer& device_pointer, Pointer& host_pointer);
+    // Copy the content from a GPU to the host
+    void copy_from(CUDA& device, Pointer& device_pointer, Pointer& host_pointer);
+    // Release memory
+    void release(Pointer& device_pointer);
     // Copy the content of GPU memory to the host and then free it
-    void release(CUDA& device, Pointer& device_buffer, std::size_t size, Pointer& host_buffer);
+    void release(CUDA& device, Pointer& device_pointer, Pointer& host_pointer);
     // Execute a function on a device
     // TODO
 
@@ -109,6 +123,7 @@ class Manager {
     unsigned int next_allocation;
     std::map<unsigned int, Stream> streams;
     std::map<unsigned int, Buffer> allocations;
+    // Check if a device has a stream allocated
     bool stream_exist(unsigned int stream);
 };
 

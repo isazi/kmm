@@ -43,22 +43,22 @@ int main(void) {
     auto cpu = kmm::CPU();
     auto gpu = kmm::CUDA();
     // Allocate memory on the host
-    auto A_h = manager.create(cpu, n, real_type);
-    auto B_h = manager.create(cpu, n, real_type);
-    auto C_h = manager.create(cpu, n, real_type);
+    auto A_h = manager.create(n, real_type);
+    auto B_h = manager.create(n, real_type);
+    auto C_h = manager.create(n, real_type);
     // TODO: run initialization
     // Allocate memory on the GPU
-    auto A_d = manager.create(gpu, n, real_type);
-    auto B_d = manager.create(gpu, n, real_type);
-    auto C_d = manager.create(gpu, n, real_type);
+    auto A_d = manager.create(n, real_type);
+    auto B_d = manager.create(n, real_type);
+    auto C_d = manager.create(n, real_type);
     // Copy data to the GPU
-    manager.copy_to(gpu, A_d, n, A_h);
-    manager.copy_to(gpu, B_d, n, B_h);
+    manager.copy_to(gpu, A_d, A_h);
+    manager.copy_to(gpu, B_d, B_h);
     // TODO: run kernel
     // Free GPU memory and copy data back
-    manager.release(gpu, A_d);
-    manager.release(gpu, B_d);
-    manager.release(gpu, C_d, n, C_h);
+    manager.release(A_d);
+    manager.release(B_d);
+    manager.release(gpu, C_d, C_h);
     // TODO: run verify
     // Free host memory
     manager.release(A_h);
