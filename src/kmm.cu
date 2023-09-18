@@ -38,7 +38,7 @@ Pointer Manager::create(std::size_t size, DataType& type) {
 void Manager::copy_to(CUDA& device, Pointer& device_pointer, Pointer& host_pointer) {
     auto device_buffer = this->allocations[device_pointer.id];
     auto host_buffer = this->allocations[host_pointer.id];
-    auto stream = this->streams[device.device_id].getStream(device);
+    auto stream = this->streams[device.device_id];
 
     if (!device_buffer.is_allocated()) {
         device_buffer.allocate(device, stream);
@@ -52,14 +52,14 @@ void Manager::copy_to(CUDA& device, Pointer& device_pointer, Pointer& host_point
         host_buffer.getPointer(),
         device_buffer.getSize(),
         cudaMemcpyHostToDevice,
-        stream);
+        stream.getStream(device));
     cudaErrorCheck(err, "Impossible to copy memory to device.");
 }
 
 void Manager::copy_from(CUDA& device, Pointer& device_pointer, Pointer& host_pointer) {
     auto device_buffer = this->allocations[device_pointer.id];
     auto host_buffer = this->allocations[host_pointer.id];
-    auto stream = this->streams[device.device_id].getStream(device);
+    auto stream = this->streams[device.device_id];
 
     if (!host_buffer.is_allocated()) {
         host_buffer.allocate();
@@ -70,7 +70,7 @@ void Manager::copy_from(CUDA& device, Pointer& device_pointer, Pointer& host_poi
         device_buffer.getPointer(),
         host_buffer.getSize(),
         cudaMemcpyDeviceToHost,
-        stream);
+        stream.getStream(device));
     cudaErrorCheck(err, "Impossible to copy memory to host.");
 }
 
