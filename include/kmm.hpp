@@ -40,6 +40,7 @@ class CUDA: public GPU {};
 
 class Pointer {
   public:
+    Pointer();
     Pointer(unsigned int id, UInteger& type);
     Pointer(unsigned int id, Integer& type);
     Pointer(unsigned int id, FP_Single& type);

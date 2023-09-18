@@ -240,6 +240,8 @@ cudaStream_t Stream::getStream(CUDA& device) {
 
 // Pointer
 
+Pointer::Pointer() {}
+
 Pointer::Pointer(unsigned int id, UInteger& type) {
     this->id = id;
     this->type = std::shared_ptr<UInteger>(&type);
