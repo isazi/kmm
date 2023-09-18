@@ -40,12 +40,13 @@ class CUDA: public GPU {};
 
 class Pointer {
   public:
-    Pointer();
-    Pointer(unsigned int id);
-    Pointer(unsigned int id, DataType& type);
+    Pointer(unsigned int id, UInteger& type);
+    Pointer(unsigned int id, Integer& type);
+    Pointer(unsigned int id, FP_Single& type);
+    Pointer(unsigned int id, FP_Double& type);
     bool dirty;
     unsigned int id;
-    DataType type;
+    std::shared_ptr<DataType> type;
 };
 
 class WritePointer: public Pointer {
@@ -107,7 +108,10 @@ class Manager {
     Manager();
     ~Manager();
     // Request memory
-    Pointer create(std::size_t size, DataType& type);
+    Pointer create(std::size_t size, UInteger& type);
+    Pointer create(std::size_t size, Integer& type);
+    Pointer create(std::size_t size, FP_Single& type);
+    Pointer create(std::size_t size, FP_Double& type);
     // Copy data from the host to a GPU
     void copy_to(CUDA& device, Pointer& device_pointer, Pointer& host_pointer);
     // Copy the content from a GPU to the host

@@ -26,7 +26,34 @@ Manager::Manager() {
 
 Manager::~Manager() {}
 
-Pointer Manager::create(std::size_t size, DataType& type) {
+Pointer Manager::create(std::size_t size, UInteger& type) {
+    unsigned int allocation_id;
+
+    allocation_id = this->next_allocation++;
+    this->allocations[allocation_id] = Buffer(size);
+
+    return Pointer(allocation_id, type);
+}
+
+Pointer Manager::create(std::size_t size, Integer& type) {
+    unsigned int allocation_id;
+
+    allocation_id = this->next_allocation++;
+    this->allocations[allocation_id] = Buffer(size);
+
+    return Pointer(allocation_id, type);
+}
+
+Pointer Manager::create(std::size_t size, FP_Single& type) {
+    unsigned int allocation_id;
+
+    allocation_id = this->next_allocation++;
+    this->allocations[allocation_id] = Buffer(size);
+
+    return Pointer(allocation_id, type);
+}
+
+Pointer Manager::create(std::size_t size, FP_Double& type) {
     unsigned int allocation_id;
 
     allocation_id = this->next_allocation++;
@@ -213,18 +240,27 @@ cudaStream_t Stream::getStream(CUDA& device) {
 
 // Pointer
 
-Pointer::Pointer() {
+Pointer::Pointer(unsigned int id, UInteger& type) {
+    this->id = id;
+    this->type = std::shared_ptr<UInteger>(&type);
     this->dirty = false;
 }
 
-Pointer::Pointer(unsigned int id) {
+Pointer::Pointer(unsigned int id, Integer& type) {
     this->id = id;
+    this->type = std::shared_ptr<Integer>(&type);
     this->dirty = false;
 }
 
-Pointer::Pointer(unsigned int id, DataType& type) {
+Pointer::Pointer(unsigned int id, FP_Single& type) {
     this->id = id;
-    this->type = type;
+    this->type = std::shared_ptr<FP_Single>(&type);
+    this->dirty = false;
+}
+
+Pointer::Pointer(unsigned int id, FP_Double& type) {
+    this->id = id;
+    this->type = std::shared_ptr<FP_Double>(&type);
     this->dirty = false;
 }
 
