@@ -56,3 +56,16 @@ TEST(Buffer, CPU) {
         typeid(dynamic_cast<kmm::CPU*>(buffer.getDevice().get())).hash_code()
         == typeid(kmm::GPU*).hash_code());
 }
+
+TEST(Buffer, CUDA) {
+    auto gpu = kmm::CUDA();
+    auto buffer = kmm::Buffer(gpu, 13);
+    EXPECT_EQ(buffer.getSize(), 13);
+    EXPECT_FALSE(buffer.is_allocated());
+    EXPECT_TRUE(
+        typeid(dynamic_cast<kmm::CUDA*>(buffer.getDevice().get())).hash_code()
+        == typeid(&gpu).hash_code());
+    EXPECT_FALSE(
+        typeid(dynamic_cast<kmm::CUDA*>(buffer.getDevice().get())).hash_code()
+        == typeid(kmm::CPU*).hash_code());
+}
