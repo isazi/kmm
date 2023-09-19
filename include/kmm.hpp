@@ -36,7 +36,9 @@ class GPU: public DeviceType {
     unsigned int device_id;
 };
 
-class CUDA: public GPU {};
+class CUDA: public GPU {
+    using GPU::GPU;
+};
 
 template<typename Type>
 class Pointer {

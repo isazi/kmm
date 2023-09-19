@@ -4,18 +4,18 @@
 
 #include "kmm.hpp"
 
-TEST(GPU, ZeroInitialization) {
-    auto gpu = kmm::GPU();
+TEST(CUDA, ZeroInitialization) {
+    auto gpu = kmm::CUDA();
     EXPECT_EQ(gpu.device_id, 0);
 }
 
-TEST(GPU, Initialization) {
-    auto gpu = kmm::GPU(2);
+TEST(CUDA, Initialization) {
+    auto gpu = kmm::CUDA(2);
     EXPECT_EQ(gpu.device_id, 2);
 }
 
-TEST(GPU, Copy) {
-    auto gpu = kmm::GPU(2);
+TEST(CUDA, Copy) {
+    auto gpu = kmm::CUDA(2);
     auto new_gpu = gpu;
     EXPECT_EQ(new_gpu.device_id, gpu.device_id);
 }
