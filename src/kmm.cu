@@ -6,12 +6,6 @@
 
 namespace kmm {
 
-inline void cudaErrorCheck(cudaError_t err, std::string message) {
-    if (err != cudaSuccess) {
-        throw std::runtime_error(message);
-    }
-}
-
 bool Manager::stream_exist(unsigned int stream) {
     return this->streams.find(stream) != this->streams.end();
 }

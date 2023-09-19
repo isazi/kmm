@@ -49,7 +49,7 @@ class Pointer {
 };
 
 template<typename Type>
-class WritePointer: public Pointer {
+class WritePointer: public Pointer<Type> {
   public:
     WritePointer(Pointer<Type>& pointer);
 };
@@ -130,6 +130,12 @@ class Manager {
     bool stream_exist(unsigned int stream);
 };
 
+inline void cudaErrorCheck(cudaError_t err, std::string message) {
+    if (err != cudaSuccess) {
+        throw std::runtime_error(message);
+    }
+}
+
 // Manager
 
 template<typename Type>
@@ -197,10 +203,10 @@ void Manager::release(CUDA& device, Pointer<Type>& device_pointer, Pointer<Type>
 // Pointer
 
 template<typename Type>
-Pointer::Pointer() {}
+Pointer<Type>::Pointer() {}
 
 template<typename Type>
-Pointer::Pointer(unsigned int id) {
+Pointer<Type>::Pointer(unsigned int id) {
     this->id = id;
     this->type = Type();
     this->dirty = false;
@@ -209,7 +215,7 @@ Pointer::Pointer(unsigned int id) {
 // WritePointer
 
 template<typename Type>
-WritePointer::WritePointer(Pointer<Type>& pointer) {
+WritePointer<Type>::WritePointer(Pointer<Type>& pointer) {
     this->id = pointer.id;
     this->type = pointer.type;
     this->dirty = true;
