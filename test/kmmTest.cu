@@ -26,3 +26,11 @@ TEST(Pointer, Initialized) {
     EXPECT_TRUE(typeid(pointer.type).hash_code() == typeid(kmm::Integer).hash_code());
     EXPECT_FALSE(typeid(pointer.type).hash_code() == typeid(kmm::UInteger).hash_code());
 }
+
+TEST(Pointer, DirtyByte) {
+    auto pointer = kmm::Pointer<kmm::FP_Double>(3);
+    EXPECT_FALSE(pointer.dirty);
+    auto new_pointer = kmm::WritePointer(pointer);
+    EXPECT_EQ(new_pointer.id, pointer.id);
+    EXPECT_TRUE(pointer.dirty);
+}
