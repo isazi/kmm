@@ -24,92 +24,6 @@ Manager::Manager() {
     this->streams = std::map<unsigned int, Stream>();
 }
 
-Manager::~Manager() {}
-
-Pointer Manager::create(std::size_t size, UInteger& type) {
-    unsigned int allocation_id;
-
-    allocation_id = this->next_allocation++;
-    this->allocations[allocation_id] = Buffer(size);
-
-    return Pointer(allocation_id, type);
-}
-
-Pointer Manager::create(std::size_t size, Integer& type) {
-    unsigned int allocation_id;
-
-    allocation_id = this->next_allocation++;
-    this->allocations[allocation_id] = Buffer(size);
-
-    return Pointer(allocation_id, type);
-}
-
-Pointer Manager::create(std::size_t size, FP_Single& type) {
-    unsigned int allocation_id;
-
-    allocation_id = this->next_allocation++;
-    this->allocations[allocation_id] = Buffer(size);
-
-    return Pointer(allocation_id, type);
-}
-
-Pointer Manager::create(std::size_t size, FP_Double& type) {
-    unsigned int allocation_id;
-
-    allocation_id = this->next_allocation++;
-    this->allocations[allocation_id] = Buffer(size);
-
-    return Pointer(allocation_id, type);
-}
-
-void Manager::copy_to(CUDA& device, Pointer& device_pointer, Pointer& host_pointer) {
-    auto device_buffer = this->allocations[device_pointer.id];
-    auto host_buffer = this->allocations[host_pointer.id];
-    auto stream = this->streams[device.device_id];
-
-    if (!device_buffer.is_allocated()) {
-        device_buffer.allocate(device, stream);
-    } else if (!device_buffer.is_allocated(device)) {
-        device_buffer.destroy();
-        device_buffer.allocate(device, stream);
-    }
-
-    auto err = cudaMemcpyAsync(
-        device_buffer.getPointer(),
-        host_buffer.getPointer(),
-        device_buffer.getSize(),
-        cudaMemcpyHostToDevice,
-        stream.getStream(device));
-    cudaErrorCheck(err, "Impossible to copy memory to device.");
-}
-
-void Manager::copy_from(CUDA& device, Pointer& device_pointer, Pointer& host_pointer) {
-    auto device_buffer = this->allocations[device_pointer.id];
-    auto host_buffer = this->allocations[host_pointer.id];
-    auto stream = this->streams[device.device_id];
-
-    if (!host_buffer.is_allocated()) {
-        host_buffer.allocate();
-    }
-
-    auto err = cudaMemcpyAsync(
-        host_buffer.getPointer(),
-        device_buffer.getPointer(),
-        host_buffer.getSize(),
-        cudaMemcpyDeviceToHost,
-        stream.getStream(device));
-    cudaErrorCheck(err, "Impossible to copy memory to host.");
-}
-
-void Manager::release(Pointer& device_pointer) {
-    this->allocations[device_pointer.id].destroy();
-}
-
-void Manager::release(CUDA& device, Pointer& device_pointer, Pointer& host_buffer) {
-    this->copy_from(device, device_pointer, host_buffer);
-    this->release(device_pointer);
-}
-
 // Buffer
 
 Buffer::Buffer() {
@@ -135,8 +49,6 @@ Buffer::Buffer(CUDA& device, std::size_t size) {
     this->size = size;
     this->device = std::shared_ptr<CUDA>(&device);
 }
-
-Buffer::~Buffer() {}
 
 std::size_t Buffer::getSize() const {
     return this->size;
@@ -236,42 +148,6 @@ Stream::~Stream() {
 
 cudaStream_t Stream::getStream(CUDA& device) {
     return this->cuda_stream;
-}
-
-// Pointer
-
-Pointer::Pointer() {}
-
-Pointer::Pointer(unsigned int id, UInteger& type) {
-    this->id = id;
-    this->type = std::shared_ptr<UInteger>(&type);
-    this->dirty = false;
-}
-
-Pointer::Pointer(unsigned int id, Integer& type) {
-    this->id = id;
-    this->type = std::shared_ptr<Integer>(&type);
-    this->dirty = false;
-}
-
-Pointer::Pointer(unsigned int id, FP_Single& type) {
-    this->id = id;
-    this->type = std::shared_ptr<FP_Single>(&type);
-    this->dirty = false;
-}
-
-Pointer::Pointer(unsigned int id, FP_Double& type) {
-    this->id = id;
-    this->type = std::shared_ptr<FP_Double>(&type);
-    this->dirty = false;
-}
-
-// WritePointer
-
-WritePointer::WritePointer(Pointer& pointer) {
-    this->id = pointer.id;
-    this->type = pointer.type;
-    pointer.dirty = true;
 }
 
 // GPU

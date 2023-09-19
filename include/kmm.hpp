@@ -38,21 +38,20 @@ class GPU: public DeviceType {
 
 class CUDA: public GPU {};
 
+template<typename Type>
 class Pointer {
   public:
     Pointer();
-    Pointer(unsigned int id, UInteger& type);
-    Pointer(unsigned int id, Integer& type);
-    Pointer(unsigned int id, FP_Single& type);
-    Pointer(unsigned int id, FP_Double& type);
+    Pointer(unsigned int id);
     bool dirty;
     unsigned int id;
-    std::shared_ptr<DataType> type;
+    Type type;
 };
 
+template<typename Type>
 class WritePointer: public Pointer {
   public:
-    WritePointer(Pointer& pointer);
+    WritePointer(Pointer<Type>& pointer);
 };
 
 class Stream {
@@ -73,7 +72,6 @@ class Buffer {
     Buffer(std::size_t size);
     Buffer(CPU& device, std::size_t size);
     Buffer(CUDA& device, std::size_t size);
-    ~Buffer();
     // Manipulate size
     std::size_t getSize() const;
     void setSize(std::size_t size);
@@ -107,20 +105,20 @@ class Buffer {
 class Manager {
   public:
     Manager();
-    ~Manager();
     // Request memory
-    Pointer create(std::size_t size, UInteger& type);
-    Pointer create(std::size_t size, Integer& type);
-    Pointer create(std::size_t size, FP_Single& type);
-    Pointer create(std::size_t size, FP_Double& type);
+    template<typename Type>
+    Pointer<Type> create(std::size_t size);
     // Copy data from the host to a GPU
-    void copy_to(CUDA& device, Pointer& device_pointer, Pointer& host_pointer);
+    template<typename Type>
+    void copy_to(CUDA& device, Pointer<Type>& device_pointer, Pointer<Type>& host_pointer);
     // Copy the content from a GPU to the host
-    void copy_from(CUDA& device, Pointer& device_pointer, Pointer& host_pointer);
+    template<typename Type>
+    void copy_from(CUDA& device, Pointer<Type>& device_pointer, Pointer<Type>& host_pointer);
     // Release memory
-    void release(Pointer& device_pointer);
-    // Copy the content of GPU memory to the host and then free it
-    void release(CUDA& device, Pointer& device_pointer, Pointer& host_pointer);
+    template<typename Type>
+    void release(Pointer<Type>& device_pointer);
+    template<typename Type>
+    void release(CUDA& device, Pointer<Type>& device_pointer, Pointer<Type>& host_pointer);
     // Execute a function on a device
     // TODO
 
@@ -131,5 +129,91 @@ class Manager {
     // Check if a device has a stream allocated
     bool stream_exist(unsigned int stream);
 };
+
+// Manager
+
+template<typename Type>
+Pointer<Type> Manager::create(std::size_t size) {
+    unsigned int allocation_id;
+
+    allocation_id = this->next_allocation++;
+    this->allocations[allocation_id] = Buffer(size);
+
+    return Pointer<Type>(allocation_id);
+}
+
+template<typename Type>
+void Manager::copy_to(CUDA& device, Pointer<Type>& device_pointer, Pointer<Type>& host_pointer) {
+    auto device_buffer = this->allocations[device_pointer.id];
+    auto host_buffer = this->allocations[host_pointer.id];
+    auto stream = this->streams[device.device_id];
+
+    if (!device_buffer.is_allocated()) {
+        device_buffer.allocate(device, stream);
+    } else if (!device_buffer.is_allocated(device)) {
+        device_buffer.destroy();
+        device_buffer.allocate(device, stream);
+    }
+
+    auto err = cudaMemcpyAsync(
+        device_buffer.getPointer(),
+        host_buffer.getPointer(),
+        device_buffer.getSize(),
+        cudaMemcpyHostToDevice,
+        stream.getStream(device));
+    cudaErrorCheck(err, "Impossible to copy memory to device.");
+}
+
+template<typename Type>
+void Manager::copy_from(CUDA& device, Pointer<Type>& device_pointer, Pointer<Type>& host_pointer) {
+    auto device_buffer = this->allocations[device_pointer.id];
+    auto host_buffer = this->allocations[host_pointer.id];
+    auto stream = this->streams[device.device_id];
+
+    if (!host_buffer.is_allocated()) {
+        host_buffer.allocate();
+    }
+
+    auto err = cudaMemcpyAsync(
+        host_buffer.getPointer(),
+        device_buffer.getPointer(),
+        host_buffer.getSize(),
+        cudaMemcpyDeviceToHost,
+        stream.getStream(device));
+    cudaErrorCheck(err, "Impossible to copy memory to host.");
+}
+
+template<typename Type>
+void Manager::release(Pointer<Type>& device_pointer) {
+    this->allocations[device_pointer.id].destroy();
+}
+
+template<typename Type>
+void Manager::release(CUDA& device, Pointer<Type>& device_pointer, Pointer<Type>& host_buffer) {
+    this->copy_from(device, device_pointer, host_buffer);
+    this->release(device_pointer);
+}
+
+// Pointer
+
+template<typename Type>
+Pointer::Pointer() {}
+
+template<typename Type>
+Pointer::Pointer(unsigned int id) {
+    this->id = id;
+    this->type = Type();
+    this->dirty = false;
+}
+
+// WritePointer
+
+template<typename Type>
+WritePointer::WritePointer(Pointer<Type>& pointer) {
+    this->id = pointer.id;
+    this->type = pointer.type;
+    this->dirty = true;
+    pointer.dirty = true;
+}
 
 }  // namespace kmm

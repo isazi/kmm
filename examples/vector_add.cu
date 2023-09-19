@@ -35,7 +35,6 @@ int main(void) {
     unsigned int threads_per_block = 1024;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
     std::size_t n = SIZE * sizeof(float);
-    auto real_type = kmm::FP_Single();
 
     // Create memory manager
     auto manager = kmm::Manager();
@@ -43,14 +42,14 @@ int main(void) {
     auto cpu = kmm::CPU();
     auto gpu = kmm::CUDA();
     // Allocate memory on the host
-    auto A_h = manager.create(n, real_type);
-    auto B_h = manager.create(n, real_type);
-    auto C_h = manager.create(n, real_type);
+    auto A_h = manager.create<kmm::FP_Single>(n);
+    auto B_h = manager.create<kmm::FP_Single>(n);
+    auto C_h = manager.create<kmm::FP_Single>(n);
     // TODO: run initialization
     // Allocate memory on the GPU
-    auto A_d = manager.create(n, real_type);
-    auto B_d = manager.create(n, real_type);
-    auto C_d = manager.create(n, real_type);
+    auto A_d = manager.create<kmm::FP_Single>(n);
+    auto B_d = manager.create<kmm::FP_Single>(n);
+    auto C_d = manager.create<kmm::FP_Single>(n);
     // Copy data to the GPU
     manager.copy_to(gpu, A_d, A_h);
     manager.copy_to(gpu, B_d, B_h);
