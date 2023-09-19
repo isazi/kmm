@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <type_traits>
+#include <typeinfo>
 
 #include "kmm.hpp"
 
@@ -23,4 +23,6 @@ TEST(GPU, Copy) {
 TEST(Pointer, Initialized) {
     auto pointer = kmm::Pointer<kmm::Integer>(14);
     EXPECT_EQ(pointer.id, 14);
+    EXPECT_TRUE(typeid(pointer.type).hash_code() == typeid(kmm::Integer).hash_code());
+    EXPECT_FALSE(typeid(pointer.type).hash_code() == typeid(kmm::UInteger).hash_code());
 }
