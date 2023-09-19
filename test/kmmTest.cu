@@ -44,7 +44,7 @@ TEST(Buffer, ZeroInitialization) {
 
 TEST(Buffer, CPU) {
     auto cpu = kmm::CPU();
-    auto buffer = kmm::Buffer(42, cpu);
+    auto buffer = kmm::Buffer(cpu, 42);
     EXPECT_EQ(buffer.getSize(), 42);
     EXPECT_FALSE(buffer.is_allocated());
     EXPECT_TRUE(typeid(buffer.getDevice().get()).hash_code() == typeid(cpu).hash_code());
