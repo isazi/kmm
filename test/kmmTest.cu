@@ -41,7 +41,7 @@ TEST(Buffer, ZeroInitialization) {
     EXPECT_FALSE(buffer.is_allocated());
     EXPECT_TRUE(
         typeid(dynamic_cast<kmm::UnknownDevice*>(buffer.getDevice().get())).hash_code()
-        == typeid(kmm::UnknonwnDevice*).hash_code());
+        == typeid(kmm::UnknownDevice*).hash_code());
 }
 
 TEST(Buffer, CPU) {
