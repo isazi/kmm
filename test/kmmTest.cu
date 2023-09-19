@@ -34,3 +34,10 @@ TEST(Pointer, DirtyByte) {
     EXPECT_EQ(new_pointer.id, pointer.id);
     EXPECT_TRUE(pointer.dirty);
 }
+
+TEST(Buffer, ZeroInitialization) {
+    auto buffer = kmm::Buffer();
+    EXPECT_EQ(buffer.getSize(), 0);
+    EXPECT_FALSE(buffer.is_allocated());
+    EXPECT_TRUE(typeid(*buffer.getDevice()).hash_code() == typeid(kmm::UnknownDevice).hash_code());
+}
