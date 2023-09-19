@@ -41,3 +41,11 @@ TEST(Buffer, ZeroInitialization) {
     EXPECT_FALSE(buffer.is_allocated());
     EXPECT_TRUE(buffer.getDevice().get() == nullptr);
 }
+
+TEST(Buffer, CPU) {
+    auto cpu = kmm::CPU();
+    auto buffer = kmm::Buffer(42, cpu);
+    EXPECT_EQ(buffer.getSize(), 42);
+    EXPECT_FALSE(buffer.is_allocated());
+    EXPECT_TRUE(typeid(buffer.getDevice().get()).hash_code() == typeid(cpu).hash_code());
+}
