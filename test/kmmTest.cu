@@ -39,7 +39,9 @@ TEST(Buffer, ZeroInitialization) {
     auto buffer = kmm::Buffer();
     EXPECT_EQ(buffer.getSize(), 0);
     EXPECT_FALSE(buffer.is_allocated());
-    EXPECT_TRUE(buffer.getDevice().get() == nullptr);
+    EXPECT_TRUE(
+        typeid(dynamic_cast<kmm::UnknownDevice*>(buffer.getDevice().get())).hash_code()
+        == typeid(kmm::UnknonwnDevice*).hash_code());
 }
 
 TEST(Buffer, CPU) {
@@ -47,5 +49,10 @@ TEST(Buffer, CPU) {
     auto buffer = kmm::Buffer(cpu, 42);
     EXPECT_EQ(buffer.getSize(), 42);
     EXPECT_FALSE(buffer.is_allocated());
-    EXPECT_TRUE(typeid(buffer.getDevice().get()).hash_code() == typeid(cpu).hash_code());
+    EXPECT_TRUE(
+        typeid(dynamic_cast<kmm::CPU*>(buffer.getDevice().get())).hash_code()
+        == typeid(&cpu).hash_code());
+    EXPECT_FALSE(
+        typeid(dynamic_cast<kmm::CPU*>(buffer.getDevice().get())).hash_code()
+        == typeid(kmm::GPU*).hash_code());
 }
