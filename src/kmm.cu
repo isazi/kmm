@@ -23,25 +23,25 @@ Manager::Manager() {
 Buffer::Buffer() {
     this->buffer = nullptr;
     this->size = 0;
-    this->device = std::shared_ptr<UnknownDevice>();
+    this->device = std::make_shared<UnknownDevice>();
 }
 
 Buffer::Buffer(std::size_t size) {
     this->buffer = nullptr;
     this->size = size;
-    this->device = std::shared_ptr<UnknownDevice>();
+    this->device = std::make_shared<UnknownDevice>();
 }
 
 Buffer::Buffer(CPU& device, std::size_t size) {
     this->buffer = nullptr;
     this->size = size;
-    this->device = std::shared_ptr<CPU>(&device);
+    this->device = std::make_shared<CPU>();
 }
 
 Buffer::Buffer(CUDA& device, std::size_t size) {
     this->buffer = nullptr;
     this->size = size;
-    this->device = std::shared_ptr<CUDA>(&device);
+    this->device = std::make_shared<CUDA>(device.device_id);
 }
 
 std::size_t Buffer::getSize() const {
@@ -57,11 +57,11 @@ std::shared_ptr<DeviceType> Buffer::getDevice() {
 }
 
 void Buffer::setDevice(CPU& device) {
-    this->device = std::shared_ptr<CPU>(&device);
+    this->device = std::make_shared<CPU>();
 }
 
 void Buffer::setDevice(CUDA& device) {
-    this->device = std::shared_ptr<CUDA>(&device);
+    this->device = std::make_shared<CUDA>(device.device_id);
 }
 
 bool Buffer::is_allocated() const {
