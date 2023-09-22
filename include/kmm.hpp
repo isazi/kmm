@@ -174,7 +174,7 @@ inline bool same_device(CPU& device_one, GPU& device_two) {
     return false;
 }
 
-inline bool same_device(CPU& device_one, GPU& device_two) {
+inline bool same_device(GPU& device_one, CPU& device_two) {
     return false;
 }
 
