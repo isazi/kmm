@@ -14,7 +14,7 @@ if(DEFINED CMAKE_CUDA_COMPILER)
 else()
   file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp")
 endif()
-file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp" "${PROJECT_SOURCE_DIR}/include/*.cuh")
+file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
 add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
