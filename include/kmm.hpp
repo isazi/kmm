@@ -69,6 +69,11 @@ class WritePointer: public Pointer<Type> {
 
 #ifdef USE_CUDA
     #include "kmm.cuh"
+#else
+class Stream {
+  public:
+    Stream();
+};
 #endif
 
 // Buffer
