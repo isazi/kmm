@@ -1,16 +1,20 @@
 cmake_minimum_required(VERSION 3.10)
+include(CheckLanguage)
 
 set(PROJECT_NAME "kmm")
 project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
-include(CheckLanguage)
-check_language(CUDA)
+
+if(${USE_CUDA})
+  check_language(CUDA)
+  add_definitions(-DUSE_CUDA=${USE_CUDA})
+endif()
 
 if(DEFINED CMAKE_CUDA_COMPILER)
   file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
 else()
-file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
+  file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp")
 endif()
-file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
+file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp" "${PROJECT_SOURCE_DIR}/include/*.cuh")
 add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
@@ -53,10 +57,12 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
 set(PROJECT_CLANG_TIDY clang-tidy -checks=-*,readability-*,bugprone-*,-readability-magic-numbers,-readability-use-anyofallof,-readability-else-after-return)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_CLANG_TIDY "${PROJECT_CLANG_TIDY}")
 
-find_package(CUDAToolkit REQUIRED)
-target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cudart_static)
-target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cuda_driver)
-target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::nvrtc)
+if(DEFINED CMAKE_CUDA_COMPILER)
+  find_package(CUDAToolkit REQUIRED)
+  target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cudart_static)
+  target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cuda_driver)
+  target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::nvrtc)
+endif()
 
 # Unit testing
 enable_testing()
@@ -107,6 +113,7 @@ endif()
 
 # Examples
 if(DEFINED CMAKE_CUDA_COMPILER)
+  enable_language(CUDA)
   add_executable(
     vector_add
     examples/vector_add.cu
