@@ -67,17 +67,9 @@ class WritePointer: public Pointer<Type> {
 
 // Stream
 
-class Stream {
-  public:
-    Stream();
-    Stream(CUDA& device);
-    ~Stream();
-    // Return a CUDA stream
-    cudaStream_t getStream(CUDA& device);
-
-  private:
-    cudaStream_t cuda_stream;
-};
+#ifdef USE_CUDA
+    #include "kmm.cuh"
+#endif
 
 // Buffer
 
@@ -177,7 +169,7 @@ inline bool same_device(CPU& device_one, GPU& device_two) {
     return false;
 }
 
-inline bool same_device(CUDA& device_one, GPU& device_two) {
+inline bool same_device(CPU& device_one, GPU& device_two) {
     return false;
 }
 
