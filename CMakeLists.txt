@@ -1,43 +1,33 @@
 cmake_minimum_required(VERSION 3.10)
-include(CheckLanguage)
 
 set(PROJECT_NAME "kmm")
 project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
 
 if(${USE_CUDA})
-  check_language(CUDA)
+  enable_language(CUDA)
   add_definitions(-DUSE_CUDA=${USE_CUDA})
+  set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 if(DEFINED CMAKE_CUDA_COMPILER)
   file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
+  set_source_files_properties(${sources} PROPERTIES LANGUAGE CUDA)
 else()
   file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp")
 endif()
-file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
+file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp" "${PROJECT_SOURCE_DIR}/include/*.cuh")
 add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
 # Install
-if(DEFINED CMAKE_CUDA_COMPILER)
-  set_target_properties(
-    ${PROJECT_NAME}
-    PROPERTIES
-    VERSION ${PROJECT_VERSION}
-    SOVERSION 1
-    PUBLIC_HEADER ${includes}
-    CUDA_SEPARABLE_COMPILATION ON
-  )
-else()
-  set_target_properties(
-    ${PROJECT_NAME}
-    PROPERTIES
-    VERSION ${PROJECT_VERSION}
-    SOVERSION 1
-    PUBLIC_HEADER ${includes}
-  )
-endif()
+set_target_properties(
+  ${PROJECT_NAME}
+  PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION 1
+  PUBLIC_HEADER "${includes}"
+)
 
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -77,6 +67,9 @@ endif()
 enable_testing()
 find_package(GTest)
 
+if(DEFINED CMAKE_CUDA_COMPILER)
+  set_source_files_properties(test/kmmTest.cpp PROPERTIES LANGUAGE CUDA)
+endif()
 add_executable(
   kmmTestCxx
   test/kmmTest.cpp
@@ -122,7 +115,6 @@ endif()
 
 # Examples
 if(DEFINED CMAKE_CUDA_COMPILER)
-  enable_language(CUDA)
   add_executable(
     vector_add
     examples/vector_add.cu
