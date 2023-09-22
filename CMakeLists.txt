@@ -1,9 +1,15 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(PROJECT_NAME "kmm")
-project(${PROJECT_NAME} LANGUAGES CXX CUDA VERSION 0.1)
+project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
+include(CheckLanguage)
+check_language(CUDA)
 
+if(DEFINED CMAKE_CUDA_COMPILER)
+  file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
+else()
 file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
+endif()
 file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
 add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
@@ -16,6 +22,9 @@ set_target_properties(
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
     PUBLIC_HEADER ${includes}
+    if(DEFINED CMAKE_CUDA_COMPILER)
+      CUDA_SEPARABLE_COMPILATION ON
+    endif()
 )
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -54,8 +63,8 @@ enable_testing()
 find_package(GTest)
 
 add_executable(
-  kmmTest
-  test/kmmTest.cu
+  kmmTestCxx
+  test/kmmTest.cpp
 )
 target_include_directories(
     kmmTest
@@ -64,28 +73,52 @@ target_include_directories(
     ${PROJECT_SOURCE_DIR}/include
 )
 target_link_libraries(
-  kmmTest
+  kmmTestCxx
   PRIVATE
   kmm
   GTest::gtest
   GTest::gtest_main
 )
+if(DEFINED CMAKE_CUDA_COMPILER)
+  add_executable(
+    kmmTestCu
+    test/kmmTest.cu
+  )
+  target_include_directories(
+      kmmTest
+      PRIVATE
+      ${GTEST_INCLUDE_DIRS}
+      ${PROJECT_SOURCE_DIR}/include
+  )
+  target_link_libraries(
+    kmmTestCu
+    PRIVATE
+    kmm
+    GTest::gtest
+    GTest::gtest_main
+  )
+endif()
 
 include(GoogleTest)
-gtest_discover_tests(kmmTest)
+gtest_discover_tests(kmmTestCxx)
+if(DEFINED CMAKE_CUDA_COMPILER)
+  gtest_discover_tests(kmmTestCu)
+endif()
 
 # Examples
-add_executable(
-  vector_add
-  examples/vector_add.cu
-)
-target_include_directories(
+if(DEFINED CMAKE_CUDA_COMPILER)
+  add_executable(
+    vector_add
+    examples/vector_add.cu
+  )
+  target_include_directories(
+      vector_add
+      PRIVATE
+      ${PROJECT_SOURCE_DIR}/include
+  )
+  target_link_libraries(
     vector_add
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/include
-)
-target_link_libraries(
-  vector_add
-  PRIVATE
-  kmm
-)
+    kmm
+  )
+endif()
