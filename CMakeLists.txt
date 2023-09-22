@@ -20,16 +20,25 @@ add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
 # Install
-set_target_properties(
+if(DEFINED CMAKE_CUDA_COMPILER)
+  set_target_properties(
     ${PROJECT_NAME}
     PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
     PUBLIC_HEADER ${includes}
-    if(DEFINED CMAKE_CUDA_COMPILER)
-      CUDA_SEPARABLE_COMPILATION ON
-    endif()
-)
+    CUDA_SEPARABLE_COMPILATION ON
+  )
+else()
+  set_target_properties(
+    ${PROJECT_NAME}
+    PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION 1
+    PUBLIC_HEADER ${includes}
+  )
+endif()
+
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
