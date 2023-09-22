@@ -12,7 +12,7 @@
 //     }
 // }
 
-void initialize(void* A, void* B, unsigned int size) {
+void initialize(float* A, float* B, unsigned int size) {
     for (unsigned int item = 0; item < size; item++) {
         reinterpret_cast<float*>(A)[item] = 1.0;
         reinterpret_cast<float*>(B)[item] = 2.0;
@@ -41,27 +41,20 @@ int main(void) {
     // Create devices
     auto cpu = kmm::CPU();
     auto gpu = kmm::CUDA();
-    // Allocate memory on the host
-    auto A_h = manager.create<kmm::FP_Single>(n);
-    auto B_h = manager.create<kmm::FP_Single>(n);
-    auto C_h = manager.create<kmm::FP_Single>(n);
+    // Request 3 memory areas of a certain size
+    auto A = manager.create<kmm::FP_Single>(n);
+    auto B = manager.create<kmm::FP_Single>(n);
+    auto C = manager.create<kmm::FP_Single>(n);
     // TODO: run initialization
-    // Allocate memory on the GPU
-    auto A_d = manager.create<kmm::FP_Single>(n);
-    auto B_d = manager.create<kmm::FP_Single>(n);
-    auto C_d = manager.create<kmm::FP_Single>(n);
     // Copy data to the GPU
-    manager.copy_to(gpu, A_d, A_h);
-    manager.copy_to(gpu, B_d, B_h);
+    manager.move_to(gpu, A);
+    manager.move_to(gpu, B);
     // TODO: run kernel
     // Free GPU memory and copy data back
-    manager.release(A_d);
-    manager.release(B_d);
-    manager.release(gpu, C_d, C_h);
+    manager.release(A);
+    manager.release(B);
+    float* C_h = reinterpret_cast<float*>(malloc(n));
+    manager.copy_release(C, C_h);
     // TODO: run verify
-    // Free host memory
-    manager.release(A_h);
-    manager.release(B_h);
-    manager.release(C_h);
     return 0;
 }

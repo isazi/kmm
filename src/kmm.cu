@@ -6,16 +6,16 @@
 
 namespace kmm {
 
-bool Manager::stream_exist(unsigned int stream) {
-    return this->streams.find(stream) != this->streams.end();
-}
-
 // Manager
 
 Manager::Manager() {
     this->next_allocation = 0;
     this->allocations = std::map<unsigned int, Buffer>();
     this->streams = std::map<unsigned int, Stream>();
+}
+
+bool Manager::stream_exist(unsigned int stream) {
+    return this->streams.find(stream) != this->streams.end();
 }
 
 // Buffer
@@ -68,11 +68,6 @@ bool Buffer::is_allocated() const {
     return this->buffer != nullptr;
 }
 
-bool Buffer::is_allocated(CUDA& device) const {
-    return (this->buffer != nullptr)
-        && (device.device_id == dynamic_cast<CUDA*>(this->device.get())->device_id);
-}
-
 void Buffer::allocate() {
     this->buffer = malloc(this->size);
 }
@@ -85,12 +80,16 @@ void Buffer::allocate(CUDA& device, Stream& stream) {
 void Buffer::destroy() {
     free(this->buffer);
     this->buffer = nullptr;
+    this->size = 0;
+    this->device = std::make_shared<UnknownDevice>();
 }
 
 void Buffer::destroy(CUDA& device, Stream& stream) {
     auto err = cudaFreeAsync(this->buffer, stream.getStream(device));
     cudaErrorCheck(err, "Impossible to release memory.");
     this->buffer = nullptr;
+    this->size = 0;
+    this->device = std::make_shared<UnknownDevice>();
 }
 
 void* Buffer::getPointer() {

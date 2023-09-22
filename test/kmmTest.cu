@@ -4,6 +4,24 @@
 
 #include "kmm.hpp"
 
+TEST(Misc, is_cpu) {
+    auto cpu = kmm::CPU();
+    auto gpu = kmm::CUDA();
+    EXPECT_TRUE(kmm::is_cpu(cpu));
+    EXPECT_FALSE(kmm::is_cpu(gpu));
+}
+
+TEST(Misc, same_device) {
+    auto cpu = kmm::CPU();
+    auto gpu_zero = kmm::CUDA(0);
+    auto gpu_one = kmm::CUDA(1);
+    EXPECT_TRUE(kmm::same_device(cpu, cpu));
+    EXPECT_FALSE(kmm::same_device(cpu, gpu_zero));
+    EXPECT_FALSE(kmm::same_device(gpu_one, cpu));
+    EXPECT_FALSE(kmm::same_device(gpu_one, gpu_zero));
+    EXPECT_TRUE(kmm::same_device(gpu_zero, gpu_zero));
+}
+
 TEST(CUDA, ZeroInitialization) {
     auto gpu = kmm::CUDA();
     EXPECT_EQ(gpu.device_id, 0);
@@ -42,6 +60,7 @@ TEST(Buffer, ZeroInitialization) {
     EXPECT_TRUE(
         typeid(dynamic_cast<kmm::UnknownDevice*>(buffer.getDevice().get())).hash_code()
         == typeid(kmm::UnknownDevice*).hash_code());
+    EXPECT_FALSE(kmm::on_cpu(buffer));
 }
 
 TEST(Buffer, CPU) {
@@ -49,12 +68,8 @@ TEST(Buffer, CPU) {
     auto buffer = kmm::Buffer(cpu, 42);
     EXPECT_EQ(buffer.getSize(), 42);
     EXPECT_FALSE(buffer.is_allocated());
-    EXPECT_TRUE(
-        typeid(dynamic_cast<kmm::CPU*>(buffer.getDevice().get())).hash_code()
-        == typeid(&cpu).hash_code());
-    EXPECT_FALSE(
-        typeid(dynamic_cast<kmm::CPU*>(buffer.getDevice().get())).hash_code()
-        == typeid(kmm::GPU*).hash_code());
+    EXPECT_TRUE(kmm::on_cpu(buffer));
+    EXPECT_FALSE(kmm::on_cuda(buffer));
 }
 
 TEST(Buffer, CUDA) {
@@ -62,10 +77,6 @@ TEST(Buffer, CUDA) {
     auto buffer = kmm::Buffer(gpu, 13);
     EXPECT_EQ(buffer.getSize(), 13);
     EXPECT_FALSE(buffer.is_allocated());
-    EXPECT_TRUE(
-        typeid(dynamic_cast<kmm::CUDA*>(buffer.getDevice().get())).hash_code()
-        == typeid(&gpu).hash_code());
-    EXPECT_FALSE(
-        typeid(dynamic_cast<kmm::CUDA*>(buffer.getDevice().get())).hash_code()
-        == typeid(kmm::CPU*).hash_code());
+    EXPECT_TRUE(kmm::on_cuda(buffer));
+    EXPECT_FALSE(kmm::on_cpu(buffer));
 }
