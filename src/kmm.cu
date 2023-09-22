@@ -1,87 +1,60 @@
-#include <iostream>
-#include <stdexcept>
-#include <string>
-
 #include "kmm.hpp"
 
 namespace kmm {
 
-// Manager
+// Misc
 
-Manager::Manager() {
-    this->next_allocation = 0;
-    this->allocations = std::map<unsigned int, Buffer>();
-    this->streams = std::map<unsigned int, Stream>();
+inline void cudaErrorCheck(cudaError_t err, std::string message) {
+    if (err != cudaSuccess) {
+        throw std::runtime_error(message);
+    }
 }
 
-bool Manager::stream_exist(unsigned int stream) {
-    return this->streams.find(stream) != this->streams.end();
+void cudaCopyD2H(CUDA& device, Buffer& source, Buffer& target, Stream& stream) {
+    auto err = cudaMemcpyAsync(
+        target.getPointer(),
+        source.getPointer(),
+        target.getSize(),
+        cudaMemcpyDeviceToHost,
+        stream.getStream(device));
+    cudaErrorCheck(err, "Impossible to copy memory from device to host.");
+}
+
+void cudaCopyD2H(CUDA& device, Buffer& source, void* target, Stream& stream) {
+    auto err = cudaMemcpyAsync(
+        target,
+        source.getPointer(),
+        source.getSize(),
+        cudaMemcpyDeviceToHost,
+        stream.getStream(device));
+    cudaErrorCheck(err, "Impossible to copy memory from device to host.");
+}
+
+void cudaCopyH2D(CUDA& device, Buffer& source, Buffer& target, Stream& stream) {
+    auto err = cudaMemcpyAsync(
+        target.getPointer(),
+        source.getPointer(),
+        target.getSize(),
+        cudaMemcpyHostToDevice,
+        stream.getStream(device));
+    cudaErrorCheck(err, "Impossible to copy memory from host to device.");
+}
+
+void cudaCopyD2D(CUDA& device, Buffer& source, Buffer& target, Stream& stream) {
+    auto err = cudaMemcpyAsync(
+        target.getPointer(),
+        source.getPointer(),
+        target.getSize(),
+        cudaMemcpyDeviceToDevice,
+        stream.getStream(device));
+    cudaErrorCheck(err, "Impossible to copy memory from device to device.");
 }
 
 // Buffer
 
-Buffer::Buffer() {
-    this->buffer = nullptr;
-    this->size = 0;
-    this->device = std::make_shared<UnknownDevice>();
-}
-
-Buffer::Buffer(std::size_t size) {
-    this->buffer = nullptr;
-    this->size = size;
-    this->device = std::make_shared<UnknownDevice>();
-}
-
-Buffer::Buffer(CPU& device, std::size_t size) {
-    this->buffer = nullptr;
-    this->size = size;
-    this->device = std::make_shared<CPU>();
-}
-
-Buffer::Buffer(CUDA& device, std::size_t size) {
-    this->buffer = nullptr;
-    this->size = size;
-    this->device = std::make_shared<CUDA>(device.device_id);
-}
-
-std::size_t Buffer::getSize() const {
-    return this->size;
-}
-
-void Buffer::setSize(std::size_t size) {
-    this->size = size;
-}
-
-std::shared_ptr<DeviceType> Buffer::getDevice() {
-    return this->device;
-}
-
-void Buffer::setDevice(CPU& device) {
-    this->device = std::make_shared<CPU>();
-}
-
-void Buffer::setDevice(CUDA& device) {
-    this->device = std::make_shared<CUDA>(device.device_id);
-}
-
-bool Buffer::is_allocated() const {
-    return this->buffer != nullptr;
-}
-
-void Buffer::allocate() {
-    this->buffer = malloc(this->size);
-}
-
 void Buffer::allocate(CUDA& device, Stream& stream) {
     auto err = cudaMallocAsync(&(this->buffer), size, stream.getStream(device));
     cudaErrorCheck(err, "Impossible to allocate CUDA memory.");
-}
-
-void Buffer::destroy() {
-    free(this->buffer);
-    this->buffer = nullptr;
-    this->size = 0;
-    this->device = std::make_shared<UnknownDevice>();
 }
 
 void Buffer::destroy(CUDA& device, Stream& stream) {
@@ -90,26 +63,6 @@ void Buffer::destroy(CUDA& device, Stream& stream) {
     this->buffer = nullptr;
     this->size = 0;
     this->device = std::make_shared<UnknownDevice>();
-}
-
-void* Buffer::getPointer() {
-    return this->buffer;
-}
-
-unsigned int* Buffer::getPointer(UInteger& type) {
-    return reinterpret_cast<unsigned int*>(this->buffer);
-}
-
-int* Buffer::getPointer(Integer& type) {
-    return reinterpret_cast<int*>(this->buffer);
-}
-
-float* Buffer::getPointer(FP_Single& type) {
-    return reinterpret_cast<float*>(this->buffer);
-}
-
-double* Buffer::getPointer(FP_Double& type) {
-    return reinterpret_cast<double*>(this->buffer);
 }
 
 //Stream
@@ -141,16 +94,6 @@ Stream::~Stream() {
 
 cudaStream_t Stream::getStream(CUDA& device) {
     return this->cuda_stream;
-}
-
-// GPU
-
-GPU::GPU() {
-    this->device_id = 0;
-}
-
-GPU::GPU(unsigned int device_id) {
-    this->device_id = device_id;
 }
 
 }  // namespace kmm

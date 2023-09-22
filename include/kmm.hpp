@@ -1,6 +1,9 @@
 #include <cstddef>
+#include <iostream>
 #include <map>
 #include <memory>
+#include <stdexcept>
+#include <string>
 
 #pragma once
 
@@ -144,12 +147,6 @@ class Manager {
 
 // Misc
 
-inline void cudaErrorCheck(cudaError_t err, std::string message) {
-    if (err != cudaSuccess) {
-        throw std::runtime_error(message);
-    }
-}
-
 inline bool is_cpu(CPU& device) {
     return true;
 }
@@ -176,17 +173,25 @@ inline bool same_device(CPU& device_one, CPU& device_two) {
     return true;
 }
 
-inline bool same_device(CPU& device_one, CUDA& device_two) {
+inline bool same_device(CPU& device_one, GPU& device_two) {
     return false;
 }
 
-inline bool same_device(CUDA& device_one, CPU& device_two) {
+inline bool same_device(CUDA& device_one, GPU& device_two) {
     return false;
 }
 
 inline bool same_device(CUDA& device_one, CUDA& device_two) {
     return device_one.device_id == device_two.device_id;
 }
+
+void cudaCopyD2H(CUDA& device, Buffer& source, Buffer& target, Stream& stream);
+
+void cudaCopyD2H(CUDA& device, Buffer& source, void* target, Stream& stream);
+
+void cudaCopyH2D(CUDA& device, Buffer& source, Buffer& target, Stream& stream);
+
+void cudaCopyD2D(CUDA& device, Buffer& source, Buffer& target, Stream& stream);
 
 // Manager
 
@@ -212,14 +217,7 @@ void Manager::move_to(CPU& device, Pointer<Type>& pointer) {
         auto target_buffer = Buffer(device, source_buffer.getSize());
         auto stream = this->streams[source_device.device_id];
         target_buffer.allocate();
-
-        auto err = cudaMemcpyAsync(
-            target_buffer.getPointer(),
-            source_buffer.getPointer(),
-            target_buffer.getSize(),
-            cudaMemcpyDeviceToHost,
-            stream.getStream(source_device));
-        cudaErrorCheck(err, "Impossible to copy memory from device to host.");
+        cudaCopyD2H(source_device, source_buffer, target_buffer, stream);
         source_buffer.destroy(source_device, stream);
         this->allocations[pointer.id] = target_buffer;
     } else {
@@ -244,25 +242,13 @@ void Manager::move_to(CUDA& device, Pointer<Type>& pointer) {
         }
         auto stream = this->streams[source_device.device_id];
         target_buffer.allocate(device, stream);
-        auto err = cudaMemcpyAsync(
-            target_buffer.getPointer(),
-            source_buffer.getPointer(),
-            target_buffer.getSize(),
-            cudaMemcpyDeviceToDevice,
-            stream.getStream(device));
-        cudaErrorCheck(err, "Impossible to copy memory from device to device.");
+        cudaCopyD2D(device, source_buffer, target_buffer, stream);
         source_buffer.destroy(source_device, stream);
     } else if (on_cpu(source_buffer)) {
         // source_buffer is allocated on a CPU
         auto stream = this->streams[device.device_id];
         target_buffer.allocate(device, stream);
-        auto err = cudaMemcpyAsync(
-            target_buffer.getPointer(),
-            source_buffer.getPointer(),
-            target_buffer.getSize(),
-            cudaMemcpyHostToDevice,
-            stream.getStream(device));
-        cudaErrorCheck(err, "Impossible to copy memory from host to device.");
+        cudaCopyH2D(device, source_buffer, target_buffer, stream);
         source_buffer.destroy();
     }
     this->allocations[pointer.id] = target_buffer;
@@ -290,13 +276,7 @@ void Manager::copy_release(Pointer<Type>& pointer, void* target) {
     } else if (on_cuda(buffer)) {
         auto device = *(dynamic_cast<CUDA*>(buffer.getDevice().get()));
         auto stream = this->streams[device.device_id];
-        auto err = cudaMemcpyAsync(
-            target,
-            buffer.getPointer(),
-            buffer.getSize(),
-            cudaMemcpyDeviceToHost,
-            stream.getStream(device));
-        cudaErrorCheck(err, "Impossible to copy memory from device to host.");
+        cudaCopyD2H(device, buffer, target, stream);
     }
     this->release(pointer);
 }
