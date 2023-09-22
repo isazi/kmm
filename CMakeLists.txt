@@ -67,7 +67,7 @@ add_executable(
   test/kmmTest.cpp
 )
 target_include_directories(
-    kmmTest
+    kmmTestCxx
     PRIVATE
     ${GTEST_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/include
@@ -85,7 +85,7 @@ if(DEFINED CMAKE_CUDA_COMPILER)
     test/kmmTest.cu
   )
   target_include_directories(
-      kmmTest
+      kmmTestCu
       PRIVATE
       ${GTEST_INCLUDE_DIRS}
       ${PROJECT_SOURCE_DIR}/include
