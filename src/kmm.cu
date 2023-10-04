@@ -57,6 +57,11 @@ void Buffer::allocate(CUDA& device, Stream& stream) {
     cudaErrorCheck(err, "Impossible to allocate CUDA memory.");
 }
 
+void Buffer::allocate(CUDAPinned& memory) {
+    auto err = cudaMallocHost(&(this->buffer), size);
+    cudaErrorCheck(err, "Impossible to allocate Pinned host memory.");
+}
+
 void Buffer::destroy(CUDA& device, Stream& stream) {
     auto err = cudaFreeAsync(this->buffer, stream.getStream(device));
     cudaErrorCheck(err, "Impossible to release memory.");
