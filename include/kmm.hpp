@@ -302,7 +302,7 @@ void Manager::move_to(CUDA& device, Pointer<Type>& pointer) {
         if (is_cuda_pinned(source_buffer)) {
             target_buffer.setMemory(*(dynamic_cast<CUDAPinned*>(source_buffer.getMemory().get())));
         }
-        target_buffer.cudaCopyH2D(device, source_buffer, target_buffer, stream);
+        cudaCopyH2D(device, source_buffer, target_buffer, stream);
         source_buffer.destroy();
     }
     this->allocations[pointer.id] = target_buffer;
