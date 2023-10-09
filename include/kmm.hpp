@@ -4,14 +4,18 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #pragma once
 
 namespace kmm {
 
 // Compute devices
-
 class DeviceType {
+  public:
+    DeviceType() = default;
+    DeviceType(const DeviceType&) = delete;
+
   public:
     virtual ~DeviceType() = default;
 };
@@ -33,8 +37,11 @@ class CUDA: public GPU {
 };
 
 // Memories
-
 class MemoryType {
+  public:
+    MemoryType() = default;
+    MemoryType(const MemoryType&) = delete;
+
   public:
     virtual ~MemoryType() = default;
 };
@@ -68,12 +75,6 @@ class Pointer {
     unsigned int id_;
 };
 
-template<typename Type>
-class WritePointer: public Pointer<Type> {
-  public:
-    WritePointer(Pointer<Type>& pointer);
-};
-
 // Task
 
 class Task {
@@ -93,44 +94,6 @@ class Stream {
 };
 #endif
 
-// Buffer
-
-class Buffer {
-  public:
-    Buffer();
-    Buffer(std::size_t size);
-    Buffer(std::size_t size, CUDAPinned& memory);
-    Buffer(CPU& device, std::size_t size);
-    Buffer(CUDA& device, std::size_t size);
-    // Manipulate size
-    std::size_t size() const;
-    void setSize(std::size_t size);
-    // Manipulate device
-    std::shared_ptr<DeviceType> getDevice();
-    void setDevice(CPU& device);
-    void setDevice(CUDA& device);
-    // Manipulate special memory
-    std::shared_ptr<MemoryType> getMemory();
-    void setMemory(CUDAPinned& memory);
-    // Return true if the buffer is allocated
-    bool is_allocated() const;
-    // Allocate memory
-    void allocate();
-    void allocate(CUDAPinned& memory);
-    void allocate(CUDA& device, Stream& stream);
-    // Free memory
-    void destroy();
-    void destroy(CUDA& device, Stream& stream);
-    // Return a pointer to the allocated buffer
-    void* getPointer();
-
-  private:
-    void* buffer_;
-    std::size_t size_;
-    std::shared_ptr<DeviceType> device_;
-    std::shared_ptr<MemoryType> memory_;
-};
-
 // Manager
 
 class ManagerImpl;
@@ -140,6 +103,8 @@ class Manager {
     Manager();
 
     Task run();
+
+    const std::vector<std::shared_ptr<MemoryType>>& memories() const;
 
     template<typename Type>
     Pointer<Type> create(std::size_t size) {
@@ -181,6 +146,44 @@ class Manager {
     std::shared_ptr<ManagerImpl> impl_;
 };
 
+// Buffer
+
+class Buffer {
+  public:
+    Buffer();
+    Buffer(std::size_t size);
+    Buffer(std::size_t size, CUDAPinned& memory);
+    Buffer(CPU& device, std::size_t size);
+    Buffer(CUDA& device, std::size_t size);
+    // Manipulate size
+    std::size_t size() const;
+    void set_size(std::size_t size);
+    // Manipulate device
+    std::shared_ptr<DeviceType> device();
+    void set_device(CPU& device);
+    void set_device(CUDA& device);
+    // Manipulate special memory
+    std::shared_ptr<MemoryType> memory();
+    void set_memory(CUDAPinned& memory);
+    // Return true if the buffer is allocated
+    bool is_allocated() const;
+    // Allocate memory
+    void allocate();
+    void allocate(CUDAPinned& memory);
+    void allocate(CUDA& device, Stream& stream);
+    // Free memory
+    void destroy();
+    void destroy(CUDA& device, Stream& stream);
+    // Return a pointer to the allocated buffer
+    void* getPointer();
+
+  private:
+    void* buffer_;
+    std::size_t size_;
+    std::shared_ptr<DeviceType> device_;
+    std::shared_ptr<MemoryType> memory_;
+};
+
 // Misc
 
 inline bool is_cpu(DeviceType& device) {
@@ -188,7 +191,7 @@ inline bool is_cpu(DeviceType& device) {
 }
 
 inline bool is_cuda_pinned(Buffer& buffer) {
-    return dynamic_cast<CUDAPinned*>(buffer.getMemory().get()) != nullptr;
+    return dynamic_cast<CUDAPinned*>(buffer.memory().get()) != nullptr;
 }
 
 inline bool is_pinned(Buffer& buffer) {
@@ -196,11 +199,11 @@ inline bool is_pinned(Buffer& buffer) {
 }
 
 inline bool on_cpu(Buffer& buffer) {
-    return dynamic_cast<CPU*>(buffer.getDevice().get()) != nullptr;
+    return dynamic_cast<CPU*>(buffer.device().get()) != nullptr;
 }
 
 inline bool on_cuda(Buffer& buffer) {
-    return dynamic_cast<CUDA*>(buffer.getDevice().get()) != nullptr;
+    return dynamic_cast<CUDA*>(buffer.device().get()) != nullptr;
 }
 
 inline bool same_device(const DeviceType& a, const DeviceType& b) {
@@ -237,11 +240,22 @@ Pointer<Type>::Pointer(unsigned int id) {
 
 // WritePointer
 
-template<typename Type>
-WritePointer<Type>::WritePointer(Pointer<Type>& pointer) {
-    this->id_ = pointer.id();
-    this->dirty_ = true;
-    //    pointer.dirty_ = true;
+template<typename P>
+class WritePointer {
+  public:
+    WritePointer(P& inner) : inner_(inner) {}
+
+    P& get() const {
+        return inner_;
+    }
+
+  private:
+    P& inner_;
+};
+
+template<typename P>
+WritePointer<P> write(P& ptr) {
+    return ptr;
 }
 
 }  // namespace kmm

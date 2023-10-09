@@ -9,6 +9,7 @@ namespace kmm {
 struct ManagerImpl {
     unsigned int next_allocation = 0;
     unsigned int next_task = 0;
+    std::vector<std::shared_ptr<MemoryType>> memories_;
     std::map<unsigned int, Stream> streams;
     std::map<unsigned int, Buffer> allocations;
     std::map<unsigned int, Task> tasks;
@@ -18,6 +19,10 @@ struct ManagerImpl {
 
 Manager::Manager() {
     impl_ = std::make_shared<ManagerImpl>();
+}
+
+const std::vector<std::shared_ptr<MemoryType>>& Manager::memories() const {
+    return impl_->memories_;
 }
 
 unsigned int Manager::create_impl(size_t size) {
@@ -51,11 +56,11 @@ void Manager::move_to_impl(CPU& device, unsigned int pointer_id) {
         return;
     }
     if (source_buffer.is_allocated()) {
-        auto source_device = *(dynamic_cast<CUDA*>(source_buffer.getDevice().get()));
+        auto& source_device = *(dynamic_cast<CUDA*>(source_buffer.device().get()));
         auto target_buffer = Buffer(device, source_buffer.size());
-        auto stream = impl_->streams[source_device.device_id];
+        auto& stream = impl_->streams[source_device.device_id];
         if (is_cuda_pinned(source_buffer)) {
-            target_buffer.allocate(*(dynamic_cast<CUDAPinned*>(source_buffer.getMemory().get())));
+            target_buffer.allocate(*(dynamic_cast<CUDAPinned*>(source_buffer.memory().get())));
         } else {
             target_buffer.allocate();
         }
@@ -63,20 +68,20 @@ void Manager::move_to_impl(CPU& device, unsigned int pointer_id) {
         source_buffer.destroy(source_device, stream);
         impl_->allocations[pointer_id] = target_buffer;
     } else {
-        source_buffer.setDevice(device);
+        source_buffer.set_device(device);
     }
 }
 void Manager::move_to_impl(CUDA& device, unsigned int pointer_id) {
     auto source_buffer = impl_->allocations[pointer_id];
 
     if (!source_buffer.is_allocated()) {
-        source_buffer.setDevice(device);
+        source_buffer.set_device(device);
         return;
     }
     auto target_buffer = Buffer(device, source_buffer.size());
     if (on_cuda(source_buffer)) {
         // source_buffer is allocated on a CUDA GPU
-        auto source_device = *(dynamic_cast<CUDA*>(source_buffer.getDevice().get()));
+        auto& source_device = *(dynamic_cast<CUDA*>(source_buffer.device().get()));
         if (same_device(device, source_device)) {
             return;
         }
@@ -89,7 +94,7 @@ void Manager::move_to_impl(CUDA& device, unsigned int pointer_id) {
         auto stream = impl_->streams[device.device_id];
         target_buffer.allocate(device, stream);
         if (is_cuda_pinned(source_buffer)) {
-            target_buffer.setMemory(*(dynamic_cast<CUDAPinned*>(source_buffer.getMemory().get())));
+            target_buffer.set_memory(*(dynamic_cast<CUDAPinned*>(source_buffer.memory().get())));
         }
         cudaCopyH2D(device, source_buffer, target_buffer, stream);
         source_buffer.destroy();
@@ -103,7 +108,7 @@ void Manager::release_impl(unsigned int pointer_id) {
     if (on_cpu(buffer)) {
         buffer.destroy();
     } else if (on_cuda(buffer)) {
-        auto device = *(dynamic_cast<CUDA*>(buffer.getDevice().get()));
+        auto& device = *(dynamic_cast<CUDA*>(buffer.device().get()));
         auto stream = impl_->streams[device.device_id];
         buffer.destroy(device, stream);
     }
@@ -115,7 +120,7 @@ void Manager::copy_release_impl(unsigned int pointer_id, void* target) {
     if (on_cpu(buffer)) {
         ::memcpy(target, buffer.getPointer(), buffer.size());
     } else if (on_cuda(buffer)) {
-        auto device = *(dynamic_cast<CUDA*>(buffer.getDevice().get()));
+        auto& device = *(dynamic_cast<CUDA*>(buffer.device().get()));
         auto stream = impl_->streams[device.device_id];
         cudaCopyD2H(device, buffer, target, stream);
     }
@@ -164,27 +169,27 @@ std::size_t Buffer::size() const {
     return this->size_;
 }
 
-void Buffer::setSize(std::size_t size) {
+void Buffer::set_size(std::size_t size) {
     this->size_ = size;
 }
 
-std::shared_ptr<DeviceType> Buffer::getDevice() {
+std::shared_ptr<DeviceType> Buffer::device() {
     return this->device_;
 }
 
-void Buffer::setDevice(CPU& device) {
+void Buffer::set_device(CPU& device) {
     this->device_ = std::make_shared<CPU>();
 }
 
-void Buffer::setDevice(CUDA& device) {
+void Buffer::set_device(CUDA& device) {
     this->device_ = std::make_shared<CUDA>(device.device_id);
 }
 
-std::shared_ptr<MemoryType> Buffer::getMemory() {
+std::shared_ptr<MemoryType> Buffer::memory() {
     return this->memory_;
 }
 
-void Buffer::setMemory(CUDAPinned& memory) {
+void Buffer::set_memory(CUDAPinned& memory) {
     this->memory_ = std::make_shared<CUDAPinned>();
 }
 

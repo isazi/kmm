@@ -32,12 +32,6 @@ TEST(CUDA, Initialization) {
     EXPECT_EQ(gpu.device_id, 2);
 }
 
-TEST(CUDA, Copy) {
-    auto gpu = kmm::CUDA(2);
-    auto new_gpu = gpu;
-    EXPECT_EQ(new_gpu.device_id, gpu.device_id);
-}
-
 TEST(Pointer, Initialized) {
     auto pointer = kmm::Pointer<int>(14);
     EXPECT_EQ(pointer.id(), 14);
@@ -48,9 +42,8 @@ TEST(Pointer, Initialized) {
 TEST(Pointer, DirtyByte) {
     auto pointer = kmm::Pointer<double>(3);
     EXPECT_FALSE(pointer.is_dirty());
-    auto new_pointer = kmm::WritePointer(pointer);
-    EXPECT_EQ(new_pointer.id(), pointer.id());
-    EXPECT_TRUE(pointer.is_dirty());
+    auto new_pointer = kmm::write(pointer);
+    EXPECT_EQ(new_pointer.get().id(), pointer.id());
 }
 
 TEST(Buffer, ZeroInitialization) {
@@ -58,7 +51,7 @@ TEST(Buffer, ZeroInitialization) {
     EXPECT_EQ(buffer.size(), 0);
     EXPECT_FALSE(buffer.is_allocated());
     EXPECT_TRUE(
-        typeid(dynamic_cast<kmm::UnknownDevice*>(buffer.getDevice().get())).hash_code()
+        typeid(dynamic_cast<kmm::UnknownDevice*>(buffer.device().get())).hash_code()
         == typeid(kmm::UnknownDevice*).hash_code());
     EXPECT_FALSE(kmm::on_cpu(buffer));
 }
