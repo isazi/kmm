@@ -42,9 +42,9 @@ int main(void) {
     auto cpu = kmm::CPU();
     auto gpu = kmm::CUDA();
     // Request 3 memory areas of a certain size
-    auto A = manager.create<kmm::FP_Single>(n);
-    auto B = manager.create<kmm::FP_Single>(n);
-    auto C = manager.create<kmm::FP_Single>(n);
+    auto A = manager.create<float>(n);
+    auto B = manager.create<float>(n);
+    auto C = manager.create<float>(n);
     // TODO: run initialization
     // Copy data to the GPU
     manager.move_to(gpu, A);

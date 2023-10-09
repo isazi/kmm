@@ -39,18 +39,18 @@ TEST(CUDA, Copy) {
 }
 
 TEST(Pointer, Initialized) {
-    auto pointer = kmm::Pointer<kmm::Integer>(14);
-    EXPECT_EQ(pointer.id, 14);
-    EXPECT_TRUE(typeid(pointer.type).hash_code() == typeid(kmm::Integer).hash_code());
-    EXPECT_FALSE(typeid(pointer.type).hash_code() == typeid(kmm::UInteger).hash_code());
+    auto pointer = kmm::Pointer<int>(14);
+    EXPECT_EQ(pointer.id(), 14);
+    EXPECT_TRUE(pointer.type().hash_code() == typeid(int).hash_code());
+    EXPECT_FALSE(pointer.type().hash_code() == typeid(unsigned int).hash_code());
 }
 
 TEST(Pointer, DirtyByte) {
-    auto pointer = kmm::Pointer<kmm::FP_Double>(3);
-    EXPECT_FALSE(pointer.dirty);
+    auto pointer = kmm::Pointer<double>(3);
+    EXPECT_FALSE(pointer.is_dirty());
     auto new_pointer = kmm::WritePointer(pointer);
-    EXPECT_EQ(new_pointer.id, pointer.id);
-    EXPECT_TRUE(pointer.dirty);
+    EXPECT_EQ(new_pointer.id(), pointer.id());
+    EXPECT_TRUE(pointer.is_dirty());
 }
 
 TEST(Buffer, ZeroInitialization) {

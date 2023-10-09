@@ -9,21 +9,6 @@
 
 namespace kmm {
 
-// Data types
-
-class DataType {
-  public:
-    virtual ~DataType() = default;
-};
-
-class UInteger: public DataType {};
-
-class Integer: public DataType {};
-
-class FP_Single: public DataType {};
-
-class FP_Double: public DataType {};
-
 // Compute devices
 
 class DeviceType {
@@ -65,9 +50,22 @@ class Pointer {
   public:
     Pointer();
     Pointer(unsigned int id);
-    bool dirty;
-    unsigned int id;
-    Type type;
+
+    const std::type_info& type() const {
+        return typeid(Type);
+    }
+
+    unsigned int id() const {
+        return id_;
+    }
+
+    bool is_dirty() const {
+        return dirty_;
+    }
+
+  protected:
+    bool dirty_;
+    unsigned int id_;
 };
 
 template<typename Type>
@@ -140,6 +138,7 @@ class ManagerImpl;
 class Manager {
   public:
     Manager();
+
     Task run();
 
     template<typename Type>
@@ -153,23 +152,23 @@ class Manager {
     }
 
     template<typename Type>
-    void move_to(CPU& device, Pointer<Type>& pointer) {
-        this->move_to_impl(device, pointer.id);
+    void move_to(CPU& device, const Pointer<Type>& pointer) {
+        this->move_to_impl(device, pointer.id());
     }
 
     template<typename Type>
-    void move_to(CUDA& device, Pointer<Type>& pointer) {
-        this->move_to_impl(device, pointer.id);
+    void move_to(CUDA& device, const Pointer<Type>& pointer) {
+        this->move_to_impl(device, pointer.id());
     }
 
     template<typename Type>
-    void release(Pointer<Type>& pointer) {
-        release_impl(pointer.id);
+    void release(const Pointer<Type>& pointer) {
+        release_impl(pointer.id());
     }
 
     template<typename Type>
-    void copy_release(Pointer<Type>& pointer, void* target) {
-        this->copy_release_impl(pointer.id, target);
+    void copy_release(const Pointer<Type>& pointer, void* target) {
+        this->copy_release_impl(pointer.id(), target);
     }
 
   private:
@@ -184,19 +183,12 @@ class Manager {
 
 // Misc
 
-inline bool is_cpu(CPU& device) {
-    return true;
-}
-
-inline bool is_cpu(GPU& device) {
-    return false;
+inline bool is_cpu(DeviceType& device) {
+    return dynamic_cast<const CPU*>(&device) != nullptr;
 }
 
 inline bool is_cuda_pinned(Buffer& buffer) {
-    if (dynamic_cast<CUDAPinned*>(buffer.getMemory().get()) != nullptr) {
-        return true;
-    }
-    return false;
+    return dynamic_cast<CUDAPinned*>(buffer.getMemory().get()) != nullptr;
 }
 
 inline bool is_pinned(Buffer& buffer) {
@@ -204,33 +196,25 @@ inline bool is_pinned(Buffer& buffer) {
 }
 
 inline bool on_cpu(Buffer& buffer) {
-    if (dynamic_cast<CPU*>(buffer.getDevice().get()) != nullptr) {
-        return true;
-    }
-    return false;
+    return dynamic_cast<CPU*>(buffer.getDevice().get()) != nullptr;
 }
 
 inline bool on_cuda(Buffer& buffer) {
-    if (dynamic_cast<CUDA*>(buffer.getDevice().get()) != nullptr) {
-        return true;
+    return dynamic_cast<CUDA*>(buffer.getDevice().get()) != nullptr;
+}
+
+inline bool same_device(const DeviceType& a, const DeviceType& b) {
+    if (dynamic_cast<const CPU*>(&a) != nullptr) {
+        return dynamic_cast<const CPU*>(&b) != nullptr;
     }
+
+    if (auto a_ptr = dynamic_cast<const GPU*>(&a)) {
+        if (auto b_ptr = dynamic_cast<const GPU*>(&b)) {
+            return a_ptr->device_id == b_ptr->device_id;
+        }
+    }
+
     return false;
-}
-
-inline bool same_device(CPU& device_one, CPU& device_two) {
-    return true;
-}
-
-inline bool same_device(CPU& device_one, GPU& device_two) {
-    return false;
-}
-
-inline bool same_device(GPU& device_one, CPU& device_two) {
-    return false;
-}
-
-inline bool same_device(CUDA& device_one, CUDA& device_two) {
-    return device_one.device_id == device_two.device_id;
 }
 
 void cudaCopyD2H(CUDA& device, Buffer& source, Buffer& target, Stream& stream);
@@ -247,19 +231,17 @@ Pointer<Type>::Pointer() {}
 
 template<typename Type>
 Pointer<Type>::Pointer(unsigned int id) {
-    this->id = id;
-    this->type = Type();
-    this->dirty = false;
+    this->id_ = id;
+    this->dirty_ = false;
 }
 
 // WritePointer
 
 template<typename Type>
 WritePointer<Type>::WritePointer(Pointer<Type>& pointer) {
-    this->id = pointer.id;
-    this->type = pointer.type;
-    this->dirty = true;
-    pointer.dirty = true;
+    this->id_ = pointer.id();
+    this->dirty_ = true;
+    //    pointer.dirty_ = true;
 }
 
 }  // namespace kmm
