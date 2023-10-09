@@ -105,7 +105,7 @@ class Buffer {
     Buffer(CPU& device, std::size_t size);
     Buffer(CUDA& device, std::size_t size);
     // Manipulate size
-    std::size_t getSize() const;
+    std::size_t size() const;
     void setSize(std::size_t size);
     // Manipulate device
     std::shared_ptr<DeviceType> getDevice();
@@ -125,50 +125,61 @@ class Buffer {
     void destroy(CUDA& device, Stream& stream);
     // Return a pointer to the allocated buffer
     void* getPointer();
-    // Return a typed pointer
-    unsigned int* getPointer(UInteger& type);
-    int* getPointer(Integer& type);
-    float* getPointer(FP_Single& type);
-    double* getPointer(FP_Double& type);
 
   private:
-    void* buffer;
-    std::size_t size;
-    std::shared_ptr<DeviceType> device;
-    std::shared_ptr<MemoryType> memory;
+    void* buffer_;
+    std::size_t size_;
+    std::shared_ptr<DeviceType> device_;
+    std::shared_ptr<MemoryType> memory_;
 };
 
 // Manager
 
+class ManagerImpl;
+
 class Manager {
   public:
     Manager();
-    // Request memory
-    template<typename Type>
-    Pointer<Type> create(std::size_t size);
-    template<typename Type>
-    Pointer<Type> create(std::size_t size, CUDAPinned& memory);
-    // Move data
-    template<typename Type>
-    void move_to(CPU& device, Pointer<Type>& pointer);
-    template<typename Type>
-    void move_to(CUDA& device, Pointer<Type>& pointer);
-    // Release memory
-    template<typename Type>
-    void release(Pointer<Type>& pointer);
-    template<typename Type>
-    void copy_release(Pointer<Type>& pointer, void* target);
-    // Execute a function on a device
     Task run();
 
+    template<typename Type>
+    Pointer<Type> create(std::size_t size) {
+        return Pointer<Type>(this->create_impl(size));
+    }
+
+    template<typename Type>
+    Pointer<Type> create(std::size_t size, CUDAPinned& memory) {
+        return Pointer<Type>(this->create_impl(size, memory));
+    }
+
+    template<typename Type>
+    void move_to(CPU& device, Pointer<Type>& pointer) {
+        this->move_to_impl(device, pointer.id);
+    }
+
+    template<typename Type>
+    void move_to(CUDA& device, Pointer<Type>& pointer) {
+        this->move_to_impl(device, pointer.id);
+    }
+
+    template<typename Type>
+    void release(Pointer<Type>& pointer) {
+        release_impl(pointer.id);
+    }
+
+    template<typename Type>
+    void copy_release(Pointer<Type>& pointer, void* target) {
+        this->copy_release_impl(pointer.id, target);
+    }
+
   private:
-    unsigned int next_allocation;
-    unsigned int next_task;
-    std::map<unsigned int, Stream> streams;
-    std::map<unsigned int, Buffer> allocations;
-    std::map<unsigned int, Task> tasks;
-    // Check if a device has a stream allocated
-    bool stream_exist(unsigned int stream);
+    unsigned int create_impl(size_t size);
+    unsigned int create_impl(size_t size, CUDAPinned& memory);
+    void move_to_impl(CPU& device, unsigned int pointer_id);
+    void move_to_impl(CUDA& device, unsigned int pointer_id);
+    void release_impl(unsigned int pointer_id);
+    void copy_release_impl(unsigned int pointer_id, void* target);
+    std::shared_ptr<ManagerImpl> impl_;
 };
 
 // Misc
@@ -223,117 +234,11 @@ inline bool same_device(CUDA& device_one, CUDA& device_two) {
 }
 
 void cudaCopyD2H(CUDA& device, Buffer& source, Buffer& target, Stream& stream);
-
 void cudaCopyD2H(CUDA& device, Buffer& source, void* target, Stream& stream);
-
 void cudaCopyH2D(CUDA& device, Buffer& source, Buffer& target, Stream& stream);
-
 void cudaCopyD2D(CUDA& device, Buffer& source, Buffer& target, Stream& stream);
 
 // Manager
-
-template<typename Type>
-Pointer<Type> Manager::create(std::size_t size) {
-    unsigned int allocation_id;
-
-    allocation_id = this->next_allocation++;
-    this->allocations[allocation_id] = Buffer(size);
-
-    return Pointer<Type>(allocation_id);
-}
-
-template<typename Type>
-Pointer<Type> Manager::create(std::size_t size, CUDAPinned& memory) {
-    unsigned int allocation_id;
-
-    allocation_id = this->next_allocation++;
-    this->allocations[allocation_id] = Buffer(size, memory);
-
-    return Pointer<Type>(allocation_id);
-}
-
-template<typename Type>
-void Manager::move_to(CPU& device, Pointer<Type>& pointer) {
-    auto source_buffer = this->allocations[pointer.id];
-
-    if (on_cpu(source_buffer)) {
-        return;
-    }
-    if (source_buffer.is_allocated()) {
-        auto source_device = *(dynamic_cast<CUDA*>(source_buffer.getDevice().get()));
-        auto target_buffer = Buffer(device, source_buffer.getSize());
-        auto stream = this->streams[source_device.device_id];
-        if (is_cuda_pinned(source_buffer)) {
-            target_buffer.allocate(*(dynamic_cast<CUDAPinned*>(source_buffer.getMemory().get())));
-        } else {
-            target_buffer.allocate();
-        }
-        cudaCopyD2H(source_device, source_buffer, target_buffer, stream);
-        source_buffer.destroy(source_device, stream);
-        this->allocations[pointer.id] = target_buffer;
-    } else {
-        source_buffer.setDevice(device);
-    }
-}
-
-template<typename Type>
-void Manager::move_to(CUDA& device, Pointer<Type>& pointer) {
-    auto source_buffer = this->allocations[pointer.id];
-
-    if (!source_buffer.is_allocated()) {
-        source_buffer.setDevice(device);
-        return;
-    }
-    auto target_buffer = Buffer(device, source_buffer.getSize());
-    if (on_cuda(source_buffer)) {
-        // source_buffer is allocated on a CUDA GPU
-        auto source_device = *(dynamic_cast<CUDA*>(source_buffer.getDevice().get()));
-        if (same_device(device, source_device)) {
-            return;
-        }
-        auto stream = this->streams[source_device.device_id];
-        target_buffer.allocate(device, stream);
-        cudaCopyD2D(device, source_buffer, target_buffer, stream);
-        source_buffer.destroy(source_device, stream);
-    } else if (on_cpu(source_buffer)) {
-        // source_buffer is allocated on a CPU
-        auto stream = this->streams[device.device_id];
-        target_buffer.allocate(device, stream);
-        if (is_cuda_pinned(source_buffer)) {
-            target_buffer.setMemory(*(dynamic_cast<CUDAPinned*>(source_buffer.getMemory().get())));
-        }
-        cudaCopyH2D(device, source_buffer, target_buffer, stream);
-        source_buffer.destroy();
-    }
-    this->allocations[pointer.id] = target_buffer;
-}
-
-template<typename Type>
-void Manager::release(Pointer<Type>& pointer) {
-    auto buffer = this->allocations[pointer.id];
-
-    if (on_cpu(buffer)) {
-        buffer.destroy();
-    } else if (on_cuda(buffer)) {
-        auto device = *(dynamic_cast<CUDA*>(buffer.getDevice().get()));
-        auto stream = this->streams[device.device_id];
-        buffer.destroy(device, stream);
-    }
-}
-
-template<typename Type>
-void Manager::copy_release(Pointer<Type>& pointer, void* target) {
-    auto buffer = this->allocations[pointer.id];
-
-    if (on_cpu(buffer)) {
-        memcpy(target, buffer.getPointer(), buffer.getSize());
-    } else if (on_cuda(buffer)) {
-        auto device = *(dynamic_cast<CUDA*>(buffer.getDevice().get()));
-        auto stream = this->streams[device.device_id];
-        cudaCopyD2H(device, buffer, target, stream);
-    }
-    this->release(pointer);
-}
 
 // Pointer
 
