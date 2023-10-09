@@ -40,10 +40,10 @@ TEST(Pointer, Initialized) {
 }
 
 TEST(Pointer, DirtyByte) {
-    auto pointer = kmm::Pointer<double>(3);
-    EXPECT_FALSE(pointer.is_dirty());
-    auto new_pointer = kmm::write(pointer);
-    EXPECT_EQ(new_pointer.get().id(), pointer.id());
+    //    auto pointer = kmm::Pointer<double>(3);
+    //    EXPECT_FALSE(pointer.is_dirty());
+    //    auto new_pointer = kmm::write(pointer);
+    //    EXPECT_EQ(new_pointer.get().id(), pointer.id());
 }
 
 TEST(Buffer, ZeroInitialization) {

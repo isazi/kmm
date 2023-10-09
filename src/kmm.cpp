@@ -6,13 +6,19 @@ namespace kmm {
 
 // Manager
 
+struct TaskState {
+    unsigned int id;
+    unsigned int device_id;
+    std::shared_ptr<Task> task_;
+};
+
 struct ManagerImpl {
     unsigned int next_allocation = 0;
     unsigned int next_task = 0;
     std::vector<std::shared_ptr<MemoryType>> memories_;
     std::map<unsigned int, Stream> streams;
     std::map<unsigned int, Buffer> allocations;
-    std::map<unsigned int, Task> tasks;
+    std::map<unsigned int, TaskState> tasks;
     // Check if a device has a stream allocated
     bool stream_exist(unsigned int stream);
 };
@@ -43,10 +49,11 @@ bool ManagerImpl::stream_exist(unsigned int stream) {
     return this->streams.find(stream) != this->streams.end();
 }
 
-Task Manager::run() {
+void Manager::submit_task(
+    unsigned int executor_id,
+    std::shared_ptr<Task> task,
+    std::vector<BufferRequirement> reqs) const {
     unsigned int task_id = impl_->next_task++;
-    impl_->tasks[task_id] = Task(task_id);
-    return impl_->tasks[task_id];
 }
 
 void Manager::move_to_impl(CPU& device, unsigned int pointer_id) {
@@ -220,16 +227,6 @@ GPU::GPU() {
 
 GPU::GPU(unsigned int device_id) {
     this->device_id = device_id;
-}
-
-// Task
-
-Task::Task() {
-    this->id = 0;
-}
-
-Task::Task(unsigned int id) {
-    this->id = id;
 }
 
 }  // namespace kmm

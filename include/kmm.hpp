@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstddef>
 #include <iostream>
 #include <map>
@@ -5,8 +7,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#pragma once
 
 namespace kmm {
 
@@ -66,33 +66,90 @@ class Pointer {
         return id_;
     }
 
-    bool is_dirty() const {
-        return dirty_;
-    }
-
   protected:
-    bool dirty_;
     unsigned int id_;
+};
+
+// Stream
+
+class Stream;
+#ifdef USE_CUDA
+    #include "kmm.cuh"
+#endif
+
+struct Allocation {};
+struct Executor {};
+struct ExecutorContext {};
+
+enum struct AccessMode {
+    READ,
+    WRITE,
+};
+
+struct BufferRequirement {
+    unsigned int buffer_id;
+    unsigned int memory_id;
+    AccessMode mode;
+};
+
+struct BufferAccess {
+    unsigned int buffer_id;
+    unsigned int memory_id;
+    AccessMode mode;
+    std::shared_ptr<Allocation> allocation;
 };
 
 // Task
 
 class Task {
   public:
-    Task();
-    Task(unsigned int id);
-    unsigned int id;
+    virtual void execute(std::vector<BufferAccess> buffers) const = 0;
+    virtual ~Task() = default;
 };
-// Stream
 
-#ifdef USE_CUDA
-    #include "kmm.cuh"
-#else
-class Stream {
-  public:
-    Stream();
+template<typename D, typename F, typename... Args>
+class TaskImpl: Task {
+    TaskImpl(D device, F fun, Args... args) :
+        device_(device),
+        fun_(std::move(fun)),
+        args_(std::move(args)...) {}
+
+    void execute(std::vector<BufferAccess> buffers) const override {
+        execute_with_indices(buffers, std::make_index_sequence<sizeof...(Args)>());
+    }
+
+  private:
+    template<size_t... Is>
+    void execute(std::vector<BufferAccess> buffers, std::index_sequence<Is...>) const override {}
+
+    D device_;
+    F fun_;
+    std::tuple<Args...> args_;
 };
-#endif
+
+template<typename T>
+struct TaskArgument {
+    using type = T;
+
+    static type call(T input, std::vector<BufferRequirement>& reqs) {
+        return input;
+    }
+};
+
+template<typename T>
+struct TaskArgument<Pointer<T>> {
+    using type = Pointer<T>;
+
+    static type call(Pointer<T> input, std::vector<BufferRequirement>& reqs) {
+        reqs.push_back(BufferRequirement {
+            .buffer_id = input.id(),
+            .memory_id = 0,
+            .mode = AccessMode::READ,
+        });
+
+        return input;
+    }
+};
 
 // Manager
 
@@ -102,9 +159,29 @@ class Manager {
   public:
     Manager();
 
-    Task run();
+    void submit_task(
+        unsigned int executor_id,
+        std::shared_ptr<Task> task,
+        std::vector<BufferRequirement> reqs) const;
+
+    template<typename D, typename F, typename... Args>
+    void submit(D device, F fun, Args&&... args) const {
+        unsigned int executor_id = device.select_executor(*this);
+
+        std::vector<BufferRequirement> reqs;
+        auto task = std::make_shared<TaskImpl<
+            std::decay_t<D>,
+            std::decay_t<F>,
+            typename TaskArgument<std::decay_t<Args>>::type...>>(
+            std::move(device),
+            std::move(fun),
+            TaskArgument<std::decay_t<Args>>::call(std::forward<Args>(args), reqs)...);
+
+        return submit_task(executor_id, std::move(task), std::move(reqs));
+    }
 
     const std::vector<std::shared_ptr<MemoryType>>& memories() const;
+    const std::vector<std::shared_ptr<Executor>>& executors() const;
 
     template<typename Type>
     Pointer<Type> create(std::size_t size) {
@@ -235,7 +312,6 @@ Pointer<Type>::Pointer() {}
 template<typename Type>
 Pointer<Type>::Pointer(unsigned int id) {
     this->id_ = id;
-    this->dirty_ = false;
 }
 
 // WritePointer
