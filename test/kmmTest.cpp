@@ -2,7 +2,7 @@
 
 #include <typeinfo>
 
-#include "kmm.hpp"
+#include "kmm/kmm.hpp"
 
 TEST(Misc, is_cpu) {
     auto cpu = kmm::CPU();
