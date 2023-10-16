@@ -16,8 +16,8 @@ class ExecutorContext {
 };
 
 struct BufferAccess {
-    BufferId buffer_id = ~0u;
-    MemoryId memory_id = ~0u;
+    BufferId buffer_id = BufferId(~0u);
+    MemoryId memory_id = MemoryId(~0u);
     bool is_writable = false;
     std::shared_ptr<Allocation> buffer;
 };
@@ -27,7 +27,7 @@ class TaskContext {
 };
 
 template<MemorySpace Space, typename Arg>
-class TaskArgumentUnpack {
+class TaskArgumentUnpacker {
   public:
     using type = Arg;
 
@@ -55,7 +55,7 @@ class TaskImpl: public Task {
         const ExecutorContext& executor,
         TaskContext ctx,
         std::index_sequence<Is...>) const {
-        function_(TaskArgumentUnpack<Space, std::tuple_element<Is, std::tuple<Args...>>>::call(
+        function_(TaskArgumentUnpacker<Space, std::tuple_element<Is, std::tuple<Args...>>>::call(
             ctx,
             std::get<Is>(args_))...);
     }

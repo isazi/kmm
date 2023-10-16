@@ -23,4 +23,27 @@ class Allocation {
     virtual ~Allocation() = default;
 };
 
+class HostAllocation: Allocation {
+  public:
+    virtual void* as_void_ptr() const = 0;
+};
+
+struct BufferLayout {
+    size_t size_in_bytes;
+    size_t alignment;
+};
+
+class Memory {
+  public:
+    virtual ~Memory() = default;
+    virtual std::string name() const = 0;
+    virtual std::optional<ExecutorId> executor_affinity() const {
+        return {};
+    }
+
+    virtual std::optional<std::shared_ptr<Allocation>>
+    allocate_buffer(BufferLayout layout) const = 0;
+    virtual void release_buffer(std::shared_ptr<Allocation> alloc) const = 0;
+};
+
 }  // namespace kmm

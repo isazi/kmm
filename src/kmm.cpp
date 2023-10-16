@@ -6,7 +6,7 @@ namespace kmm {
 
 // Manager
 
-struct TaskState {
+struct TaskNode {
     unsigned int id;
     unsigned int device_id;
     std::shared_ptr<Task> task_;
@@ -18,7 +18,7 @@ struct ManagerImpl {
     std::vector<std::shared_ptr<MemoryType>> memories_;
     std::map<unsigned int, Stream> streams;
     std::map<unsigned int, Buffer> allocations;
-    std::map<unsigned int, TaskState> tasks;
+    std::map<unsigned int, TaskNode> tasks;
     // Check if a device has a stream allocated
     bool stream_exist(unsigned int stream);
 };
