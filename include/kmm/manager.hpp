@@ -34,7 +34,7 @@ class Manager {
     const std::vector<std::shared_ptr<Memory>>& memories() const;
     const std::vector<std::shared_ptr<Executor>>& executors() const;
 
-    BufferId create_buffer(BufferLayout) const;
+    BufferId create_buffer(BufferLayout, MemoryId home = 0) const;
     void increment_buffer_refcount(BufferId, uint64_t count = 1) const;
     void decrement_buffer_refcount(BufferId, uint64_t count = 1) const;
     void prefetch_buffer(BufferId, MemoryId) const;
