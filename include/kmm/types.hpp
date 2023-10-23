@@ -5,7 +5,6 @@
 namespace kmm {
 
 using size_t = std::size_t;
-
 using MemoryId = uint8_t;
 using ExecutorId = uint8_t;
 using BufferId = uint64_t;
@@ -31,6 +30,12 @@ class HostAllocation: Allocation {
 struct BufferLayout {
     size_t size_in_bytes;
     size_t alignment;
+};
+
+struct BufferRequirement {
+    BufferId buffer_id;
+    MemoryId memory_id;
+    AccessMode mode;
 };
 
 class Memory {

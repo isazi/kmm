@@ -8,12 +8,6 @@
 
 namespace kmm {
 
-struct BufferRequirement {
-    BufferId buffer_id;
-    MemoryId memory_id;
-    AccessMode mode;
-};
-
 template<typename Arg>
 class TaskArgumentPacker {
   public:
@@ -24,12 +18,12 @@ class TaskArgumentPacker {
     }
 };
 
-class ManagerImpl;
+class RuntimeImpl;
 
-class Manager {
+class Runtime {
   public:
-    Manager() = default;
-    explicit Manager(std::shared_ptr<ManagerImpl> impl) : impl_(std::move(impl)) {}
+    Runtime() = default;
+    explicit Runtime(std::shared_ptr<RuntimeImpl> impl) : impl_(std::move(impl)) {}
 
     const std::vector<std::shared_ptr<Memory>>& memories() const;
     const std::vector<std::shared_ptr<Executor>>& executors() const;
@@ -62,7 +56,7 @@ class Manager {
     }
 
   private:
-    std::shared_ptr<ManagerImpl> impl_;
+    std::shared_ptr<RuntimeImpl> impl_;
 };
 
 }  // namespace kmm

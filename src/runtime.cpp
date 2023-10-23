@@ -1,4 +1,4 @@
-#include "kmm/manager.hpp"
+#include "kmm/runtime.hpp"
 
 #include <deque>
 #include <mutex>
@@ -12,7 +12,7 @@
 
 namespace kmm {
 
-class ManagerImpl: std::enable_shared_from_this<ManagerImpl> {
+class RuntimeImpl: std::enable_shared_from_this<RuntimeImpl> {
   public:
     std::mutex mutex;
     TaskGraph task_graph;
@@ -22,26 +22,26 @@ class ManagerImpl: std::enable_shared_from_this<ManagerImpl> {
     std::vector<std::shared_ptr<Executor>> executors;
 };
 
-const std::vector<std::shared_ptr<Memory>>& Manager::memories() const {
+const std::vector<std::shared_ptr<Memory>>& Runtime::memories() const {
     return impl_->memory_manager.memories;
 }
 
-const std::vector<std::shared_ptr<Executor>>& Manager::executors() const {
+const std::vector<std::shared_ptr<Executor>>& Runtime::executors() const {
     return impl_->executors;
 }
 
-BufferId Manager::create_buffer(BufferLayout layout, MemoryId home) const {
+BufferId Runtime::create_buffer(BufferLayout layout, MemoryId home) const {
     std::lock_guard guard {impl_->mutex};
     BufferId id = impl_->buffer_manager.create(layout, home);
     return id;
 }
 
-void Manager::increment_buffer_refcount(BufferId buffer_id, uint64_t count) const {
+void Runtime::increment_buffer_refcount(BufferId buffer_id, uint64_t count) const {
     std::lock_guard guard {impl_->mutex};
     return impl_->buffer_manager.increment_refcount(buffer_id, count);
 }
 
-void Manager::decrement_buffer_refcount(BufferId buffer_id, uint64_t count) const {
+void Runtime::decrement_buffer_refcount(BufferId buffer_id, uint64_t count) const {
     std::lock_guard guard {impl_->mutex};
 
     if (!impl_->buffer_manager.decrement_refcount(buffer_id, count)) {
@@ -51,12 +51,12 @@ void Manager::decrement_buffer_refcount(BufferId buffer_id, uint64_t count) cons
     throw std::runtime_error("TODO");
 }
 
-void Manager::prefetch_buffer(BufferId buffer_id, MemoryId memory_id) const {
+void Runtime::prefetch_buffer(BufferId buffer_id, MemoryId memory_id) const {
     std::lock_guard guard {impl_->mutex};
     throw std::runtime_error("todo");
 }
 
-TaskId Manager::submit_task(
+TaskId Runtime::submit_task(
     ExecutorId executor_id,
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> requirements,
@@ -64,26 +64,26 @@ TaskId Manager::submit_task(
     std::lock_guard guard {impl_->mutex};
 
     TaskId task_id = impl_->next_task_id++;
-    TaskKind kind = {
-        .executor_id = executor_id,
-        .task = std::move(task),
-    };
 
     for (const auto& req : requirements) {
         impl_->buffer_manager.update_access(req.buffer_id, task_id, req.mode, dependencies);
     }
 
-    impl_->task_graph
-        .insert_task(task_id, std::move(kind), std::move(requirements), std::move(dependencies));
+    TaskKind kind = {
+        .executor_id = executor_id,
+        .task = std::move(task),
+        .buffers = std::move(requirements)};
+
+    impl_->task_graph.insert_task(task_id, std::move(kind), std::move(dependencies));
     return task_id;
 }
 
-bool Manager::query_task_done(TaskId task_id) const {
+bool Runtime::query_task_done(TaskId task_id) const {
     std::lock_guard guard {impl_->mutex};
     return impl_->task_graph.is_done(task_id);
 }
 
-void Manager::attach_task_callback(TaskId task_id, std::function<void()> callback) const {
+void Runtime::attach_task_callback(TaskId task_id, std::function<void()> callback) const {
     bool task_completed;
 
     {

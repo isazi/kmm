@@ -5,20 +5,7 @@
 
 namespace kmm {
 
-struct TaskNode {
-    TaskId id;
-    uint64_t predecessors_pending = 0;
-    std::vector<std::shared_ptr<TaskNode>> successors = {};
-    std::vector<std::function<void()>> callbacks = {};
-    TaskKind kind;
-    std::vector<BufferRequirement> buffers;
-};
-
-void TaskGraph::insert_task(
-    TaskId id,
-    TaskKind kind,
-    std::vector<BufferRequirement> requirements,
-    std::vector<TaskId> predecessors) {
+void TaskGraph::insert_task(TaskId id, TaskKind kind, std::vector<TaskId> predecessors) {
     // Remove duplicates from predecessors
     std::sort(predecessors.begin(), predecessors.end());
     auto unique_end = std::unique(predecessors.begin(), predecessors.end());
@@ -28,7 +15,6 @@ void TaskGraph::insert_task(
     auto state = std::make_shared<TaskNode>(TaskNode {
         .id = id,
         .kind = std::move(kind),
-        .buffers = std::move(requirements),
     });
 
     tasks.insert({id, state});
@@ -55,7 +41,21 @@ void TaskGraph::insert_task(
 }
 
 void TaskGraph::remove_task(TaskId id) {
-    throw std::runtime_error("todo");
+    auto it = tasks.find(id);
+    if (it == tasks.end()) {
+        return;  // not found
+    }
+
+    auto task = std::move(it->second);
+    tasks.erase(it);
+
+    for (const auto& successor : task->successors) {
+        successor->predecessors_pending--;
+
+        if (successor->predecessors_pending == 1) {
+            ready_tasks.push_back(successor);
+        }
+    }
 }
 
 bool TaskGraph::is_done(TaskId id) {
@@ -71,6 +71,16 @@ bool TaskGraph::attach_callback(TaskId task_id, std::function<void()>& callback)
     auto& task = it->second;
     task->callbacks.push_back(std::move(callback));
     return true;
+}
+
+std::optional<std::shared_ptr<TaskNode>> TaskGraph::pop_ready() {
+    if (!ready_tasks.empty()) {
+        auto front = std::move(ready_tasks.front());
+        ready_tasks.pop_front();
+        return front;
+    } else {
+        return {};
+    }
 }
 
 }  // namespace kmm

@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "kmm/manager.hpp"
+#include "kmm/runtime.hpp"
 #include "kmm/task_graph.hpp"
 
 namespace kmm {
