@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include "kmm/types.hpp"
@@ -17,7 +18,7 @@ struct MemoryManager {
     void release_access(std::shared_ptr<BufferRequest> request);
 
   private:
-    std::unordered_map<BufferId, std::shared_ptr<BufferRecord>> buffers;
+    std::unordered_map<BufferId, std::shared_ptr<BufferState>> buffers;
     std::vector<std::shared_ptr<Memory>> memories;
 };
 

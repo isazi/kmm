@@ -4,11 +4,16 @@
 
 namespace kmm {
 
+using index_t = int;
 using size_t = std::size_t;
 using MemoryId = uint8_t;
 using ExecutorId = uint8_t;
 using BufferId = uint64_t;
 using TaskId = uint64_t;
+
+static constexpr BufferId INVALID_BUFFER_ID = ~uint64_t(0);
+static constexpr TaskId INVALID_TASK_ID = ~uint64_t(0);
+static constexpr MemoryId INVALID_MEMORY_ID = uint8_t(~0u);
 
 enum struct MemorySpace {
     Host,
@@ -24,7 +29,7 @@ class Allocation {
 
 class HostAllocation: Allocation {
   public:
-    virtual void* as_void_ptr() const = 0;
+    virtual void* data_as_ptr() const = 0;
 };
 
 struct BufferLayout {

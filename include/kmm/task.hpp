@@ -16,8 +16,8 @@ class ExecutorContext {
 };
 
 struct BufferAccess {
-    BufferId buffer_id = BufferId(~0u);
-    MemoryId memory_id = MemoryId(~0u);
+    BufferId buffer_id = INVALID_BUFFER_ID;
+    MemoryId memory_id = INVALID_MEMORY_ID;
     bool is_writable = false;
     std::shared_ptr<Allocation> buffer;
 };

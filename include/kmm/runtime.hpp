@@ -22,8 +22,16 @@ class RuntimeImpl;
 
 class Runtime {
   public:
-    Runtime() = default;
-    explicit Runtime(std::shared_ptr<RuntimeImpl> impl) : impl_(std::move(impl)) {}
+    Runtime(const Runtime&) = default;
+    Runtime(std::shared_ptr<RuntimeImpl> impl) : impl_(std::move(impl)) {}
+
+    bool operator==(const Runtime& that) const {
+        return this->impl_ == that.impl_;
+    }
+
+    bool operator!=(const Runtime& that) const {
+        return !(*this == that);
+    }
 
     const std::vector<std::shared_ptr<Memory>>& memories() const;
     const std::vector<std::shared_ptr<Executor>>& executors() const;
