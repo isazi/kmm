@@ -1,26 +1,29 @@
 #pragma once
 
-#include <memory>
-#include <stdexcept>
-#include <unordered_map>
-#include <vector>
-
-#include "kmm/types.hpp"
+#include "kmm/runtime.hpp"
 
 namespace kmm {
 
-struct BufferRecord;
-
-struct BufferManager {
-    BufferId create(BufferLayout layout, MemoryId home);
-    void increment_refcount(BufferId id, uint64_t count);
-    bool decrement_refcount(BufferId id, uint64_t count);
-    void
-    update_access(BufferId id, TaskId accessor, AccessMode mode, std::vector<TaskId>& deps_out);
+class BufferManager {
+  public:
+    VirtualBufferId create_buffer(const BufferDescription&);
+    void increment_buffer_references(VirtualBufferId, uint64_t count);
+    bool decrement_buffer_references(VirtualBufferId, uint64_t count);
+    void update_buffer_access(VirtualBufferId, TaskId, AccessMode, std::vector<TaskId>& deps_out);
 
   private:
-    BufferId next_buffer_id = 1;
-    std::unordered_map<BufferId, std::unique_ptr<BufferRecord>> buffers;
+    struct Record {
+        VirtualBufferId id;
+        std::string name;
+        size_t num_bytes;
+        size_t alignment;
+        uint64_t refcount;
+        std::vector<TaskId> last_writers;
+        std::vector<TaskId> last_readers;
+    };
+
+    VirtualBufferId m_next_buffer_id = VirtualBufferId(1);
+    std::unordered_map<VirtualBufferId, std::unique_ptr<Record>> m_buffers;
 };
 
 }  // namespace kmm

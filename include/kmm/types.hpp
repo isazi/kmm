@@ -1,59 +1,87 @@
 #pragma once
 
-#include <stdint.h>
+#include <string>
 
 namespace kmm {
 
-using index_t = int;
-using size_t = std::size_t;
-using MemoryId = uint8_t;
-using ExecutorId = uint8_t;
-using BufferId = uint64_t;
-using TaskId = uint64_t;
-
-static constexpr BufferId INVALID_BUFFER_ID = ~uint64_t(0);
-static constexpr TaskId INVALID_TASK_ID = ~uint64_t(0);
-static constexpr MemoryId INVALID_MEMORY_ID = uint8_t(~0u);
-
-enum struct MemorySpace {
-    Host,
-    Cuda,
-};
-
-enum struct AccessMode { Read, Write };
-
-class Allocation {
+template<typename Tag, typename T>
+class IntegerType {
   public:
-    virtual ~Allocation() = default;
+    explicit IntegerType(T value) : m_value(value) {}
+
+    static constexpr IntegerType invalid() {
+        return IntegerType(std::numeric_limits<T>::max());
+    }
+
+    T get() const {
+        return m_value;
+    }
+
+    operator T() const {
+        return get();
+    }
+
+    IntegerType& operator=(const T& v) {
+        m_value = v;
+        return *this;
+    }
+
+    bool operator==(const IntegerType& that) const {
+        return m_value == that.m_value;
+    }
+
+    bool operator<(const IntegerType& that) const {
+        return m_value < that.m_value;
+    }
+
+    bool operator!=(const IntegerType& that) const {
+        return !(*this == that);
+    }
+
+    bool operator<=(const IntegerType& that) const {
+        return !(this > that);
+    }
+
+    bool operator>(const IntegerType& that) const {
+        return that < *this;
+    }
+
+    bool operator>=(const IntegerType& that) const {
+        return that <= *this;
+    }
+
+  private:
+    T m_value;
 };
 
-class HostAllocation: Allocation {
-  public:
-    virtual void* data_as_ptr() const = 0;
-};
+using DeviceId = IntegerType<struct DeviceTag, uint8_t>;
+using TaskId = IntegerType<struct TaskTag, uint64_t>;
+using VirtualBufferId = IntegerType<struct VirtualBufferTag, uint64_t>;
+using BufferId = IntegerType<struct BufferTag, uint64_t>;
 
-struct BufferLayout {
-    size_t size_in_bytes;
+struct BufferDescription {
+    size_t num_bytes;
     size_t alignment;
+    DeviceId home;
+    std::string name;
+};
+
+enum class AccessMode {
+    Read,
+    Write,
 };
 
 struct BufferRequirement {
-    BufferId buffer_id;
-    MemoryId memory_id;
+    VirtualBufferId buffer_id;
     AccessMode mode;
 };
 
-class Memory {
-  public:
-    virtual ~Memory() = default;
-    virtual std::string name() const = 0;
-    virtual std::optional<ExecutorId> executor_affinity() const {
-        return {};
-    }
-
-    virtual std::optional<std::shared_ptr<Allocation>>
-    allocate_buffer(BufferLayout layout) const = 0;
-    virtual void release_buffer(std::shared_ptr<Allocation> alloc) const = 0;
-};
+class Runtime;
+class RuntimeImpl;
 
 }  // namespace kmm
+
+namespace std {
+template<typename Tag, typename T>
+struct hash<kmm::IntegerType<Tag, T>>: hash<T> {};
+}  // namespace std
