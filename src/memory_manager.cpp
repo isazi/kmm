@@ -2,9 +2,10 @@
 
 namespace kmm {
 
-void MemoryManager::create_buffer(BufferId id) {}
+void MemoryManager::create_buffer(BufferId id, const BufferDescription& descr) {}
 
 void MemoryManager::delete_buffer(BufferId id) {}
+
 std::shared_ptr<MemoryRequest> MemoryManager::acquire_buffer(
     BufferId buffer_id,
     DeviceId device_id,

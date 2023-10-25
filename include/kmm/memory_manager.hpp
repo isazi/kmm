@@ -18,7 +18,7 @@ class MemoryRequest;
 
 class MemoryManager {
   public:
-    void create_buffer(BufferId buffer_id);
+    void create_buffer(BufferId buffer_id, const BufferDescription&);
     void delete_buffer(BufferId buffer_id);
 
     std::shared_ptr<MemoryRequest> acquire_buffer(
@@ -26,10 +26,10 @@ class MemoryManager {
         DeviceId device_id,
         bool writable,
         std::shared_ptr<void> token);
-
     std::shared_ptr<Allocation> view_buffer(std::shared_ptr<MemoryRequest>);
-
     void release_buffer(std::shared_ptr<MemoryRequest>, std::optional<std::string> poison_reason);
+
+    std::optional<std::shared_ptr<MemoryRequest>> poll();
 
   private:
     static constexpr size_t MAX_DEVICES = 5;
@@ -37,17 +37,18 @@ class MemoryManager {
     struct Entry {
         bool is_valid = false;
         bool is_allocated = false;
-        void* data = nullptr;
+        std::optional<std::shared_ptr<Allocation>> data = {};
         size_t num_locks = 0;
     };
 
     struct State {
         BufferId id;
+        size_t num_bytes;
         std::deque<std::shared_ptr<MemoryRequest>> waiters;
         std::array<Entry, MAX_DEVICES> entries;
     };
 
-    std::unordered_map<BufferId, State> buffers_;
+    std::unordered_map<BufferId, State> m_buffers;
 };
 
 }  // namespace kmm

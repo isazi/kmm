@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kmm/runtime.hpp"
+#include "kmm/worker.hpp"
 
 namespace kmm {
 
@@ -9,14 +10,14 @@ class BufferManager {
     VirtualBufferId create_buffer(const BufferDescription&);
     void increment_buffer_references(VirtualBufferId, uint64_t count);
     bool decrement_buffer_references(VirtualBufferId, uint64_t count);
-    void update_buffer_access(VirtualBufferId, TaskId, AccessMode, std::vector<TaskId>& deps_out);
+    BufferRequirement
+    update_buffer_access(VirtualBufferId, TaskId, AccessMode, std::vector<TaskId>& deps_out);
 
   private:
     struct Record {
-        VirtualBufferId id;
+        VirtualBufferId virtual_id;
+        BufferId physical_id;
         std::string name;
-        size_t num_bytes;
-        size_t alignment;
         uint64_t refcount;
         std::vector<TaskId> last_writers;
         std::vector<TaskId> last_readers;

@@ -1,5 +1,7 @@
 #include "kmm/buffer_manager.hpp"
 
+#include "kmm/worker.hpp"
+
 namespace kmm {
 
 VirtualBufferId BufferManager::create_buffer(const BufferDescription& spec) {
@@ -7,10 +9,9 @@ VirtualBufferId BufferManager::create_buffer(const BufferDescription& spec) {
     m_next_buffer_id = id + 1;
 
     auto record = std::make_unique<Record>(Record {
-        .id = id,
+        .virtual_id = id,
+        .physical_id = BufferId(id),
         .name = spec.name,
-        .num_bytes = spec.num_bytes,
-        .alignment = spec.alignment,
         .refcount = 1,
         .last_writers = {},
         .last_readers = {},
@@ -45,7 +46,7 @@ bool BufferManager::decrement_buffer_references(VirtualBufferId id, uint64_t cou
     }
 }
 
-void BufferManager::update_buffer_access(
+BufferRequirement BufferManager::update_buffer_access(
     VirtualBufferId id,
     TaskId task_id,
     AccessMode mode,
@@ -60,6 +61,7 @@ void BufferManager::update_buffer_access(
                 record->last_writers.end());
             record->last_readers.push_back(task_id);
             break;
+
         case AccessMode::Write:
             deps_out.insert(
                 deps_out.end(),
@@ -74,5 +76,10 @@ void BufferManager::update_buffer_access(
             record->last_writers = {task_id};
             break;
     }
+
+    return BufferRequirement {
+        .buffer_id = record->physical_id,
+        .is_write = mode != AccessMode::Read,
+    };
 }
 }  // namespace kmm

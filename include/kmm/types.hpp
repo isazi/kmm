@@ -71,7 +71,7 @@ enum class AccessMode {
     Write,
 };
 
-struct BufferRequirement {
+struct VirtualBufferRequirement {
     VirtualBufferId buffer_id;
     AccessMode mode;
 };
