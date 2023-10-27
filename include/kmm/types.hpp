@@ -50,12 +50,20 @@ class IntegerType {
         return that <= *this;
     }
 
+    IntegerType operator++() {
+        return IntegerType(++m_value);
+    }
+
+    IntegerType operator++(int) {
+        return IntegerType(m_value++);
+    }
+
   private:
     T m_value;
 };
 
 using DeviceId = IntegerType<struct DeviceTag, uint8_t>;
-using TaskId = IntegerType<struct TaskTag, uint64_t>;
+using JobId = IntegerType<struct TaskTag, uint64_t>;
 using VirtualBufferId = IntegerType<struct VirtualBufferTag, uint64_t>;
 using BufferId = IntegerType<struct BufferTag, uint64_t>;
 

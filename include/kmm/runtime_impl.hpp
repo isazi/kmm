@@ -14,16 +14,16 @@ class RuntimeImpl {
     void increment_buffer_references(VirtualBufferId, uint64_t count = 1) const;
     void decrement_buffer_references(VirtualBufferId, uint64_t count = 1) const;
 
-    TaskId submit_task(
+    JobId submit_task(
         DeviceId device_id,
         std::shared_ptr<Task> task,
         std::vector<VirtualBufferRequirement> buffers,
-        std::vector<TaskId> dependencies) const;
+        std::vector<JobId> dependencies) const;
 
   private:
     mutable std::mutex m_mutex;
     mutable BufferManager m_buffer_manager;
-    mutable TaskId m_next_task_id = TaskId(1);
+    mutable JobId m_next_event_id = JobId(1);
     mutable std::shared_ptr<Worker> m_worker;
 };
 

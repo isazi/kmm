@@ -11,7 +11,7 @@ class BufferManager {
     void increment_buffer_references(VirtualBufferId, uint64_t count);
     bool decrement_buffer_references(VirtualBufferId, uint64_t count);
     BufferRequirement
-    update_buffer_access(VirtualBufferId, TaskId, AccessMode, std::vector<TaskId>& deps_out);
+    update_buffer_access(VirtualBufferId, JobId, AccessMode, std::vector<JobId>& deps_out);
 
   private:
     struct Record {
@@ -19,8 +19,8 @@ class BufferManager {
         BufferId physical_id;
         std::string name;
         uint64_t refcount;
-        std::vector<TaskId> last_writers;
-        std::vector<TaskId> last_readers;
+        std::vector<JobId> last_writers;
+        std::vector<JobId> last_readers;
     };
 
     VirtualBufferId m_next_buffer_id = VirtualBufferId(1);

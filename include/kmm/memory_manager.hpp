@@ -21,13 +21,14 @@ class MemoryManager {
     void create_buffer(BufferId buffer_id, const BufferDescription&);
     void delete_buffer(BufferId buffer_id);
 
-    std::shared_ptr<MemoryRequest> acquire_buffer(
+    std::shared_ptr<MemoryRequest> acquire_buffer_access(
         BufferId buffer_id,
         DeviceId device_id,
         bool writable,
         std::shared_ptr<void> token);
     std::shared_ptr<Allocation> view_buffer(std::shared_ptr<MemoryRequest>);
-    void release_buffer(std::shared_ptr<MemoryRequest>, std::optional<std::string> poison_reason);
+    void
+    release_buffer_access(std::shared_ptr<MemoryRequest>, std::optional<std::string> poison_reason);
 
     std::optional<std::shared_ptr<MemoryRequest>> poll();
 

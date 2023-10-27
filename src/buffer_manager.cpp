@@ -48,9 +48,9 @@ bool BufferManager::decrement_buffer_references(VirtualBufferId id, uint64_t cou
 
 BufferRequirement BufferManager::update_buffer_access(
     VirtualBufferId id,
-    TaskId task_id,
+    JobId task_id,
     AccessMode mode,
-    std::vector<TaskId>& deps_out) {
+    std::vector<JobId>& deps_out) {
     auto& record = m_buffers.at(id);
 
     switch (mode) {
