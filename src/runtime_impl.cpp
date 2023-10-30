@@ -1,35 +1,22 @@
 #include "kmm/runtime_impl.hpp"
 
-#include "kmm/worker.hpp"
+#include <utility>
+
+#include "kmm/scheduler.hpp"
 
 namespace kmm {
 
-VirtualBufferId RuntimeImpl::create_buffer(const BufferDescription& spec) const {
+BufferId RuntimeImpl::create_buffer(const BufferLayout& spec) const {
     std::lock_guard guard {m_mutex};
-    VirtualBufferId id = m_buffer_manager.create_buffer(spec);
-
-    auto cmd = CommandBufferCreate {
-        .id = BufferId(id),
-        .description = spec,
-    };
-
-    m_worker->submit_command(m_next_event_id++, cmd);
+    BufferId id = m_task_graph.create_buffer(spec);
+    m_task_graph.flush(*m_scheduler);
     return id;
 }
 
-void RuntimeImpl::increment_buffer_references(VirtualBufferId id, uint64_t count) const {
+void RuntimeImpl::delete_buffer(BufferId id) const {
     std::lock_guard guard {m_mutex};
-    m_buffer_manager.increment_buffer_references(id, count);
-}
-
-void RuntimeImpl::decrement_buffer_references(VirtualBufferId id, uint64_t count) const {
-    std::lock_guard guard {m_mutex};
-    bool deleted = m_buffer_manager.decrement_buffer_references(id, count);
-
-    if (deleted) {
-        auto cmd = CommandBufferDelete {BufferId(id)};
-        m_worker->submit_command(m_next_event_id++, cmd);
-    }
+    m_task_graph.delete_buffer(id);
+    m_task_graph.flush(*m_scheduler);
 }
 
 JobId RuntimeImpl::submit_task(
@@ -38,24 +25,29 @@ JobId RuntimeImpl::submit_task(
     std::vector<VirtualBufferRequirement> virtual_buffers,
     std::vector<JobId> dependencies) const {
     std::lock_guard guard {m_mutex};
+    auto task_id = m_task_graph.submit_task(
+        device_id,
+        std::move(task),
+        virtual_buffers,
+        std::move(dependencies));
+    m_task_graph.flush(*m_scheduler);
 
-    JobId task_id = m_next_event_id++;
-    std::vector<BufferRequirement> buffers;
+    return task_id;
+}
 
-    for (const auto& req : virtual_buffers) {
-        buffers.push_back(m_buffer_manager.update_buffer_access(
-            req.buffer_id,  //
-            task_id,
-            req.mode,
-            dependencies));
-    }
+JobId RuntimeImpl::submit_barrier() const {
+    std::lock_guard guard {m_mutex};
+    auto task_id = m_task_graph.submit_barrier();
+    m_task_graph.flush(*m_scheduler);
 
-    CommandExecute cmd {
-        .device_id = device_id,
-        .task = std::move(task),
-    };
+    return task_id;
+}
 
-    m_worker->submit_command(task_id, std::move(cmd), dependencies, buffers);
+JobId RuntimeImpl::submit_buffer_barrier(BufferId id) const {
+    std::lock_guard guard {m_mutex};
+    auto task_id = m_task_graph.submit_buffer_barrier(id);
+    m_task_graph.flush(*m_scheduler);
+
     return task_id;
 }
 }  // namespace kmm

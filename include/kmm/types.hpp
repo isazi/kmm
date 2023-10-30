@@ -4,13 +4,13 @@
 
 namespace kmm {
 
-template<typename Tag, typename T>
-class IntegerType {
+template<typename T, typename Tag = void>
+class Identifier {
   public:
-    explicit IntegerType(T value) : m_value(value) {}
+    explicit Identifier(T value) : m_value(value) {}
 
-    static constexpr IntegerType invalid() {
-        return IntegerType(std::numeric_limits<T>::max());
+    static constexpr Identifier invalid() {
+        return Identifier(std::numeric_limits<T>::max());
     }
 
     T get() const {
@@ -21,53 +21,54 @@ class IntegerType {
         return get();
     }
 
-    IntegerType& operator=(const T& v) {
+    Identifier& operator=(const T& v) {
         m_value = v;
         return *this;
     }
 
-    bool operator==(const IntegerType& that) const {
+    bool operator==(const Identifier& that) const {
         return m_value == that.m_value;
     }
 
-    bool operator<(const IntegerType& that) const {
+    bool operator<(const Identifier& that) const {
         return m_value < that.m_value;
     }
 
-    bool operator!=(const IntegerType& that) const {
+    bool operator!=(const Identifier& that) const {
         return !(*this == that);
     }
 
-    bool operator<=(const IntegerType& that) const {
+    bool operator<=(const Identifier& that) const {
         return !(this > that);
     }
 
-    bool operator>(const IntegerType& that) const {
+    bool operator>(const Identifier& that) const {
         return that < *this;
     }
 
-    bool operator>=(const IntegerType& that) const {
+    bool operator>=(const Identifier& that) const {
         return that <= *this;
     }
 
-    IntegerType operator++() {
-        return IntegerType(++m_value);
+    Identifier operator++() {
+        return Identifier(++m_value);
     }
 
-    IntegerType operator++(int) {
-        return IntegerType(m_value++);
+    Identifier operator++(int) {
+        return Identifier(m_value++);
     }
 
   private:
     T m_value;
 };
 
-using DeviceId = IntegerType<struct DeviceTag, uint8_t>;
-using JobId = IntegerType<struct TaskTag, uint64_t>;
-using VirtualBufferId = IntegerType<struct VirtualBufferTag, uint64_t>;
-using BufferId = IntegerType<struct BufferTag, uint64_t>;
+using DeviceId = Identifier<uint8_t, struct DeviceTag>;
+using JobId = Identifier<uint64_t, struct TaskTag>;
+using BufferId = Identifier<uint64_t, struct BufferTag>;
+using PhysicalBufferId = Identifier<uint64_t, struct PhysicalBufferTag>;
+using ObjectId = Identifier<uint64_t, struct ObjectTag>;
 
-struct BufferDescription {
+struct BufferLayout {
     size_t num_bytes;
     size_t alignment;
     DeviceId home;
@@ -79,17 +80,14 @@ enum class AccessMode {
     Write,
 };
 
-struct VirtualBufferRequirement {
-    VirtualBufferId buffer_id;
-    AccessMode mode;
-};
-
-class Runtime;
 class RuntimeImpl;
+class Runtime;
+
+using index_t = int;
 
 }  // namespace kmm
 
 namespace std {
-template<typename Tag, typename T>
-struct hash<kmm::IntegerType<Tag, T>>: hash<T> {};
+template<typename T, typename Tag>
+struct hash<kmm::Identifier<T, Tag>>: hash<T> {};
 }  // namespace std

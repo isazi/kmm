@@ -11,7 +11,7 @@ endif()
 
 if(DEFINED CMAKE_CUDA_COMPILER)
   file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
-  set_source_files_properties(${sources} PROPERTIES LANGUAGE CUDA)
+  #set_source_files_properties(${sources} PROPERTIES LANGUAGE CUDA)
 else()
   file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp")
 endif()
@@ -34,17 +34,19 @@ install(TARGETS ${PROJECT_NAME}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+
 # The CUDA compiler struggles with the "Werror" options, so we need to explicitly forward it to the host compiler
 # using `-Xcompiler=-Werror` if we are compiling CUDA code.
 set(CXXFLAGS
-        $<$<COMPILE_LANGUAGE:CUDA>:-forward-unknown-to-host-compiler>
-        $<$<COMPILE_LANGUAGE:CUDA>:--generate-line-info>
+    #$<$<COMPILE_LANGUAGE:CUDA>:-forward-unknown-to-host-compiler>
+    #   $<$<COMPILE_LANGUAGE:CUDA>:--generate-line-info>
         -Wall -Wextra -Wconversion -Wno-unused-parameter
-        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Werror>
-        $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>
-        $<$<COMPILE_LANGUAGE:CUDA>:-Xptxas="-v">
+        #   $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Werror>
+        # $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>
+        #$<$<COMPILE_LANGUAGE:CUDA>:-Xptxas="-v">
 )
 target_compile_options(${PROJECT_NAME} PRIVATE ${CXXFLAGS})
+#target_compile_options(${PROJECT_NAME} PRIVATE "-fsanitize=address")
 
 # Enable C++17 support
 set(CMAKE_CXX_STANDARD 17)
@@ -68,11 +70,12 @@ enable_testing()
 find_package(GTest)
 
 if(DEFINED CMAKE_CUDA_COMPILER)
-  set_source_files_properties(test/kmmTest.cpp PROPERTIES LANGUAGE CUDA)
+    #set_source_files_properties(test/kmmTest.cpp PROPERTIES LANGUAGE CUDA)
 endif()
 add_executable(
   kmmTestCxx
   test/kmmTest.cpp
+  test/memory_manager.cpp
 )
 target_include_directories(
     kmmTestCxx

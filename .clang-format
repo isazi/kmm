@@ -56,6 +56,7 @@ IndentWrappedFunctionNames: false
 KeepEmptyLinesAtTheStartOfBlocks: false
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
+PenaltyReturnTypeOnItsOwnLine: 400
 PointerAlignment: Left
 ReflowComments: false
 SortIncludes: true

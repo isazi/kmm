@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "kmm.hpp"
+#include "kmm/runtime.hpp"
 
 #define SIZE 65536
 
@@ -34,27 +34,30 @@ void verify(float* C, unsigned int size) {
 int main(void) {
     unsigned int threads_per_block = 1024;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
-    std::size_t n = SIZE * sizeof(float);
+    int n = SIZE;
 
     // Create memory manager
-    auto manager = kmm::Manager();
-    // Create devices
-    auto cpu = kmm::CPU();
-    auto gpu = kmm::CUDA();
+    auto manager = kmm::build_runtime();
+
     // Request 3 memory areas of a certain size
-    auto A = manager.create<float>(n);
-    auto B = manager.create<float>(n);
-    auto C = manager.create<float>(n);
+    auto A = manager.allocate<float>({n});
+    auto B = manager.allocate<float>({n});
+    auto C = manager.allocate<float>({n});
+
+    // Create devices
+    //    auto cpu = kmm::CPU();
+    //    auto gpu = kmm::CUDA();
+
     // TODO: run initialization
+
     // Copy data to the GPU
-    manager.move_to(gpu, A);
-    manager.move_to(gpu, B);
+    //    manager.move_to(gpu, A);
+    //    manager.move_to(gpu, B);
+
     // TODO: run kernel
-    // Free GPU memory and copy data back
-    manager.release(A);
-    manager.release(B);
+
     float* C_h = reinterpret_cast<float*>(malloc(n));
-    manager.copy_release(C, C_h);
+    //    manager.copy_release(C, C_h);
     // TODO: run verify
     return 0;
 }

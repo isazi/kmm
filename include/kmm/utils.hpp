@@ -1,7 +1,26 @@
 #pragma once
 
+#include <functional>
 #include <variant>
 #include <vector>
+
+#define KMM_PANIC(...)                                  \
+    do {                                                \
+        ::kmm::panic(__FILE__, __LINE__, #__VA_ARGS__); \
+        while (1)                                       \
+            ;                                           \
+    } while (0)
+
+#define KMM_TODO() KMM_PANIC("not implemented")
+
+#define KMM_ASSERT(...)                        \
+    do {                                       \
+        if (!static_cast<bool>(__VA_ARGS__)) { \
+            KMM_PANIC(#__VA_ARGS__);           \
+        }                                      \
+    } while (0)
+
+#define KMM_DEBUG_ASSERT(...) KMM_ASSERT(__VA_ARGS__)
 
 namespace kmm {
 
@@ -12,21 +31,22 @@ void remove_duplicates(T& input) {
     input.erase(last_unique, std::end(input));
 }
 
-namespace detail {
+[[noreturn]] __attribute__((noinline)) void panic(
+    const char* filename,
+    int line,
+    const char* expression);
 
-template<typename... F>
-struct overload: F... {
-    explicit constexpr overload(F... f) : F(f)... {}
-    using F::operator()...;
-};
+template<typename T>
+T checked_product(const T* begin, const T* end) {
+    T result = 1;
+    bool overflowed = false;
 
-template<class... F>
-overload(F...) -> overload<F...>;
-}  // namespace detail
+    for (auto it = begin; it != end; it++) {
+        overflowed |= __builtin_mul_overflow(*it, result, &result);
+    }
 
-template<typename Variant, typename... Arms>
-decltype(auto) match(Variant&& v, Arms&&... arms) {
-    return std::visit(detail::overload {std::forward<Arms>(arms)...}, std::forward<Variant>(v));
+    KMM_ASSERT(overflowed == false);
+    return result;
 }
 
 }  // namespace kmm

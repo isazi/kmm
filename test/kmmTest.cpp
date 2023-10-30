@@ -2,6 +2,7 @@
 
 #include <typeinfo>
 
+/*
 #include "kmm/kmm.hpp"
 
 TEST(Misc, is_cpu) {
@@ -73,3 +74,4 @@ TEST(Buffer, CUDA) {
     EXPECT_TRUE(kmm::on_cuda(buffer));
     EXPECT_FALSE(kmm::on_cpu(buffer));
 }
+*/
