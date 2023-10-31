@@ -1,26 +1,26 @@
 #pragma once
 
 #include <functional>
+#include <sstream>
 #include <variant>
 #include <vector>
 
-#define KMM_PANIC(...)                                  \
-    do {                                                \
-        ::kmm::panic(__FILE__, __LINE__, #__VA_ARGS__); \
-        while (1)                                       \
-            ;                                           \
+#define KMM_PANIC(...)                                      \
+    do {                                                    \
+        ::kmm::panic_fmt(__FILE__, __LINE__, #__VA_ARGS__); \
+        while (1)                                           \
+            ;                                               \
     } while (0)
 
-#define KMM_TODO() KMM_PANIC("not implemented")
-
-#define KMM_ASSERT(...)                        \
-    do {                                       \
-        if (!static_cast<bool>(__VA_ARGS__)) { \
-            KMM_PANIC(#__VA_ARGS__);           \
-        }                                      \
+#define KMM_ASSERT(...)                                  \
+    do {                                                 \
+        if (!static_cast<bool>(__VA_ARGS__)) {           \
+            KMM_PANIC("assertion failed:" #__VA_ARGS__); \
+        }                                                \
     } while (0)
 
 #define KMM_DEBUG_ASSERT(...) KMM_ASSERT(__VA_ARGS__)
+#define KMM_TODO()            KMM_PANIC("not implemented")
 
 namespace kmm {
 
@@ -31,10 +31,17 @@ void remove_duplicates(T& input) {
     input.erase(last_unique, std::end(input));
 }
 
-[[noreturn]] __attribute__((noinline)) void panic(
+[[noreturn]] void panic(const char* filename, int line, const char* expression);
+
+template<typename... Args>
+[[noreturn]] __attribute__((noinline)) void panic_fmt(
     const char* filename,
     int line,
-    const char* expression);
+    Args&&... args) {
+    std::stringstream stream;
+    ((stream << args), ...);
+    panic(filename, line, stream.str().c_str());
+}
 
 template<typename T>
 T checked_product(const T* begin, const T* end) {

@@ -40,4 +40,4 @@ class Memory {
     virtual bool is_copy_possible(kmm::DeviceId src_id, kmm::DeviceId dst_id) = 0;
 };
 
-}
+}  // namespace kmm

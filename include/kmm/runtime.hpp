@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "kmm/runtime_impl.hpp"
+#include "kmm/executor.hpp"
 #include "kmm/types.hpp"
 #include "kmm/utils.hpp"
 
@@ -13,25 +13,16 @@ namespace kmm {
 
 class Event {
   public:
-    Event(JobId id, std::shared_ptr<RuntimeImpl> runtime) :
+    Event(OperationId id, std::shared_ptr<RuntimeImpl> runtime) :
         m_id(id),
         m_runtime(std::move(runtime)) {}
 
   private:
-    JobId id() const {
-        return m_id;
-    }
-
-    bool is_done() const {
-        KMM_TODO();
-    }
-
-    void wait() const {
-        KMM_TODO();
-    }
+    OperationId id() const;
+    void wait() const;
 
   private:
-    JobId m_id;
+    OperationId m_id;
     std::shared_ptr<RuntimeImpl> m_runtime;
 };
 
@@ -92,7 +83,7 @@ class Runtime {
     Runtime(std::shared_ptr<RuntimeImpl> impl);
 
     Buffer allocate_buffer(
-        size_t total_size,
+        size_t num_elements,
         size_t element_size,
         size_t element_align,
         DeviceId home = DeviceId(0)) const;
@@ -101,10 +92,9 @@ class Runtime {
         DeviceId device_id,
         std::shared_ptr<Task> task,
         std::vector<VirtualBufferRequirement> buffers = {},
-        std::vector<JobId> dependencies = {}) const;
+        std::vector<OperationId> dependencies = {}) const;
 
     Event barrier() const;
-
     Event barrier_buffer(BufferId) const;
 
     template<typename T, size_t N = 1>

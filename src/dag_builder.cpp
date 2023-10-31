@@ -21,14 +21,14 @@ BufferId DAGBuilder::create_buffer(const BufferLayout& spec) {
         .description = spec,
     };
 
-    m_commands.emplace_back(create_id, std::move(cmd), std::vector<JobId> {});
+    m_commands.emplace_back(create_id, std::move(cmd), std::vector<OperationId> {});
     return id;
 }
 
 void DAGBuilder::delete_buffer(BufferId id) {
     auto& record = m_buffers.at(id);
 
-    auto deps = std::vector<JobId> {};
+    auto deps = std::vector<OperationId> {};
     deps.insert(deps.end(), record->last_readers.begin(), record->last_readers.end());
     deps.insert(deps.end(), record->last_writers.begin(), record->last_writers.end());
 
@@ -39,9 +39,9 @@ void DAGBuilder::delete_buffer(BufferId id) {
 
 PhysicalBufferId DAGBuilder::update_buffer_access(
     BufferId id,
-    JobId task_id,
+    OperationId task_id,
     AccessMode mode,
-    std::vector<JobId>& deps_out) {
+    std::vector<OperationId>& deps_out) {
     auto& record = m_buffers.at(id);
 
     switch (mode) {
@@ -71,11 +71,11 @@ PhysicalBufferId DAGBuilder::update_buffer_access(
     return record->physical_id;
 }
 
-JobId DAGBuilder::submit_task(
+OperationId DAGBuilder::submit_task(
     DeviceId device_id,
     std::shared_ptr<Task> task,
     const std::vector<VirtualBufferRequirement>& virtual_buffers,
-    std::vector<JobId> dependencies) {
+    std::vector<OperationId> dependencies) {
     auto task_id = m_next_job_id++;
     auto buffers = std::vector<BufferRequirement> {};
 
@@ -104,9 +104,9 @@ JobId DAGBuilder::submit_task(
     return task_id;
 }
 
-JobId DAGBuilder::submit_barrier() {
-    auto dependencies = std::vector<JobId> {};
-    JobId task_id = m_next_job_id++;
+OperationId DAGBuilder::submit_barrier() {
+    auto dependencies = std::vector<OperationId> {};
+    OperationId task_id = m_next_job_id++;
 
     for (const auto& [_, buffer] : m_buffers) {
         dependencies.insert(
@@ -127,9 +127,9 @@ JobId DAGBuilder::submit_barrier() {
     return task_id;
 }
 
-JobId DAGBuilder::submit_buffer_barrier(BufferId buffer_id) {
-    auto dependencies = std::vector<JobId> {};
-    JobId task_id = m_next_job_id++;
+OperationId DAGBuilder::submit_buffer_barrier(BufferId buffer_id) {
+    auto dependencies = std::vector<OperationId> {};
+    OperationId task_id = m_next_job_id++;
 
     auto& buffer = m_buffers.at(buffer_id);
     dependencies.insert(
@@ -149,12 +149,22 @@ JobId DAGBuilder::submit_buffer_barrier(BufferId buffer_id) {
     return task_id;
 }
 
+OperationId DAGBuilder::submit_promise(OperationId op_id, std::promise<void> promise) {
+    OperationId task_id = m_next_job_id++;
+    std::vector<OperationId> dependencies = {op_id};
+    m_commands.emplace_back(
+        task_id,
+        CommandPromise {.promise = std::move(promise)},
+        std::move(dependencies));
+    return task_id;
+}
+
 std::vector<CommandPacket> DAGBuilder::flush() {
     return std::move(m_commands);
 }
 
 void DAGBuilder::flush(Scheduler& scheduler) {
-    for (auto packet : m_commands) {
+    for (auto& packet : m_commands) {
         scheduler.submit_command(std::move(packet));
     }
 

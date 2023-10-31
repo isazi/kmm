@@ -13,14 +13,15 @@ class RuntimeImpl {
     BufferId create_buffer(const BufferLayout&) const;
     void delete_buffer(BufferId) const;
 
-    JobId submit_task(
+    OperationId submit_task(
         DeviceId device_id,
         std::shared_ptr<Task> task,
         std::vector<VirtualBufferRequirement> buffers,
-        std::vector<JobId> dependencies) const;
+        std::vector<OperationId> dependencies) const;
 
-    JobId submit_barrier() const;
-    JobId submit_buffer_barrier(BufferId) const;
+    OperationId submit_barrier() const;
+    OperationId submit_buffer_barrier(BufferId) const;
+    OperationId submit_promise(OperationId, std::promise<void>) const;
 
   private:
     mutable std::mutex m_mutex;

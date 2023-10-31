@@ -2,8 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include "memory.hpp"
-
 class MockWaker: public kmm::Waker {
     void wakeup() const override {}
 };

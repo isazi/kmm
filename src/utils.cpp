@@ -3,8 +3,9 @@
 #include <cstdio>
 
 namespace kmm {
-void panic(const char* filename, int line, const char* expression) {
-    fprintf(stderr, "assertion failed (%s:%d): %s\n", filename, line, expression);
+__attribute__((noinline)) void panic(const char* filename, int line, const char* expression) {
+    fprintf(stderr, "panic at %s:%d: %s\n", filename, line, expression);
+    fflush(stderr);
     std::terminate();
 }
 }  // namespace kmm

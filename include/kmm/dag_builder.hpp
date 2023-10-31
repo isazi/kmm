@@ -1,48 +1,44 @@
 #pragma once
 
+#include "kmm/executor.hpp"
 #include "kmm/scheduler.hpp"
 
 namespace kmm {
-
-struct VirtualBufferRequirement {
-    BufferId buffer_id;
-    AccessMode mode;
-};
 
 class DAGBuilder {
   public:
     BufferId create_buffer(const BufferLayout&);
     void delete_buffer(BufferId);
 
-    JobId submit_task(
+    OperationId submit_task(
         DeviceId device_id,
         std::shared_ptr<Task> task,
         const std::vector<VirtualBufferRequirement>& buffers,
-        std::vector<JobId> dependencies);
+        std::vector<OperationId> dependencies);
 
-    JobId submit_barrier();
+    OperationId submit_barrier();
+    OperationId submit_buffer_barrier(BufferId buffer_id);
+    OperationId submit_promise(OperationId op_id, std::promise<void> promise);
 
     std::vector<CommandPacket> flush();
     void flush(Scheduler& scheduler);
 
-    JobId submit_buffer_barrier(BufferId identifier);
-
   private:
     PhysicalBufferId update_buffer_access(
         BufferId,
-        JobId,
+        OperationId,
         AccessMode,
-        std::vector<JobId>& deps_out);
+        std::vector<OperationId>& deps_out);
 
     struct Record {
         BufferId virtual_id;
         PhysicalBufferId physical_id;
         std::string name;
-        std::vector<JobId> last_writers;
-        std::vector<JobId> last_readers;
+        std::vector<OperationId> last_writers;
+        std::vector<OperationId> last_readers;
     };
 
-    JobId m_next_job_id = JobId(1);
+    OperationId m_next_job_id = OperationId(1);
     BufferId m_next_buffer_id = BufferId(1);
     std::unordered_map<BufferId, std::unique_ptr<Record>> m_buffers;
     std::vector<CommandPacket> m_commands;

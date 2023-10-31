@@ -1,6 +1,22 @@
 #include "kmm/runtime.hpp"
 
+#include <future>
+
+#include "kmm/executor.hpp"
+#include "kmm/runtime_impl.hpp"
+
 namespace kmm {
+
+OperationId Event::id() const {
+    return m_id;
+}
+
+void Event::wait() const {
+    std::promise<void> promise;
+    auto future = promise.get_future();
+    m_runtime->submit_promise(m_id, std::move(promise));
+    future.get();
+}
 
 class Buffer::Lifetime {
   public:
@@ -47,11 +63,11 @@ Runtime::Runtime(std::shared_ptr<RuntimeImpl> impl) : m_impl(std::move(impl)) {
 }
 
 Buffer Runtime::allocate_buffer(
-    size_t total_size,
+    size_t num_elements,
     size_t element_size,
     size_t element_align,
     DeviceId home) const {
-    size_t num_bytes = element_size * total_size;
+    size_t num_bytes = element_size * num_elements;
 
     auto id = m_impl->create_buffer(BufferLayout {
         .num_bytes = num_bytes,
@@ -66,7 +82,7 @@ void Runtime::submit_task(
     DeviceId device_id,
     std::shared_ptr<Task> task,
     std::vector<VirtualBufferRequirement> buffers,
-    std::vector<JobId> dependencies) const {
+    std::vector<OperationId> dependencies) const {
     m_impl->submit_task(device_id, std::move(task), std::move(buffers), std::move(dependencies));
 }
 

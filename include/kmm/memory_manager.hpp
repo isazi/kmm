@@ -6,8 +6,8 @@
 #include <optional>
 #include <unordered_map>
 
-#include "kmm/types.hpp"
 #include "kmm/memory.hpp"
+#include "kmm/types.hpp"
 
 namespace kmm {
 
@@ -38,9 +38,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
         std::shared_ptr<Waker> waker);
 
     PollResult poll_request(const std::shared_ptr<Request>&);
-    PollResult poll_requests(
-        const std::shared_ptr<Request>* begin,
-        const std::shared_ptr<Request>* end);
+    PollResult poll_requests(const std::vector<std::shared_ptr<Request>>&);
 
     const Allocation* view_buffer(const std::shared_ptr<Request>&);
 
@@ -49,7 +47,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
         std::optional<std::string> poison_reason = {});
 
   private:
-    class TransferCompletion;
+    struct TransferCompletion;
     struct DataTransfer;
     struct BufferState;
     struct Entry;
@@ -62,7 +60,10 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
 
     PollResult evict_buffer(DeviceId device_id, BufferState* buffer);
 
-    DataTransfer& initiate_transfer(DeviceId src_id, DeviceId dst_id, BufferState* buffer);
+    std::shared_ptr<DataTransfer> initiate_transfer(
+        DeviceId src_id,
+        DeviceId dst_id,
+        BufferState* buffer);
     void complete_transfer(PhysicalBufferId buffer_id, DeviceId dst_id);
 
     PollResult submit_buffer_lock(const std::shared_ptr<Request>& request) const;

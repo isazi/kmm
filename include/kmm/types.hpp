@@ -62,8 +62,9 @@ class Identifier {
     T m_value;
 };
 
+using index_t = int;
 using DeviceId = Identifier<uint8_t, struct DeviceTag>;
-using JobId = Identifier<uint64_t, struct TaskTag>;
+using OperationId = Identifier<uint64_t, struct OperationTag>;
 using BufferId = Identifier<uint64_t, struct BufferTag>;
 using PhysicalBufferId = Identifier<uint64_t, struct PhysicalBufferTag>;
 using ObjectId = Identifier<uint64_t, struct ObjectTag>;
@@ -80,10 +81,17 @@ enum class AccessMode {
     Write,
 };
 
+struct VirtualBufferRequirement {
+    BufferId buffer_id;
+    AccessMode mode;
+};
+
 class RuntimeImpl;
 class Runtime;
-
-using index_t = int;
+class Object {
+  public:
+    ~Object() = default;
+};
 
 }  // namespace kmm
 
