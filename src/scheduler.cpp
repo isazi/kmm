@@ -22,7 +22,7 @@ struct Scheduler::Job {
 };
 
 void Scheduler::make_progress() {
-    // TODO
+    KMM_TODO();
 }
 
 void Scheduler::trigger_predecessor_completed(const std::shared_ptr<Job>& job) {

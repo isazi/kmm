@@ -9,6 +9,7 @@
 
 #include "kmm/memory_manager.hpp"
 #include "kmm/types.hpp"
+#include "memory.hpp"
 #include "object_manager.hpp"
 
 namespace kmm {

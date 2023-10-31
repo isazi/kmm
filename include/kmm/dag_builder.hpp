@@ -23,7 +23,7 @@ class DAGBuilder {
     JobId submit_barrier();
 
     std::vector<CommandPacket> flush();
-    void flush(Scheduler& worker);
+    void flush(Scheduler& scheduler);
 
     JobId submit_buffer_barrier(BufferId identifier);
 

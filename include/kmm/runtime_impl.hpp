@@ -24,7 +24,7 @@ class RuntimeImpl {
 
   private:
     mutable std::mutex m_mutex;
-    mutable DAGBuilder m_task_graph;
+    mutable DAGBuilder m_dag_builder;
     std::shared_ptr<Scheduler> m_scheduler;
     std::shared_ptr<ObjectManager> m_object_manager;
 };

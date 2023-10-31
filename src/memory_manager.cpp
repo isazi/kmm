@@ -5,13 +5,14 @@
 #include <utility>
 
 #include "kmm/utils.hpp"
+#include "memory.hpp"
 
 namespace kmm {
 
-class MemoryManager::CompletionImpl: public Completion {
+class MemoryManager::TransferCompletion: public Completion {
   public:
-    CompletionImpl(MemoryManager& manager, PhysicalBufferId buffer_id, DeviceId dst_id);
-    ~CompletionImpl() override;
+    TransferCompletion(MemoryManager& manager, PhysicalBufferId buffer_id, DeviceId dst_id);
+    ~TransferCompletion() override;
     void complete() override;
 
   private:
@@ -44,23 +45,23 @@ class RequestList {
     std::deque<std::shared_ptr<MemoryManager::Request>> m_list;
 };
 
-enum struct RequestStatus {
-    Init,
-    SubmitHostAllocation,
-    PollHostAllocation,
-    SubmitDeviceAllocation,
-    PollDeviceAllocation,
-    RequestAccess,
-    PollAccess,
-    PollData,
-    WaitingForTransfer,
-    Ready,
-    Terminated
-};
-
 class MemoryManager::Request {
   public:
-    RequestStatus status;
+    enum struct Status {
+        Init,
+        SubmitHostAllocation,
+        PollHostAllocation,
+        SubmitDeviceAllocation,
+        PollDeviceAllocation,
+        RequestAccess,
+        PollAccess,
+        PollData,
+        Ready,
+        Terminated
+    };
+
+    Status status;
+    bool is_waiting_for_transfer = false;
     BufferState* buffer;
     DeviceId device_id;
     bool writable;
@@ -130,9 +131,7 @@ void MemoryManager::delete_buffer(PhysicalBufferId id) {
     if (auto it = m_buffers.find(id); it != m_buffers.end()) {
         auto& buffer = it->second;
 
-        if (buffer->num_requests_active > 0) {
-            throw std::runtime_error("cannot delete buffer while requests are still active");
-        }
+        KMM_ASSERT(buffer->num_requests_active == 0);
 
         for (uint8_t i = 0; i < MAX_DEVICES; i++) {
             auto& entry = buffer->entries[i];
@@ -168,40 +167,38 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     auto& buffer = m_buffers.at(buffer_id);
     buffer->num_requests_active += 1;
 
-    auto request = std::make_shared<Request>(Request {
-        .status = RequestStatus::Init,
+    return std::make_shared<Request>(Request {
+        .status = Request::Status::Init,
         .buffer = buffer.get(),
         .device_id = device_id,
         .writable = writable,
         .waker = std::move(waker)});
-
-    return request;
 }
 
 void MemoryManager::delete_request(
     const std::shared_ptr<Request>& request,
     std::optional<std::string> poison_reason) {
-    if (request->status == RequestStatus::Terminated) {
+    if (request->status == Request::Status::Terminated) {
         return;
     }
 
-    KMM_ASSERT(request->status == RequestStatus::Ready);
+    KMM_ASSERT(request->status == Request::Status::Ready);
+    request->status = Request::Status::Terminated;
+
     auto buffer = request->buffer;
 
     unlock_buffer_for_request(buffer, request);
+    decrement_buffer_users(request->device_id, buffer);
 
-    if (request->device_id != DeviceId(0)) {
-        decrement_buffer_users(request->device_id, buffer);
+    if (request->device_id != HOST_MEMORY) {
+        decrement_buffer_users(HOST_MEMORY, buffer);
     }
 
-    decrement_buffer_users(DeviceId(0), buffer);
-
     buffer->num_requests_active -= 1;
-    request->status = RequestStatus::Terminated;
 }
 
 const Allocation* MemoryManager::view_buffer(const std::shared_ptr<Request>& request) {
-    KMM_ASSERT(request->status == RequestStatus::Ready);
+    KMM_ASSERT(request->status == Request::Status::Ready);
     auto& entry = request->buffer->entries.at(request->device_id);
     return entry.data->get();
 }
@@ -224,56 +221,56 @@ PollResult MemoryManager::poll_request(const std::shared_ptr<Request>& request) 
     while (true) {
         auto status = request->status;
 
-        if (status == RequestStatus::Init) {
-            request->status = RequestStatus::SubmitHostAllocation;
+        if (status == Request::Status::Init) {
+            request->status = Request::Status::SubmitHostAllocation;
 
-        } else if (status == RequestStatus::SubmitHostAllocation) {
-            if (submit_request_to_resource(DeviceId(0), request) == PollResult::Pending) {
-                request->status = RequestStatus::PollHostAllocation;
+        } else if (status == Request::Status::SubmitHostAllocation) {
+            if (submit_request_to_resource(HOST_MEMORY, request) == PollResult::Pending) {
+                request->status = Request::Status::PollHostAllocation;
                 return PollResult::Pending;
             }
 
-            request->status = RequestStatus::SubmitDeviceAllocation;
+            request->status = Request::Status::SubmitDeviceAllocation;
 
-        } else if (status == RequestStatus::PollHostAllocation) {
-            if (poll_resource(DeviceId(0), request) == PollResult::Pending) {
+        } else if (status == Request::Status::PollHostAllocation) {
+            if (poll_resource(HOST_MEMORY, request) == PollResult::Pending) {
                 return PollResult::Pending;
             }
 
-            request->status = RequestStatus::SubmitDeviceAllocation;
-        } else if (status == RequestStatus::SubmitDeviceAllocation) {
-            if (request->device_id != DeviceId(0)) {
+            request->status = Request::Status::SubmitDeviceAllocation;
+        } else if (status == Request::Status::SubmitDeviceAllocation) {
+            if (request->device_id != HOST_MEMORY) {
                 if (submit_request_to_resource(request->device_id, request)
                     == PollResult::Pending) {
-                    request->status = RequestStatus::PollDeviceAllocation;
+                    request->status = Request::Status::PollDeviceAllocation;
                     return PollResult::Pending;
                 }
             }
 
-            request->status = RequestStatus::RequestAccess;
-        } else if (status == RequestStatus::PollDeviceAllocation) {
+            request->status = Request::Status::RequestAccess;
+        } else if (status == Request::Status::PollDeviceAllocation) {
             if (poll_resource(request->device_id, request) == PollResult::Pending) {
                 return PollResult::Pending;
             }
 
-            request->status = RequestStatus::RequestAccess;
+            request->status = Request::Status::RequestAccess;
 
-        } else if (status == RequestStatus::RequestAccess) {
+        } else if (status == Request::Status::RequestAccess) {
             if (submit_buffer_lock(request) == PollResult::Pending) {
-                request->status = RequestStatus::PollAccess;
+                request->status = Request::Status::PollAccess;
                 return PollResult::Pending;
             }
 
-            request->status = RequestStatus::PollData;
+            request->status = Request::Status::PollData;
 
-        } else if (status == RequestStatus::PollAccess) {
+        } else if (status == Request::Status::PollAccess) {
             if (poll_buffer_lock(request) == PollResult::Pending) {
                 return PollResult::Pending;
             }
 
-            request->status = RequestStatus::PollData;
+            request->status = Request::Status::PollData;
 
-        } else if (status == RequestStatus::PollData) {
+        } else if (status == Request::Status::PollData) {
             if (poll_buffer_data(request) == PollResult::Pending) {
                 return PollResult::Pending;
             }
@@ -284,13 +281,8 @@ PollResult MemoryManager::poll_request(const std::shared_ptr<Request>& request) 
                 }
             }
 
-            request->status = RequestStatus::Ready;
-
-        } else if (status == RequestStatus::WaitingForTransfer) {
-            // Nothing to do, wait for transfer to complete
-            return PollResult::Pending;
-
-        } else if (status == RequestStatus::Ready || status == RequestStatus::Terminated) {
+            request->status = Request::Status::Ready;
+        } else if (status == Request::Status::Ready || status == Request::Status::Terminated) {
             return PollResult::Ready;
 
         } else {
@@ -303,9 +295,13 @@ PollResult MemoryManager::poll_buffer_data(const std::shared_ptr<Request>& reque
     auto buffer = request->buffer;
     auto& entry = buffer->entries.at(request->device_id);
 
+    if (request->is_waiting_for_transfer) {
+        return PollResult::Pending;
+    }
+
     if (entry.status == Entry::Status::IncomingTransfer) {
         entry.incoming_transfer.requests.push_back(request);
-        request->status = RequestStatus::WaitingForTransfer;
+        request->is_waiting_for_transfer = true;
         return PollResult::Pending;
     }
 
@@ -317,7 +313,7 @@ PollResult MemoryManager::poll_buffer_data(const std::shared_ptr<Request>& reque
     auto src_id = DeviceId::invalid();
     auto dst_id = DeviceId(request->device_id);
 
-    if (request->device_id == DeviceId(0)) {
+    if (request->device_id == HOST_MEMORY) {
         for (uint8_t i = 1; i < MAX_DEVICES; i++) {
             if (buffer->entries[i].status == Entry::Status::Valid) {
                 found_valid = true;
@@ -327,9 +323,9 @@ PollResult MemoryManager::poll_buffer_data(const std::shared_ptr<Request>& reque
         }
     } else {
         // First, check if it is possible to copy host to device
-        if (buffer->entries[0].status == Entry::Status::Valid) {
+        if (buffer->entries[HOST_MEMORY].status == Entry::Status::Valid) {
             found_valid = true;
-            src_id = DeviceId(0);
+            src_id = HOST_MEMORY;
         }
 
         // Next, check if it is possible to copy device to device
@@ -345,19 +341,19 @@ PollResult MemoryManager::poll_buffer_data(const std::shared_ptr<Request>& reque
         }
 
         // Next, check if the host is waiting for a transfer
-        if (buffer->entries[0].status == Entry::Status::IncomingTransfer) {
-            buffer->entries[0].incoming_transfer.requests.push_back(request);
-            request->status = RequestStatus::WaitingForTransfer;
+        if (buffer->entries[HOST_MEMORY].status == Entry::Status::IncomingTransfer) {
+            buffer->entries[HOST_MEMORY].incoming_transfer.requests.push_back(request);
+            request->is_waiting_for_transfer = true;
             return PollResult::Pending;
         }
 
         // Finally, check if it is possible to copy device to host
         if (!found_valid) {
-            for (uint8_t i = 1; i < MAX_DEVICES; i++) {
+            for (uint8_t i = 0; i < MAX_DEVICES; i++) {
                 if (buffer->entries[i].status == Entry::Status::Valid) {
                     found_valid = true;
                     src_id = DeviceId(i);
-                    dst_id = DeviceId(0);
+                    dst_id = HOST_MEMORY;
                     break;
                 }
             }
@@ -367,8 +363,7 @@ PollResult MemoryManager::poll_buffer_data(const std::shared_ptr<Request>& reque
     if (found_valid) {
         auto& transfer = this->initiate_transfer(src_id, dst_id, buffer);
         transfer.requests.push_back(request);
-
-        request->status = RequestStatus::WaitingForTransfer;
+        request->is_waiting_for_transfer = true;
 
         return PollResult::Pending;
     } else {
@@ -379,6 +374,7 @@ PollResult MemoryManager::poll_buffer_data(const std::shared_ptr<Request>& reque
 }
 
 PollResult MemoryManager::poll_buffer_exclusive(const std::shared_ptr<Request>& request) {
+    KMM_ASSERT(request->is_waiting_for_transfer == false);
     KMM_ASSERT(request->writable);
 
     auto buffer = request->buffer;
@@ -393,7 +389,7 @@ PollResult MemoryManager::poll_buffer_exclusive(const std::shared_ptr<Request>& 
 
         if (entry.status == Entry::Status::IncomingTransfer) {
             entry.incoming_transfer.requests.push_back(request);
-            request->status = RequestStatus::WaitingForTransfer;
+            request->is_waiting_for_transfer = true;
             return PollResult::Pending;
         } else if (entry.status == Entry::Status::Valid) {
             entry.status = Entry::Status::Invalid;
@@ -418,7 +414,7 @@ MemoryManager::DataTransfer& MemoryManager::initiate_transfer(
     dst_entry.status = Entry::Status::IncomingTransfer;
     dst_entry.incoming_transfer = DataTransfer {.src_id = src_id, .requests = {}, .devices = {}};
 
-    auto completion = std::make_unique<CompletionImpl>(*this, buffer->id, dst_id);
+    auto completion = std::make_unique<TransferCompletion>(*this, buffer->id, dst_id);
 
     this->m_memory->copy_async(
         src_id,
@@ -498,9 +494,11 @@ void MemoryManager::unlock_buffer_for_request(
 PollResult MemoryManager::submit_request_to_resource(
     DeviceId device_id,
     const std::shared_ptr<Request>& request) {
+    KMM_ASSERT(device_id < MAX_DEVICES);
+
     auto& buffer = request->buffer;
-    auto& resource = m_resources.at(device_id);
-    auto& buffer_entry = buffer->entries.at(device_id);
+    auto& resource = m_resources[device_id];
+    auto& buffer_entry = buffer->entries[device_id];
 
     if (!resource->waiters.is_empty() || !buffer_entry.data.has_value()) {
         resource->waiters.push_back(request);
@@ -515,9 +513,11 @@ PollResult MemoryManager::submit_request_to_resource(
 PollResult MemoryManager::poll_resource(
     DeviceId device_id,
     const std::shared_ptr<Request>& request) {
+    KMM_ASSERT(device_id < MAX_DEVICES);
+
     auto& buffer = request->buffer;
-    auto& resource = m_resources.at(device_id);
-    auto& buffer_entry = buffer->entries.at(device_id);
+    auto& resource = m_resources[device_id];
+    auto& buffer_entry = buffer->entries[device_id];
 
     if (resource->waiters.front() != request) {
         return PollResult::Pending;
@@ -554,29 +554,11 @@ PollResult MemoryManager::poll_resource(
 }
 
 void MemoryManager::decrement_buffer_users(DeviceId device_id, MemoryManager::BufferState* buffer) {
-    auto& resource = m_resources.at(device_id);
-    auto& buffer_links = buffer->links.at(device_id);
-    buffer_links.num_users--;
+    auto& links = buffer->links.at(device_id);
+    links.num_users--;
 
-    if (buffer_links.num_users == 0) {
-        if (resource->lru_oldest) {
-            auto& front = resource->lru_oldest;
-            auto& back = resource->lru_oldest->links.at(device_id).prev;
-
-            back->links.at(device_id).next = buffer;
-            buffer_links.prev = back;
-
-            buffer_links.next = front;
-            front->links.at(device_id).prev = buffer;
-        } else {
-            resource->lru_oldest = buffer;
-            buffer_links.prev = buffer;
-            buffer_links.next = buffer;
-
-            if (!resource->waiters.is_empty()) {
-                resource->waiters.front()->waker->wakeup();
-            }
-        }
+    if (links.num_users == 0) {
+        add_buffer_to_lru(device_id, buffer);
     }
 }
 
@@ -600,10 +582,9 @@ void MemoryManager::complete_transfer(PhysicalBufferId buffer_id, DeviceId dst_i
     while (!entry.incoming_transfer.requests.is_empty()) {
         auto req = entry.incoming_transfer.requests.pop_front();
 
-        if (req->status == RequestStatus::WaitingForTransfer) {
-            req->status = RequestStatus::PollData;
+        if (req->is_waiting_for_transfer) {
+            req->is_waiting_for_transfer = false;
             req->waker->wakeup();
-        } else {
         }
     }
 
@@ -648,15 +629,43 @@ PollResult MemoryManager::evict_buffer(DeviceId device_id, MemoryManager::Buffer
     return PollResult::Ready;
 }
 
+void MemoryManager::add_buffer_to_lru(DeviceId device_id, MemoryManager::BufferState* buffer) {
+    KMM_ASSERT(device_id < MAX_DEVICES);
+
+    auto& resource = this->m_resources[device_id];
+    auto& links = buffer->links[device_id];
+    auto* front = resource->lru_oldest;
+
+    if (front) {
+        auto* back = front->links[device_id].prev;
+
+        back->links[device_id].next = buffer;
+        links.prev = back;
+
+        links.next = front;
+        front->links[device_id].prev = buffer;
+    } else {
+        resource->lru_oldest = buffer;
+        links.prev = buffer;
+        links.next = buffer;
+
+        if (!resource->waiters.is_empty()) {
+            resource->waiters.front()->waker->wakeup();
+        }
+    }
+}
+
 void MemoryManager::remove_buffer_from_lru(DeviceId device_id, MemoryManager::BufferState* buffer) {
-    auto& buffer_links = buffer->links.at(device_id);
-    auto& resource = this->m_resources.at(device_id);
+    KMM_ASSERT(device_id < MAX_DEVICES);
+
+    auto& buffer_links = buffer->links[device_id];
+    auto& resource = this->m_resources[device_id];
     auto prev = buffer_links.prev;
     auto next = buffer_links.next;
 
     if (prev != next) {
-        next->links.at(device_id).prev = prev;
-        prev->links.at(device_id).next = next;
+        next->links[device_id].prev = prev;
+        prev->links[device_id].next = next;
         resource->lru_oldest = next;
     } else {
         resource->lru_oldest = nullptr;
@@ -666,7 +675,7 @@ void MemoryManager::remove_buffer_from_lru(DeviceId device_id, MemoryManager::Bu
     buffer_links.next = nullptr;
 }
 
-MemoryManager::CompletionImpl::CompletionImpl(
+MemoryManager::TransferCompletion::TransferCompletion(
     MemoryManager& manager,
     PhysicalBufferId buffer_id,
     DeviceId dst_id) :
@@ -674,13 +683,13 @@ MemoryManager::CompletionImpl::CompletionImpl(
     m_buffer_id(buffer_id),
     m_dst_id(dst_id) {}
 
-void MemoryManager::CompletionImpl::complete() {
+void MemoryManager::TransferCompletion::complete() {
     if (m_manager) {
         std::exchange(m_manager, {})->complete_transfer(m_buffer_id, m_dst_id);
     }
 }
 
-MemoryManager::CompletionImpl::~CompletionImpl() {
+MemoryManager::TransferCompletion::~TransferCompletion() {
     if (m_manager) {
         std::cerr << "ERROR: Transfer for buffer " << m_buffer_id.get()
                   << " has been deleted without "

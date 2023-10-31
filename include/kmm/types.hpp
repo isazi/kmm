@@ -7,7 +7,7 @@ namespace kmm {
 template<typename T, typename Tag = void>
 class Identifier {
   public:
-    explicit Identifier(T value) : m_value(value) {}
+    explicit constexpr Identifier(T value) : m_value(value) {}
 
     static constexpr Identifier invalid() {
         return Identifier(std::numeric_limits<T>::max());

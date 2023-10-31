@@ -153,9 +153,9 @@ std::vector<CommandPacket> DAGBuilder::flush() {
     return std::move(m_commands);
 }
 
-void DAGBuilder::flush(Scheduler& worker) {
+void DAGBuilder::flush(Scheduler& scheduler) {
     for (auto packet : m_commands) {
-        worker.submit_command(std::move(packet));
+        scheduler.submit_command(std::move(packet));
     }
 
     m_commands.clear();
