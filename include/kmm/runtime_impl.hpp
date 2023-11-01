@@ -5,6 +5,7 @@
 #include "kmm/dag_builder.hpp"
 #include "kmm/memory_manager.hpp"
 #include "kmm/scheduler.hpp"
+#include "kmm/scheduler_thread.hpp"
 
 namespace kmm {
 
@@ -26,6 +27,7 @@ class RuntimeImpl {
   private:
     mutable std::mutex m_mutex;
     mutable DAGBuilder m_dag_builder;
+    SchedulerThread m_thread;
     std::shared_ptr<Scheduler> m_scheduler;
     std::shared_ptr<ObjectManager> m_object_manager;
 };

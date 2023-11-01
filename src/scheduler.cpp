@@ -24,7 +24,8 @@ struct Scheduler::Operation {
     std::vector<std::weak_ptr<Operation>> predecessors = {};
     std::vector<std::shared_ptr<Operation>> successors = {};
     std::vector<MemoryRequest> memory_requests = {};
-    std::atomic<bool> is_ready = false;
+
+    bool is_ready = false;
 };
 
 struct WakerImpl: public Waker {
@@ -33,7 +34,7 @@ struct WakerImpl: public Waker {
         op(std::move(op)) {}
 
     void wakeup() const override {
-        scheduler->wakeup_op(op);
+        scheduler->wakeup(op);
     }
 
     std::shared_ptr<Scheduler> scheduler;
@@ -41,24 +42,21 @@ struct WakerImpl: public Waker {
 };
 
 void Scheduler::make_progress(std::chrono::time_point<std::chrono::system_clock> deadline) {
-    while (true) {
-        std::unique_lock guard {m_ready_lock};
-        bool not_empty =
-            m_ready_cond.wait_until(guard, deadline, [&] { return !m_ready_ops.empty(); });
+    make_progress_impl(deadline, std::unique_lock {m_lock});
+}
 
-        if (!not_empty) {
-            break;
-        }
+void Scheduler::wakeup(const std::shared_ptr<Operation>& op) {
+    m_ready_queue.push(op);
+}
 
-        auto op = std::move(m_ready_ops.front());
-        m_ready_ops.pop_front();
-        guard.unlock();
-
-        poll_op(op);
-    }
+void Scheduler::complete(const std::shared_ptr<Operation>& op) {
+    std::unique_lock guard {m_lock};
+    complete_op(op);
+    make_progress_impl(std::chrono::system_clock::now(), std::move(guard));
 }
 
 void Scheduler::submit_command(CommandPacket packet) {
+    std::unique_lock guard {m_lock};
     remove_duplicates(packet.dependencies);
 
     auto new_op = std::make_shared<Operation>(
@@ -67,7 +65,6 @@ void Scheduler::submit_command(CommandPacket packet) {
         packet.dependencies.size() + 1);
 
     auto predecessors = std::vector<std::weak_ptr<Operation>> {};
-    predecessors.reserve(packet.dependencies.size());
     size_t satisfied = 1;
 
     for (auto dep_id : packet.dependencies) {
@@ -88,27 +85,50 @@ void Scheduler::submit_command(CommandPacket packet) {
     trigger_predecessor_completed(new_op, satisfied);
 }
 
-void Scheduler::wakeup_op(const std::shared_ptr<Operation>& op) {
-    if (op->is_ready.exchange(true) == false) {
-        {
-            std::lock_guard guard {m_ready_lock};
-            m_ready_ops.push_back(op);
-        }
-
-        m_ready_cond.notify_all();
+void Scheduler::ReadyQueue::push(const std::shared_ptr<Operation>& op) const {
+    std::lock_guard guard {m_lock};
+    if (!op->is_ready) {
+        op->is_ready = true;
+        m_queue.push_back(op);
+        m_cond.notify_all();
     }
 }
 
-void Scheduler::trigger_predecessor_completed(const std::shared_ptr<Operation>& op, size_t count) {
-    if (op->unsatisfied_predecessors < count) {
-        op->unsatisfied_predecessors = 0;
-        op->status = OperationStatus::Queueing;
-
-        std::lock_guard guard {m_ready_lock};
-        m_ready_ops.push_back(op);
-    } else {
-        op->unsatisfied_predecessors -= count;
+void Scheduler::ReadyQueue::pop_all(
+    std::chrono::time_point<std::chrono::system_clock> deadline,
+    std::deque<std::shared_ptr<Operation>>& output) const {
+    std::unique_lock guard {m_lock};
+    while (m_queue.empty()) {
+        if (m_cond.wait_until(guard, deadline) == std::cv_status::timeout) {
+            return;
+        }
     }
+
+    while (!m_queue.empty()) {
+        auto op = std::move(m_queue.front());
+        m_queue.pop_front();
+
+        op->is_ready = false;
+
+        output.push_back(std::move(op));
+    }
+}
+
+void Scheduler::make_progress_impl(
+    std::chrono::time_point<std::chrono::system_clock> deadline,
+    std::unique_lock<std::mutex> guard) {
+    std::deque<std::shared_ptr<Operation>> local_ready;
+
+    do {
+        guard.unlock();
+        m_ready_queue.pop_all(deadline, local_ready);
+        guard.lock();
+
+        while (!local_ready.empty()) {
+            poll_op(local_ready.front());
+            local_ready.pop_front();
+        }
+    } while (std::chrono::system_clock::now() < deadline);
 }
 
 void Scheduler::stage_op(const std::shared_ptr<Operation>& op) {
@@ -137,13 +157,11 @@ void Scheduler::stage_op(const std::shared_ptr<Operation>& op) {
 }
 
 void Scheduler::poll_op(const std::shared_ptr<Operation>& op) {
-    op->is_ready.store(false);
-
     if (op->status == OperationStatus::Staging) {
         if (m_memory_manager->poll_requests(op->memory_requests) == PollResult::Ready) {
             schedule_op(op);
         }
-    } else if (op->status == OperationStatus::Queueing) {
+    } else if (op->status == OperationStatus::Queueing && op->unsatisfied_predecessors == 0) {
         stage_op(op);
     }
 }
@@ -192,12 +210,21 @@ void Scheduler::schedule_op(const std::shared_ptr<Operation>& op) {
 }
 
 void Scheduler::complete_op(const std::shared_ptr<Operation>& op) {
-    // TODO: Get lock
     op->status = OperationStatus::Done;
     m_ops.erase(op->id);
 
     for (const auto& successor : op->successors) {
         trigger_predecessor_completed(successor);
+    }
+}
+
+void Scheduler::trigger_predecessor_completed(const std::shared_ptr<Operation>& op, size_t count) {
+    if (op->unsatisfied_predecessors <= count) {
+        op->unsatisfied_predecessors = 0;
+        op->status = OperationStatus::Queueing;
+        m_ready_queue.push(op);
+    } else {
+        op->unsatisfied_predecessors -= count;
     }
 }
 
@@ -210,7 +237,7 @@ TaskCompletion::TaskCompletion(
 void TaskCompletion::complete() {
     if (auto op = m_op.lock()) {
         m_op.reset();
-        m_scheduler.lock()->complete_op(op);
+        m_scheduler.lock()->complete(op);
     }
 }
 
