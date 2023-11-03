@@ -6,6 +6,21 @@
 
 namespace kmm {
 
+RuntimeImpl::RuntimeImpl(
+    std::vector<std::shared_ptr<Executor>> executors,
+    std::shared_ptr<Memory> memory) :
+    m_object_manager(std::make_shared<ObjectManager>()),
+    m_scheduler(std::make_shared<Scheduler>(
+        executors,
+        std::make_shared<MemoryManager>(memory),
+        m_object_manager)),
+    m_thread(m_scheduler) {}
+
+RuntimeImpl::~RuntimeImpl() {
+    m_scheduler->shutdown();
+    m_thread.join();
+}
+
 BufferId RuntimeImpl::create_buffer(const BufferLayout& spec) const {
     std::lock_guard guard {m_mutex};
     return m_dag_builder.create_buffer(spec);

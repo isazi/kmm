@@ -3,6 +3,7 @@
 #include <future>
 
 #include "kmm/executor.hpp"
+#include "kmm/platforms/host.hpp"
 #include "kmm/runtime_impl.hpp"
 
 namespace kmm {
@@ -97,7 +98,11 @@ Event Runtime::barrier_buffer(BufferId buffer_id) const {
 }
 
 Runtime build_runtime() {
-    KMM_ASSERT(false);
+    auto host_executor = std::make_shared<ParallelExecutor>();
+    std::vector<std::shared_ptr<Executor>> executors = {host_executor};
+    std::shared_ptr<Memory> memory = std::make_shared<HostMemory>(host_executor);
+
+    return std::make_shared<RuntimeImpl>(executors, memory);
 }
 
 }  // namespace kmm

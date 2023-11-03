@@ -5,18 +5,18 @@
 #include <variant>
 #include <vector>
 
-#define KMM_PANIC(...)                                      \
-    do {                                                    \
-        ::kmm::panic_fmt(__FILE__, __LINE__, #__VA_ARGS__); \
-        while (1)                                           \
-            ;                                               \
+#define KMM_PANIC(...)                                     \
+    do {                                                   \
+        ::kmm::panic_fmt(__FILE__, __LINE__, __VA_ARGS__); \
+        while (1)                                          \
+            ;                                              \
     } while (0)
 
-#define KMM_ASSERT(...)                                  \
-    do {                                                 \
-        if (!static_cast<bool>(__VA_ARGS__)) {           \
-            KMM_PANIC("assertion failed:" #__VA_ARGS__); \
-        }                                                \
+#define KMM_ASSERT(...)                                   \
+    do {                                                  \
+        if (!static_cast<bool>(__VA_ARGS__)) {            \
+            KMM_PANIC("assertion failed: " #__VA_ARGS__); \
+        }                                                 \
     } while (0)
 
 #define KMM_DEBUG_ASSERT(...) KMM_ASSERT(__VA_ARGS__)

@@ -17,7 +17,6 @@ class Event {
         m_id(id),
         m_runtime(std::move(runtime)) {}
 
-  private:
     OperationId id() const;
     void wait() const;
 
