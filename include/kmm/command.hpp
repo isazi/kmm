@@ -3,6 +3,7 @@
 #include <variant>
 
 #include "kmm/executor.hpp"
+#include "kmm/object_manager.hpp"
 #include "kmm/types.hpp"
 
 namespace kmm {
@@ -31,6 +32,11 @@ struct CommandBufferDelete {
     PhysicalBufferId id;
 };
 
+struct CommandObjectCreate {
+    ObjectId id;
+    ObjectHandle object;
+};
+
 struct CommandObjectDelete {
     ObjectId id;
 };
@@ -45,6 +51,7 @@ using Command = std::variant<
     CommandExecute,
     CommandBufferCreate,
     CommandBufferDelete,
+    CommandObjectCreate,
     CommandObjectDelete>;
 
 struct CommandPacket {

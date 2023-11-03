@@ -20,57 +20,72 @@ namespace kmm {
 
 class Scheduler: public std::enable_shared_from_this<Scheduler> {
   public:
+    friend class TaskCompletion;
     struct Operation;
 
-    void make_progress(std::chrono::time_point<std::chrono::system_clock> deadline);
+    Scheduler(
+        std::vector<std::shared_ptr<Executor>> executors,
+        std::shared_ptr<MemoryManager> memory_manager,
+        std::shared_ptr<ObjectManager> object_manager);
+
+    void make_progress(
+        std::optional<std::chrono::time_point<std::chrono::system_clock>> deadline = {});
     void submit_command(CommandPacket packet);
     void wakeup(const std::shared_ptr<Operation>& op);
-    void complete(const std::shared_ptr<Operation>& op);
+    void shutdown();
+    bool has_shutdown();
+
+  protected:
+    void complete(const std::shared_ptr<Operation>& op, TaskResult result);
 
   private:
+    void make_progress_impl(
+        std::unique_lock<std::mutex> guard,
+        std::optional<std::chrono::time_point<std::chrono::system_clock>> deadline = {});
+    void stage_op(const std::shared_ptr<Operation>& op);
+    void poll_op(const std::shared_ptr<Operation>& op);
+    void schedule_op(const std::shared_ptr<Operation>& op);
+    void complete_op(const std::shared_ptr<Operation>& op, TaskResult result);
+    void trigger_predecessor_completed(const std::shared_ptr<Operation>& op, size_t count = 1);
+
     class ReadyQueue {
       public:
-        void push(const std::shared_ptr<Operation>& op) const;
-        void pop_all(
+        void push(std::shared_ptr<Operation> op) const;
+        void pop_nonblocking(std::deque<std::shared_ptr<Operation>>& output) const;
+        void pop_blocking(
             std::chrono::time_point<std::chrono::system_clock> deadline,
             std::deque<std::shared_ptr<Operation>>& output) const;
 
       private:
+        void pop_impl(std::deque<std::shared_ptr<Operation>>& output) const;
+
         mutable std::mutex m_lock;
         mutable std::condition_variable m_cond;
         mutable std::deque<std::shared_ptr<Operation>> m_queue;
     };
 
-    void make_progress_impl(
-        std::chrono::time_point<std::chrono::system_clock> deadline,
-        std::unique_lock<std::mutex> guard);
-    void stage_op(const std::shared_ptr<Operation>& op);
-    void poll_op(const std::shared_ptr<Operation>& op);
-    void schedule_op(const std::shared_ptr<Operation>& op);
-    void complete_op(const std::shared_ptr<Operation>& op);
-    void trigger_predecessor_completed(const std::shared_ptr<Operation>& op, size_t count = 1);
+    ReadyQueue m_ready_queue;
 
     std::mutex m_lock;
     std::unordered_map<OperationId, std::shared_ptr<Operation>> m_ops;
     std::vector<std::shared_ptr<Executor>> m_executors;
     std::shared_ptr<MemoryManager> m_memory_manager;
     std::shared_ptr<ObjectManager> m_object_manager;
-
-    ReadyQueue m_ready_queue;
+    bool m_shutdown = false;
 };
 
 class TaskCompletion {
   public:
-    TaskCompletion(std::weak_ptr<Scheduler> worker, std::weak_ptr<Scheduler::Operation>);
-
+    explicit TaskCompletion(std::shared_ptr<Scheduler::Operation> = {});
     TaskCompletion(TaskCompletion&&) noexcept = default;
     TaskCompletion(const TaskContext&) = delete;
-    void complete();
     ~TaskCompletion();
 
+    void complete(TaskResult);
+    void complete_err(const std::string& error);
+
   private:
-    std::weak_ptr<Scheduler> m_scheduler;
-    std::weak_ptr<Scheduler::Operation> m_op;
+    std::shared_ptr<Scheduler::Operation> m_op;
 };
 
 }  // namespace kmm

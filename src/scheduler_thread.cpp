@@ -3,21 +3,24 @@
 #include "kmm/utils.hpp"
 
 namespace kmm {
-SchedulerThread::SchedulerThread(std::shared_ptr<Scheduler> scheduler) :
-    m_scheduler(std::move(scheduler)) {}
+void run_forever(std::shared_ptr<Scheduler> scheduler) {
+    while (!scheduler->has_shutdown()) {
+        auto deadline = std::chrono::system_clock::now() + std::chrono::seconds();
+        scheduler->make_progress(deadline);
+    }
+}
 
-void SchedulerThread::launch() {
-    KMM_ASSERT(m_thread.joinable() == false);
+SchedulerThread::SchedulerThread(std::shared_ptr<Scheduler> scheduler) {
+    m_thread = std::thread(run_forever, std::move(scheduler));
+}
 
-    m_thread = std::thread([scheduler = m_scheduler] {
-        while (true) {
-            auto deadline = std::chrono::system_clock::now() + std::chrono::seconds();
-            scheduler->make_progress(deadline);
-        }
-    });
+void SchedulerThread::join() {
+    if (m_thread.joinable()) {
+        m_thread.join();
+    }
 }
 
 SchedulerThread::~SchedulerThread() {
-    m_thread.join();
+    join();
 }
 }  // namespace kmm
