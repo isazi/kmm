@@ -1,5 +1,4 @@
 #include "kmm/object_manager.hpp"
-
 #include "kmm/utils.hpp"
 
 namespace kmm {

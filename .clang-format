@@ -36,17 +36,14 @@ DerivePointerAlignment: false
 FixNamespaceComments: true
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex:           '^<ext/.*\.h>'
-    Priority:        2
-    SortPriority:    0
-  - Regex:           '^<.*\.h>'
-    Priority:        1
-    SortPriority:    0
   - Regex:           '^<.*'
-    Priority:        2
+    Priority:        -2
+    SortPriority:    0
+  - Regex:           '^"kmm/.*'
+    Priority:        0
     SortPriority:    0
   - Regex:           '.*'
-    Priority:        3
+    Priority:        -1
     SortPriority:    0
 IncludeIsMainRegex: '([-_](test|unittest))?$'
 IndentCaseLabels: true

@@ -1,13 +1,13 @@
-#include "kmm/scheduler.hpp"
-
 #include <functional>
 #include <stdexcept>
 #include <utility>
 
 #include "fmt/ranges.h"
-#include "kmm/memory_manager.hpp"
-#include "kmm/utils.hpp"
 #include "spdlog/spdlog.h"
+
+#include "kmm/memory_manager.hpp"
+#include "kmm/scheduler.hpp"
+#include "kmm/utils.hpp"
 
 namespace kmm {
 

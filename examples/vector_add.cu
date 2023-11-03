@@ -1,7 +1,8 @@
 #include <iostream>
 
-#include "kmm/runtime.hpp"
 #include "spdlog/spdlog.h"
+
+#include "kmm/runtime.hpp"
 
 #define SIZE 65536
 

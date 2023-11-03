@@ -1,7 +1,6 @@
-#include "kmm/runtime_impl.hpp"
-
 #include <utility>
 
+#include "kmm/runtime_impl.hpp"
 #include "kmm/scheduler.hpp"
 
 namespace kmm {

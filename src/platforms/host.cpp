@@ -1,8 +1,7 @@
-#include "kmm/platforms/host.hpp"
-
 #include <cstring>
 #include <utility>
 
+#include "kmm/platforms/host.hpp"
 #include "kmm/scheduler.hpp"
 #include "kmm/utils.hpp"
 

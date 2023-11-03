@@ -1,5 +1,4 @@
 #include "kmm/scheduler_thread.hpp"
-
 #include "kmm/utils.hpp"
 
 namespace kmm {

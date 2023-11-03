@@ -1,9 +1,8 @@
-#include "kmm/runtime.hpp"
-
 #include <future>
 
 #include "kmm/executor.hpp"
 #include "kmm/platforms/host.hpp"
+#include "kmm/runtime.hpp"
 #include "kmm/runtime_impl.hpp"
 
 namespace kmm {

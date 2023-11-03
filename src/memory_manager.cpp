@@ -1,9 +1,8 @@
-#include "kmm/memory_manager.hpp"
-
 #include <iostream>
 #include <stdexcept>
 #include <utility>
 
+#include "kmm/memory_manager.hpp"
 #include "kmm/utils.hpp"
 
 namespace kmm {

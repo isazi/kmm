@@ -3,6 +3,7 @@
 #include <variant>
 
 #include "fmt/format.h"
+
 #include "kmm/executor.hpp"
 #include "kmm/object_manager.hpp"
 #include "kmm/types.hpp"

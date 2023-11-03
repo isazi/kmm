@@ -1,5 +1,4 @@
 #include "kmm/dag_builder.hpp"
-
 #include "kmm/scheduler.hpp"
 
 namespace kmm {
