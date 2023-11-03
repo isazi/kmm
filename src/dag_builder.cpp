@@ -6,7 +6,7 @@ namespace kmm {
 
 BufferId DAGBuilder::create_buffer(const BufferLayout& spec) {
     auto id = m_next_buffer_id++;
-    auto create_id = m_next_job_id++;
+    auto create_id = m_next_op_id++;
 
     auto record = std::make_unique<Record>(Record {
         .virtual_id = id,
@@ -21,6 +21,7 @@ BufferId DAGBuilder::create_buffer(const BufferLayout& spec) {
         .description = spec,
     };
 
+    m_buffers.insert({id, std::move(record)});
     m_commands.emplace_back(create_id, std::move(cmd), std::vector<OperationId> {});
     return id;
 }
@@ -33,7 +34,7 @@ void DAGBuilder::delete_buffer(BufferId id) {
     deps.insert(deps.end(), record->last_writers.begin(), record->last_writers.end());
 
     auto cmd = CommandBufferDelete {record->physical_id};
-    m_commands.emplace_back(m_next_job_id++, cmd, deps);
+    m_commands.emplace_back(m_next_op_id++, cmd, deps);
     m_buffers.erase(id);
 }
 
@@ -76,7 +77,7 @@ OperationId DAGBuilder::submit_task(
     std::shared_ptr<Task> task,
     const std::vector<VirtualBufferRequirement>& virtual_buffers,
     std::vector<OperationId> dependencies) {
-    auto task_id = m_next_job_id++;
+    auto task_id = m_next_op_id++;
     auto buffers = std::vector<BufferRequirement> {};
 
     for (const auto& req : virtual_buffers) {
@@ -106,7 +107,7 @@ OperationId DAGBuilder::submit_task(
 
 OperationId DAGBuilder::submit_barrier() {
     auto dependencies = std::vector<OperationId> {};
-    OperationId task_id = m_next_job_id++;
+    OperationId task_id = m_next_op_id++;
 
     for (const auto& [_, buffer] : m_buffers) {
         dependencies.insert(
@@ -129,7 +130,7 @@ OperationId DAGBuilder::submit_barrier() {
 
 OperationId DAGBuilder::submit_buffer_barrier(BufferId buffer_id) {
     auto dependencies = std::vector<OperationId> {};
-    OperationId task_id = m_next_job_id++;
+    OperationId task_id = m_next_op_id++;
 
     auto& buffer = m_buffers.at(buffer_id);
     dependencies.insert(
@@ -150,7 +151,7 @@ OperationId DAGBuilder::submit_buffer_barrier(BufferId buffer_id) {
 }
 
 OperationId DAGBuilder::submit_promise(OperationId op_id, std::promise<void> promise) {
-    OperationId task_id = m_next_job_id++;
+    OperationId task_id = m_next_op_id++;
     std::vector<OperationId> dependencies = {op_id};
     m_commands.emplace_back(
         task_id,

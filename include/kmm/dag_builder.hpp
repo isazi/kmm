@@ -38,7 +38,7 @@ class DAGBuilder {
         std::vector<OperationId> last_readers;
     };
 
-    OperationId m_next_job_id = OperationId(1);
+    OperationId m_next_op_id = OperationId(1);
     BufferId m_next_buffer_id = BufferId(1);
     std::unordered_map<BufferId, std::unique_ptr<Record>> m_buffers;
     std::vector<CommandPacket> m_commands;
