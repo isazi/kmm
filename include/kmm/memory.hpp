@@ -32,8 +32,10 @@ class Memory {
     virtual void copy_async(
         kmm::DeviceId src_id,
         const Allocation* src_alloc,
+        size_t src_offset,
         kmm::DeviceId dst_id,
         const Allocation* dst_alloc,
+        size_t dst_offset,
         size_t num_bytes,
         std::unique_ptr<Completion> completion) = 0;
 

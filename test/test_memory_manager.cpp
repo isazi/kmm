@@ -1,6 +1,6 @@
-#include "kmm/memory_manager.hpp"
-
 #include <gtest/gtest.h>
+
+#include "kmm/memory_manager.hpp"
 
 class MockWaker: public kmm::Waker {
     void wakeup() const override {}
@@ -50,17 +50,21 @@ class MockMemory: public kmm::Memory {
     void copy_async(
         kmm::DeviceId src_id,
         const kmm::Allocation* src_alloc,
+        size_t src_offset,
         kmm::DeviceId dst_id,
         const kmm::Allocation* dst_alloc,
+        size_t dst_offset,
         size_t num_bytes,
         std::unique_ptr<kmm::Completion> completion) override {
         auto src = dynamic_cast<const MockAllocation&>(*src_alloc);
         ASSERT_EQ(src.device_id, allocations.at(src.id));
         ASSERT_EQ(src.num_bytes, num_bytes);
+        ASSERT_EQ(src_offset, 0);
 
         auto dst = dynamic_cast<const MockAllocation&>(*dst_alloc);
         ASSERT_EQ(dst.device_id, allocations.at(dst.id));
         ASSERT_EQ(dst.num_bytes, num_bytes);
+        ASSERT_EQ(dst_offset, 0);
 
         transfers.emplace_back(src.id, dst.id, std::move(completion));
     }

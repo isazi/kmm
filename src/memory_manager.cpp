@@ -424,8 +424,10 @@ std::shared_ptr<MemoryManager::DataTransfer> MemoryManager::initiate_transfer(
     this->m_memory->copy_async(
         src_id,
         src_entry.data.value().get(),
+        0,
         dst_id,
         dst_entry.data.value().get(),
+        0,
         buffer->num_bytes,
         std::move(completion));
 
