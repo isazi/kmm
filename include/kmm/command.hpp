@@ -2,6 +2,7 @@
 #include <future>
 #include <variant>
 
+#include "fmt/format.h"
 #include "kmm/executor.hpp"
 #include "kmm/object_manager.hpp"
 #include "kmm/types.hpp"
@@ -53,6 +54,27 @@ using Command = std::variant<
     CommandBufferDelete,
     CommandObjectCreate,
     CommandObjectDelete>;
+
+static const char* format_as(const Command& cmd) {
+    switch (cmd.index()) {
+        case 0:
+            return "CommandNoop";
+        case 1:
+            return "CommandPromise";
+        case 2:
+            return "CommandExecute";
+        case 3:
+            return "CommandBufferCreate";
+        case 4:
+            return "CommandBufferDelete";
+        case 5:
+            return "CommandObjectCreate";
+        case 6:
+            return "CommandObjectDelete";
+        default:
+            return "???";
+    }
+}
 
 struct CommandPacket {
     CommandPacket(OperationId id, Command command, std::vector<OperationId> dependencies = {}) :

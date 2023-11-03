@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include "fmt/format.h"
+
 namespace kmm {
 
 template<typename T, typename Tag = void>
@@ -56,6 +58,11 @@ class Identifier {
   private:
     T m_value;
 };
+
+template<typename T, typename Tag>
+T format_as(const Identifier<T, Tag>& id) {
+    return id.get();
+}
 
 using index_t = int;
 using DeviceId = Identifier<uint8_t, struct DeviceTag>;

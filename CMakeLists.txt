@@ -20,6 +20,14 @@ add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(SPDLOG_FMT_EXTERNAL ON)
+set(SPDLOG_BUILD_PIC ON)
+
+add_subdirectory(external/fmt)
+add_subdirectory(external/spdlog)
+target_link_libraries(${PROJECT_NAME} PUBLIC spdlog fmt)
+
 # Install
 set_target_properties(
   ${PROJECT_NAME}

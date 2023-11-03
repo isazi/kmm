@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "kmm/runtime.hpp"
+#include "spdlog/spdlog.h"
 
 #define SIZE 65536
 
@@ -32,6 +33,8 @@ void verify(float* C, unsigned int size) {
 }
 
 int main(void) {
+    spdlog::set_level(spdlog::level::trace);
+
     unsigned int threads_per_block = 1024;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
     int n = SIZE;
@@ -56,8 +59,10 @@ int main(void) {
 
     // TODO: run kernel
 
-    float* C_h = reinterpret_cast<float*>(malloc(n));
     //    manager.copy_release(C, C_h);
     // TODO: run verify
+
+    manager.barrier().wait();
+
     return 0;
 }

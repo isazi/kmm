@@ -42,7 +42,6 @@ class HostAllocation: public Allocation {
     }
 
   private:
-
     size_t m_nbytes;
     std::unique_ptr<char[]> m_data;
 };

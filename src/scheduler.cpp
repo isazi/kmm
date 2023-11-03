@@ -1,12 +1,13 @@
 #include "kmm/scheduler.hpp"
 
-#include <atomic>
 #include <functional>
 #include <stdexcept>
 #include <utility>
 
+#include "fmt/ranges.h"
 #include "kmm/memory_manager.hpp"
 #include "kmm/utils.hpp"
+#include "spdlog/spdlog.h"
 
 namespace kmm {
 
@@ -65,6 +66,12 @@ void Scheduler::wakeup(const std::shared_ptr<Operation>& op) {
 
 void Scheduler::submit_command(CommandPacket packet) {
     std::unique_lock guard {m_lock};
+
+    spdlog::debug(
+        "submit command id={} dependencies={} command={}",
+        packet.id,
+        packet.dependencies,
+        packet.command);
 
     if (m_shutdown) {
         throw std::runtime_error("cannot submit new commands after shutdown");
