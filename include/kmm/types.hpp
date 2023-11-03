@@ -21,11 +21,6 @@ class Identifier {
         return get();
     }
 
-    Identifier& operator=(const T& v) {
-        m_value = v;
-        return *this;
-    }
-
     bool operator==(const Identifier& that) const {
         return m_value == that.m_value;
     }
@@ -88,10 +83,7 @@ struct VirtualBufferRequirement {
 
 class RuntimeImpl;
 class Runtime;
-class Object {
-  public:
-    ~Object() = default;
-};
+class Object;
 
 }  // namespace kmm
 
