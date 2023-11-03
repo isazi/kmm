@@ -10,7 +10,7 @@ if(${USE_CUDA})
 endif()
 
 if(DEFINED CMAKE_CUDA_COMPILER)
-  file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
+  file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
   #set_source_files_properties(${sources} PROPERTIES LANGUAGE CUDA)
 else()
   file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp")
@@ -75,7 +75,9 @@ endif()
 add_executable(
   kmmTestCxx
   test/kmmTest.cpp
-  test/memory_manager.cpp
+  test/test_memory_manager.cpp
+  test/test_object.cpp
+  test/test_object_manager.cpp
 )
 target_include_directories(
     kmmTestCxx
