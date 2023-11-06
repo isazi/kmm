@@ -89,6 +89,7 @@ struct VirtualBufferRequirement {
 };
 
 struct TaskRequirements {
+    DeviceId device_id;
     std::vector<VirtualBufferRequirement> buffers;
 };
 

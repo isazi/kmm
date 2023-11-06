@@ -31,13 +31,11 @@ void RuntimeImpl::delete_buffer(BufferId id) const {
 }
 
 OperationId RuntimeImpl::submit_task(
-    DeviceId device_id,
     std::shared_ptr<Task> task,
-    std::vector<VirtualBufferRequirement> virtual_buffers,
+    TaskRequirements reqs,
     std::vector<OperationId> dependencies) const {
     std::lock_guard guard {m_mutex};
-    return m_dag_builder
-        .submit_task(device_id, std::move(task), virtual_buffers, std::move(dependencies));
+    return m_dag_builder.submit_task(std::move(task), std::move(reqs), std::move(dependencies));
 }
 
 OperationId RuntimeImpl::submit_barrier() const {

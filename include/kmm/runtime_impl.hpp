@@ -18,9 +18,8 @@ class RuntimeImpl {
     void delete_buffer(BufferId) const;
 
     OperationId submit_task(
-        DeviceId device_id,
         std::shared_ptr<Task> task,
-        std::vector<VirtualBufferRequirement> buffers,
+        TaskRequirements buffers,
         std::vector<OperationId> dependencies) const;
 
     OperationId submit_barrier() const;

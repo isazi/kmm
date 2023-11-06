@@ -79,11 +79,10 @@ Buffer Runtime::allocate_buffer(
 }
 
 void Runtime::submit_task(
-    DeviceId device_id,
     std::shared_ptr<Task> task,
-    std::vector<VirtualBufferRequirement> buffers,
+    TaskRequirements reqs,
     std::vector<OperationId> dependencies) const {
-    m_impl->submit_task(device_id, std::move(task), std::move(buffers), std::move(dependencies));
+    m_impl->submit_task(std::move(task), std::move(reqs), std::move(dependencies));
 }
 
 Event Runtime::barrier() const {

@@ -72,14 +72,15 @@ PhysicalBufferId DAGBuilder::update_buffer_access(
 }
 
 OperationId DAGBuilder::submit_task(
-    DeviceId device_id,
     std::shared_ptr<Task> task,
-    const std::vector<VirtualBufferRequirement>& virtual_buffers,
+    TaskRequirements requirements,
     std::vector<OperationId> dependencies) {
     auto task_id = m_next_op_id++;
+
+    auto device_id = requirements.device_id;
     auto buffers = std::vector<BufferRequirement> {};
 
-    for (const auto& req : virtual_buffers) {
+    for (const auto& req : requirements.buffers) {
         auto buffer_id = update_buffer_access(
             req.buffer_id,  //
             task_id,

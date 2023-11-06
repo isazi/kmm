@@ -90,9 +90,8 @@ class Runtime {
         DeviceId home = DeviceId(0)) const;
 
     void submit_task(
-        DeviceId device_id,
         std::shared_ptr<Task> task,
-        std::vector<VirtualBufferRequirement> buffers = {},
+        TaskRequirements reqs,
         std::vector<OperationId> dependencies = {}) const;
 
     Event barrier() const;
@@ -106,8 +105,7 @@ class Runtime {
 
     template<typename Device, typename Fun, typename... Args>
     void submit(const Device& device, Fun&& fun, Args&&... args) {
-        TaskRequirements reqs;
-        DeviceId device_id = device.find_id(*m_impl);
+        TaskRequirements reqs = {.device_id = device.find_id(*m_impl), .buffers = {}};
 
         std::shared_ptr<Task> task = std::make_shared<TaskImpl<
             Device::execution_space,
@@ -118,7 +116,7 @@ class Runtime {
                 std::forward<Args>(args),
                 reqs)...);
 
-        submit_task(device_id, std::move(task), std::move(reqs.buffers));
+        submit_task(std::move(task), std::move(reqs));
     }
 
     std::shared_ptr<RuntimeImpl> inner() const {

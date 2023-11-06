@@ -11,9 +11,8 @@ class DAGBuilder {
     void delete_buffer(BufferId);
 
     OperationId submit_task(
-        DeviceId device_id,
         std::shared_ptr<Task> task,
-        const std::vector<VirtualBufferRequirement>& buffers,
+        TaskRequirements requirements,
         std::vector<OperationId> dependencies);
 
     OperationId submit_barrier();
