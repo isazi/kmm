@@ -1,5 +1,6 @@
 #include "kmm/dag_builder.hpp"
 #include "kmm/scheduler.hpp"
+#include "kmm/utils.hpp"
 
 namespace kmm {
 
@@ -95,7 +96,7 @@ OperationId DAGBuilder::submit_task(
     }
 
     auto cmd = CommandExecute {
-        .output_object_id = ObjectId::invalid(),
+        .output_object_id = std::nullopt,
         .device_id = device_id,
         .task = std::move(task),
         .buffers = std::move(buffers),
@@ -105,9 +106,24 @@ OperationId DAGBuilder::submit_task(
     return task_id;
 }
 
+OperationId DAGBuilder::join(std::vector<OperationId> dependencies) {
+    remove_duplicates(dependencies);
+
+    if (dependencies.empty()) {
+        return OperationId::invalid();
+    }
+
+    if (dependencies.size() == 1) {
+        return dependencies[0];
+    }
+
+    auto task_id = m_next_op_id++;
+    m_commands.emplace_back(task_id, CommandNoop {}, std::move(dependencies));
+    return task_id;
+}
+
 OperationId DAGBuilder::submit_barrier() {
     auto dependencies = std::vector<OperationId> {};
-    OperationId task_id = m_next_op_id++;
 
     for (const auto& [_, buffer] : m_buffers) {
         dependencies.insert(
@@ -119,18 +135,20 @@ OperationId DAGBuilder::submit_barrier() {
             dependencies.end(),
             buffer->last_writers.begin(),
             buffer->last_writers.end());
+    }
 
+    OperationId task_id = join(std::move(dependencies));
+
+    for (const auto& [_, buffer] : m_buffers) {
         buffer->last_readers = {};
         buffer->last_writers = {task_id};
     }
 
-    m_commands.emplace_back(task_id, CommandNoop {}, std::move(dependencies));
     return task_id;
 }
 
 OperationId DAGBuilder::submit_buffer_barrier(BufferId buffer_id) {
     auto dependencies = std::vector<OperationId> {};
-    OperationId task_id = m_next_op_id++;
 
     auto& buffer = m_buffers.at(buffer_id);
     dependencies.insert(
@@ -143,20 +161,20 @@ OperationId DAGBuilder::submit_buffer_barrier(BufferId buffer_id) {
         buffer->last_writers.begin(),
         buffer->last_writers.end());
 
+    OperationId task_id = join(std::move(dependencies));
+
     buffer->last_readers = {};
     buffer->last_writers = {task_id};
 
-    m_commands.emplace_back(task_id, CommandNoop {}, std::move(dependencies));
     return task_id;
 }
 
 OperationId DAGBuilder::submit_promise(OperationId op_id, std::promise<void> promise) {
     OperationId task_id = m_next_op_id++;
-    std::vector<OperationId> dependencies = {op_id};
     m_commands.emplace_back(
         task_id,
         CommandPromise {.promise = std::move(promise)},
-        std::move(dependencies));
+        std::vector {op_id});
     return task_id;
 }
 

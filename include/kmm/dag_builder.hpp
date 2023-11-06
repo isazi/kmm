@@ -15,6 +15,7 @@ class DAGBuilder {
         TaskRequirements requirements,
         std::vector<OperationId> dependencies);
 
+    OperationId join(std::vector<OperationId> dependencies);
     OperationId submit_barrier();
     OperationId submit_buffer_barrier(BufferId buffer_id);
     OperationId submit_promise(OperationId op_id, std::promise<void> promise);

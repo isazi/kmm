@@ -82,10 +82,10 @@ if(DEFINED CMAKE_CUDA_COMPILER)
 endif()
 add_executable(
   kmmTestCxx
-  test/kmmTest.cpp
   test/test_memory_manager.cpp
   test/test_object.cpp
   test/test_object_manager.cpp
+  test/test_dag_builder.cpp
 )
 target_include_directories(
     kmmTestCxx
@@ -101,30 +101,10 @@ target_link_libraries(
   GTest::gtest_main
 )
 if(DEFINED CMAKE_CUDA_COMPILER)
-  add_executable(
-    kmmTestCu
-    test/kmmTest.cu
-  )
-  target_include_directories(
-      kmmTestCu
-      PRIVATE
-      ${GTEST_INCLUDE_DIRS}
-      ${PROJECT_SOURCE_DIR}/include
-  )
-  target_link_libraries(
-    kmmTestCu
-    PRIVATE
-    kmm
-    GTest::gtest
-    GTest::gtest_main
-  )
 endif()
 
 include(GoogleTest)
 gtest_discover_tests(kmmTestCxx)
-if(DEFINED CMAKE_CUDA_COMPILER)
-  gtest_discover_tests(kmmTestCu)
-endif()
 
 # Examples
 if(DEFINED CMAKE_CUDA_COMPILER)
