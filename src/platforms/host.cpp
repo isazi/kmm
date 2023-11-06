@@ -7,6 +7,12 @@
 
 namespace kmm {
 
+struct ParallelExecutor::Job {
+    virtual ~Job() = default;
+    virtual void execute(ParallelExecutorContext&) = 0;
+    std::unique_ptr<Job> next;
+};
+
 struct ParallelExecutor::Queue {
     std::mutex lock;
     std::condition_variable cond;
@@ -35,6 +41,8 @@ struct ParallelExecutor::Queue {
 
     void process_forever() {
         std::unique_lock<std::mutex> guard(lock);
+        ParallelExecutorContext context {};
+
         while (!has_shutdown || front != nullptr) {
             if (front == nullptr) {
                 cond.wait(guard);
@@ -49,7 +57,9 @@ struct ParallelExecutor::Queue {
                 back = nullptr;
             }
 
-            front->execute();
+            guard.unlock();
+            popped->execute(context);
+            guard.lock();
         }
     }
 };
@@ -70,9 +80,8 @@ class ExecuteJob: public ParallelExecutor::Job {
         m_context(std::move(context)),
         m_completion(std::move(completion)) {}
 
-    void execute() override {
+    void execute(ParallelExecutorContext& executor) override {
         try {
-            auto executor = ParallelExecutorContext {};
             m_completion.complete(m_task->execute(executor, m_context));
         } catch (const std::exception& e) {
             m_completion.complete_err(e.what());
@@ -105,8 +114,9 @@ class CopyJob: public ParallelExecutor::Job {
         nbytes(nbytes),
         completion(std::move(completion)) {}
 
-    void execute() override {
+    void execute(ParallelExecutorContext&) override {
         std::memcpy(dst_ptr, src_ptr, nbytes);
+        completion->complete();
     }
 
   private:

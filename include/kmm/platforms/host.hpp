@@ -4,6 +4,9 @@
 
 #include "kmm/executor.hpp"
 #include "kmm/memory.hpp"
+#include "kmm/types.hpp"
+#include "kmm/task_args.hpp"
+#include "kmm/runtime.hpp"
 
 namespace kmm {
 
@@ -11,12 +14,7 @@ class ParallelExecutorContext: public ExecutorContext {};
 
 class ParallelExecutor: public Executor {
   public:
-    class Job {
-      public:
-        virtual ~Job() = default;
-        virtual void execute() = 0;
-        std::unique_ptr<Job> next;
-    };
+    struct Job;
 
     ParallelExecutor();
     ~ParallelExecutor() override;
@@ -71,6 +69,58 @@ class HostMemory: public Memory {
   private:
     std::shared_ptr<ParallelExecutor> m_executor;
     size_t m_bytes_remaining;
+};
+
+struct Host {
+    static constexpr ExecutionSpace execution_space = ExecutionSpace::Host;
+
+    static DeviceId find_id(RuntimeImpl&) {
+        return DeviceId(0);
+    }
+};
+
+template <typename T>
+struct PackedArray {
+    size_t index;
+};
+
+template<typename T>
+struct TaskArgPack<ExecutionSpace::Host, Array<T>> {
+    using type = PackedArray<const T>;
+
+    static type call(const Array<T>& array, TaskRequirements& requirements) {
+        size_t index = requirements.buffers.size();
+        requirements.buffers.push_back(VirtualBufferRequirement {
+            .buffer_id = array.id(),
+            .mode = AccessMode::Read,
+        });
+
+        return {index};
+    }
+};
+
+template<typename T>
+struct TaskArgPack<ExecutionSpace::Host, Write<Array<T>>> {
+    using type = PackedArray<T>;
+
+    static type call(const Write<Array<T>>& array, TaskRequirements& requirements) {
+        size_t index = requirements.buffers.size();
+        requirements.buffers.push_back(VirtualBufferRequirement {
+            .buffer_id = array.inner.id(),
+            .mode = AccessMode::Write,
+        });
+
+        return {index};
+    }
+};
+
+template<typename T>
+struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<T>> {
+    static T* call(const PackedArray<T>& array, TaskContext& context) {
+        auto access = context.buffers.at(array.index);
+        auto& alloc = dynamic_cast<const HostAllocation&>(*access.allocation);
+        return reinterpret_cast<T*>(alloc.data());
+    }
 };
 
 

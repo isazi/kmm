@@ -88,6 +88,10 @@ struct VirtualBufferRequirement {
     AccessMode mode;
 };
 
+struct TaskRequirements {
+    std::vector<VirtualBufferRequirement> buffers;
+};
+
 class RuntimeImpl;
 class Runtime;
 class Object;

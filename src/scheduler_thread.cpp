@@ -1,3 +1,5 @@
+#include "spdlog/spdlog.h"
+
 #include "kmm/scheduler_thread.hpp"
 #include "kmm/utils.hpp"
 

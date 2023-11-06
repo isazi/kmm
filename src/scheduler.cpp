@@ -11,7 +11,10 @@
 
 namespace kmm {
 
-struct Scheduler::Operation: public Waker, std::enable_shared_from_this<Operation> {
+struct Scheduler::Operation:
+    public Waker,
+    TaskCompletion::Impl,
+    std::enable_shared_from_this<Operation> {
     enum class Status { Pending, Queueing, Staging, Running, Done };
 
     Operation(
@@ -38,6 +41,10 @@ struct Scheduler::Operation: public Waker, std::enable_shared_from_this<Operatio
         if (auto s = scheduler.lock()) {
             s->wakeup(const_cast<Operation*>(this)->shared_from_this());
         }
+    }
+
+    void complete_task(TaskResult result) override {
+        std::shared_ptr(scheduler)->complete(shared_from_this(), std::move(result));
     }
 };
 
@@ -84,6 +91,7 @@ void Scheduler::submit_command(CommandPacket packet) {
         std::move(packet.command),
         packet.dependencies.size() + 1,
         weak_from_this());
+    m_ops.insert({packet.id, new_op});
 
     size_t satisfied = 1;
     // auto predecessors = std::vector<std::weak_ptr<Operation>> {};
@@ -225,6 +233,8 @@ void Scheduler::stage_op(const std::shared_ptr<Operation>& op) {
 }
 
 void Scheduler::schedule_op(const std::shared_ptr<Operation>& op) {
+    spdlog::debug("scheduling operation id={}", op->id);
+
     op->status = Operation::Status::Running;
     bool is_done = true;
 
@@ -271,6 +281,8 @@ void Scheduler::schedule_op(const std::shared_ptr<Operation>& op) {
 }
 
 void Scheduler::complete_op(const std::shared_ptr<Operation>& op, TaskResult result) {
+    KMM_ASSERT(op->status == Operation::Status::Running);
+    spdlog::debug("completing operation={} result={}", op->id, result.index());
     op->status = Operation::Status::Done;
     m_ops.erase(op->id);
 
@@ -298,29 +310,17 @@ void Scheduler::complete_op(const std::shared_ptr<Operation>& op, TaskResult res
 }
 
 void Scheduler::trigger_predecessor_completed(const std::shared_ptr<Operation>& op, size_t count) {
+    spdlog::debug(
+        "trigger for operation={} count={} unsatisfied={}",
+        op->id,
+        count,
+        op->unsatisfied_predecessors);
+
     if (op->unsatisfied_predecessors <= count) {
         op->unsatisfied_predecessors = 0;
         m_ready_queue.push(op);
     } else {
         op->unsatisfied_predecessors -= count;
-    }
-}
-
-TaskCompletion::TaskCompletion(std::shared_ptr<Scheduler::Operation> op) : m_op(std::move(op)) {}
-
-void TaskCompletion::complete(TaskResult result) {
-    if (auto op = std::exchange(m_op, {})) {
-        std::shared_ptr(op->scheduler)->complete(op, std::move(result));
-    }
-}
-
-void TaskCompletion::complete_err(const std::string& error) {
-    complete(TaskError(error));
-}
-
-TaskCompletion::~TaskCompletion() {
-    if (m_op) {
-        complete_err("tasks was not completed properly");
     }
 }
 

@@ -57,7 +57,7 @@ PhysicalBufferId DAGBuilder::update_buffer_access(
             deps_out.insert(
                 deps_out.end(),
                 record->last_writers.begin(),
-                record->last_readers.end());
+                record->last_writers.end());
             deps_out.insert(
                 deps_out.end(),
                 record->last_readers.begin(),

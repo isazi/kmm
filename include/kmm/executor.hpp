@@ -9,9 +9,6 @@
 #include "kmm/types.hpp"
 
 namespace kmm {
-class Task;
-class TaskCompletion;
-
 struct BufferAccess {
     const Allocation* allocation = nullptr;
     bool writable = false;
@@ -30,15 +27,30 @@ class TaskError {
         return *m_reason;
     }
 
+  private:
     std::shared_ptr<const std::string> m_reason;
 };
 
 using TaskResult = std::variant<std::monostate, ObjectHandle, TaskError>;
 
-class Executor {
+class TaskCompletion {
   public:
-    virtual ~Executor() = default;
-    virtual void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) = 0;
+    class Impl {
+      public:
+        virtual ~Impl() = default;
+        virtual void complete_task(TaskResult) = 0;
+    };
+
+    explicit TaskCompletion(std::shared_ptr<Impl> = {});
+    TaskCompletion(TaskCompletion&&) noexcept = default;
+    TaskCompletion(const TaskContext&) = delete;
+    ~TaskCompletion();
+
+    void complete(TaskResult);
+    void complete_err(const std::string& error);
+
+  private:
+    std::shared_ptr<Impl> m_impl;
 };
 
 class ExecutorContext {};
@@ -47,6 +59,12 @@ class Task {
   public:
     virtual ~Task() = default;
     virtual TaskResult execute(ExecutorContext&, TaskContext&) = 0;
+};
+
+class Executor {
+  public:
+    virtual ~Executor() = default;
+    virtual void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) = 0;
 };
 
 }  // namespace kmm

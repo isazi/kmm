@@ -2,6 +2,7 @@
 
 #include "spdlog/spdlog.h"
 
+#include "kmm/platforms/host.hpp"
 #include "kmm/runtime.hpp"
 
 #define SIZE 65536
@@ -21,9 +22,9 @@ void initialize(float* A, float* B, unsigned int size) {
     }
 }
 
-void execute() {}
+void execute(float* C, unsigned int size) {}
 
-void verify(float* C, unsigned int size) {
+void verify(const float* C, unsigned int size) {
     for (unsigned int item = 0; item < size; item++) {
         if ((C[item] - 3.0) > 1.0e-9) {
             std::cout << "ERROR" << std::endl;
@@ -59,11 +60,12 @@ int main(void) {
     //    manager.move_to(gpu, B);
 
     // TODO: run kernel
+    manager.submit(kmm::Host(), execute, write(C), 100);
 
     //    manager.copy_release(C, C_h);
     // TODO: run verify
+    manager.submit(kmm::Host(), verify, C, 100);
 
     manager.barrier().wait();
-
     return 0;
 }

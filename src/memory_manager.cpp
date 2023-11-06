@@ -9,6 +9,8 @@ namespace kmm {
 
 struct MemoryManager::TransferCompletion: public Completion {
     TransferCompletion(MemoryManager& manager, PhysicalBufferId buffer_id, DeviceId dst_id);
+    TransferCompletion(const TransferCompletion&) = delete;
+    TransferCompletion(TransferCompletion&&) noexcept = delete;
     ~TransferCompletion() override;
     void complete() override;
 

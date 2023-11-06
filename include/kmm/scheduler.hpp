@@ -74,18 +74,4 @@ class Scheduler: public std::enable_shared_from_this<Scheduler> {
     bool m_shutdown = false;
 };
 
-class TaskCompletion {
-  public:
-    explicit TaskCompletion(std::shared_ptr<Scheduler::Operation> = {});
-    TaskCompletion(TaskCompletion&&) noexcept = default;
-    TaskCompletion(const TaskContext&) = delete;
-    ~TaskCompletion();
-
-    void complete(TaskResult);
-    void complete_err(const std::string& error);
-
-  private:
-    std::shared_ptr<Scheduler::Operation> m_op;
-};
-
 }  // namespace kmm

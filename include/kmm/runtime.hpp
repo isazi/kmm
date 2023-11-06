@@ -5,7 +5,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "kmm/dag_builder.hpp"
 #include "kmm/executor.hpp"
+#include "kmm/task_args.hpp"
 #include "kmm/types.hpp"
 #include "kmm/utils.hpp"
 
@@ -27,7 +29,7 @@ class Event {
 
 class Buffer {
   public:
-    Buffer(BufferId id, std::shared_ptr<RuntimeImpl> rt);
+    Buffer(BufferId id, std::shared_ptr<RuntimeImpl> runtime);
     Buffer(Buffer&&) = delete;
     Buffer(const Buffer&) = default;
 
@@ -103,13 +105,20 @@ class Runtime {
     }
 
     template<typename Device, typename Fun, typename... Args>
-    void submit(const Device& device, Fun fun, Args... args) {
-        KMM_TODO();
-        DeviceId device_id = device.find_id(*this);
-        std::shared_ptr<Task> task;
-        std::vector<VirtualBufferRequirement> buffers;
+    void submit(const Device& device, Fun&& fun, Args&&... args) {
+        TaskRequirements reqs;
+        DeviceId device_id = device.find_id(*m_impl);
 
-        submit_task(device_id, std::move(task), std::move(buffers));
+        std::shared_ptr<Task> task = std::make_shared<TaskImpl<
+            Device::execution_space,
+            std::decay_t<Fun>,
+            typename TaskArgPack<Device::execution_space, std::decay_t<Args>>::type...>>(
+            std::forward<Fun>(fun),
+            TaskArgPack<Device::execution_space, std::decay_t<Args>>::call(
+                std::forward<Args>(args),
+                reqs)...);
+
+        submit_task(device_id, std::move(task), std::move(reqs.buffers));
     }
 
     std::shared_ptr<RuntimeImpl> inner() const {
