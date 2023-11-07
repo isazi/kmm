@@ -10,7 +10,7 @@
 
 namespace kmm {
 struct BufferAccess {
-    const Allocation* allocation = nullptr;
+    const MemoryAllocation* allocation = nullptr;
     bool writable = false;
 };
 

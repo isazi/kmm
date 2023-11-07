@@ -7,7 +7,7 @@
 
 namespace kmm {
 
-struct MemoryManager::TransferCompletion: public Completion {
+struct MemoryManager::TransferCompletion: public MemoryCompletion {
     TransferCompletion(MemoryManager& manager, PhysicalBufferId buffer_id, DeviceId dst_id);
     TransferCompletion(const TransferCompletion&) = delete;
     TransferCompletion(TransferCompletion&&) noexcept = delete;
@@ -86,7 +86,7 @@ struct MemoryManager::Entry {
 
     std::shared_ptr<MemoryManager::DataTransfer> incoming_transfer;
     Status status = Status::Invalid;
-    std::optional<std::unique_ptr<Allocation>> data = {};
+    std::optional<std::unique_ptr<MemoryAllocation>> data = {};
 };
 
 struct MemoryManager::LRULinks {
@@ -198,7 +198,7 @@ void MemoryManager::delete_request(
     buffer->num_requests_active -= 1;
 }
 
-const Allocation* MemoryManager::view_buffer(const std::shared_ptr<Request>& request) {
+const MemoryAllocation* MemoryManager::view_buffer(const std::shared_ptr<Request>& request) {
     KMM_ASSERT(request->status == Request::Status::Ready);
     auto& entry = request->buffer->entries.at(request->device_id);
     return entry.data->get();
@@ -688,8 +688,8 @@ MemoryManager::TransferCompletion::TransferCompletion(
     m_dst_id(dst_id) {}
 
 void MemoryManager::TransferCompletion::complete() {
-    if (m_manager) {
-        std::exchange(m_manager, {})->complete_transfer(m_buffer_id, m_dst_id);
+    if (auto m = std::move(m_manager)) {
+        m->complete_transfer(m_buffer_id, m_dst_id);
     }
 }
 

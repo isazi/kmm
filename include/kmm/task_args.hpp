@@ -29,7 +29,6 @@ class TaskImpl: public Task {
 
     TaskResult execute(ExecutorContext& executor, TaskContext& context) override {
         execute_impl(executor, context, std::make_index_sequence<sizeof...(Args)>());
-
         return {};
     }
 

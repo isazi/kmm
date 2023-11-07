@@ -78,11 +78,12 @@ Buffer Runtime::allocate_buffer(
     return {id, m_impl};
 }
 
-void Runtime::submit_task(
+Event Runtime::submit_task(
     std::shared_ptr<Task> task,
     TaskRequirements reqs,
     std::vector<OperationId> dependencies) const {
-    m_impl->submit_task(std::move(task), std::move(reqs), std::move(dependencies));
+    auto event_id = m_impl->submit_task(std::move(task), std::move(reqs), std::move(dependencies));
+    return {event_id, m_impl};
 }
 
 Event Runtime::barrier() const {

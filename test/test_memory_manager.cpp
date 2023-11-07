@@ -6,7 +6,7 @@ class MockWaker: public kmm::Waker {
     void wakeup() const override {}
 };
 
-class MockAllocation: public kmm::Allocation {
+class MockAllocation: public kmm::MemoryAllocation {
   public:
     MockAllocation(int id, kmm::DeviceId device_id, size_t num_bytes) :
         id(id),
@@ -20,7 +20,7 @@ class MockAllocation: public kmm::Allocation {
 
 class MockMemory: public kmm::Memory {
   public:
-    std::optional<std::unique_ptr<kmm::Allocation>> allocate(
+    std::optional<std::unique_ptr<kmm::MemoryAllocation>> allocate(
         kmm::DeviceId device_id,
         size_t num_bytes) {
         int id = next_id++;
@@ -34,7 +34,8 @@ class MockMemory: public kmm::Memory {
         return std::make_unique<MockAllocation>(id++, device_id, num_bytes);
     }
 
-    void deallocate(kmm::DeviceId device_id, std::unique_ptr<kmm::Allocation> allocation) override {
+    void deallocate(kmm::DeviceId device_id, std::unique_ptr<kmm::MemoryAllocation> allocation)
+        override {
         auto alloc = dynamic_cast<const MockAllocation&>(*allocation);
         ASSERT_EQ(device_id, allocations.at(alloc.id));
 
@@ -49,13 +50,13 @@ class MockMemory: public kmm::Memory {
 
     void copy_async(
         kmm::DeviceId src_id,
-        const kmm::Allocation* src_alloc,
+        const kmm::MemoryAllocation* src_alloc,
         size_t src_offset,
         kmm::DeviceId dst_id,
-        const kmm::Allocation* dst_alloc,
+        const kmm::MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        std::unique_ptr<kmm::Completion> completion) override {
+        std::unique_ptr<kmm::MemoryCompletion> completion) override {
         auto src = dynamic_cast<const MockAllocation&>(*src_alloc);
         ASSERT_EQ(src.device_id, allocations.at(src.id));
         ASSERT_EQ(src.num_bytes, num_bytes);
@@ -84,7 +85,7 @@ class MockMemory: public kmm::Memory {
         transfers.pop_front();
     }
 
-    std::deque<std::tuple<int, int, std::unique_ptr<kmm::Completion>>> transfers;
+    std::deque<std::tuple<int, int, std::unique_ptr<kmm::MemoryCompletion>>> transfers;
     std::unordered_map<int, kmm::DeviceId> allocations;
     std::unordered_map<kmm::DeviceId, size_t> used;
     int next_id = 1;

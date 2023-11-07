@@ -7,7 +7,6 @@
 
 #include "kmm/dag_builder.hpp"
 #include "kmm/executor.hpp"
-#include "kmm/task_args.hpp"
 #include "kmm/types.hpp"
 #include "kmm/utils.hpp"
 
@@ -89,7 +88,7 @@ class Runtime {
         size_t element_align,
         DeviceId home = DeviceId(0)) const;
 
-    void submit_task(
+    Event submit_task(
         std::shared_ptr<Task> task,
         TaskRequirements reqs,
         std::vector<OperationId> dependencies = {}) const;
@@ -103,20 +102,10 @@ class Runtime {
         return {allocate_buffer(total_size, sizeof(T), alignof(T), home), sizes};
     }
 
-    template<typename Device, typename Fun, typename... Args>
-    void submit(const Device& device, Fun&& fun, Args&&... args) {
-        TaskRequirements reqs = {.device_id = device.find_id(*m_impl), .buffers = {}};
-
-        std::shared_ptr<Task> task = std::make_shared<TaskImpl<
-            Device::execution_space,
-            std::decay_t<Fun>,
-            typename TaskArgPack<Device::execution_space, std::decay_t<Args>>::type...>>(
-            std::forward<Fun>(fun),
-            TaskArgPack<Device::execution_space, std::decay_t<Args>>::call(
-                std::forward<Args>(args),
-                reqs)...);
-
-        submit_task(std::move(task), std::move(reqs));
+    template<typename Device, typename... Args>
+    Event submit(const Device& device, Args&&... args) {
+        OperationId id = device(*m_impl, std::forward<Args>(args)...);
+        return {id, m_impl};
     }
 
     std::shared_ptr<RuntimeImpl> inner() const {

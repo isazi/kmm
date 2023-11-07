@@ -108,7 +108,7 @@ class CopyJob: public ParallelExecutor::Job {
         const void* src_ptr,
         void* dst_ptr,
         size_t nbytes,
-        std::unique_ptr<Completion>&& completion) :
+        std::unique_ptr<MemoryCompletion>&& completion) :
         src_ptr(src_ptr),
         dst_ptr(dst_ptr),
         nbytes(nbytes),
@@ -123,14 +123,14 @@ class CopyJob: public ParallelExecutor::Job {
     const void* src_ptr;
     void* dst_ptr;
     size_t nbytes;
-    std::unique_ptr<Completion> completion;
+    std::unique_ptr<MemoryCompletion> completion;
 };
 
 void ParallelExecutor::copy_async(
     const void* src_ptr,
     void* dst_ptr,
     size_t nbytes,
-    std::unique_ptr<Completion> completion) const {
+    std::unique_ptr<MemoryCompletion> completion) const {
     m_queue->push(std::make_unique<CopyJob>(src_ptr, dst_ptr, nbytes, std::move(completion)));
 }
 
@@ -142,7 +142,9 @@ HostMemory::HostMemory(std::shared_ptr<ParallelExecutor> executor, size_t max_by
     m_executor(std::move(executor)),
     m_bytes_remaining(max_bytes) {}
 
-std::optional<std::unique_ptr<Allocation>> HostMemory::allocate(DeviceId id, size_t num_bytes) {
+std::optional<std::unique_ptr<MemoryAllocation>> HostMemory::allocate(
+    DeviceId id,
+    size_t num_bytes) {
     KMM_ASSERT(id == 0);
     if (m_bytes_remaining >= num_bytes) {
         m_bytes_remaining -= num_bytes;
@@ -152,7 +154,7 @@ std::optional<std::unique_ptr<Allocation>> HostMemory::allocate(DeviceId id, siz
     }
 }
 
-void HostMemory::deallocate(DeviceId id, std::unique_ptr<Allocation> allocation) {
+void HostMemory::deallocate(DeviceId id, std::unique_ptr<MemoryAllocation> allocation) {
     KMM_ASSERT(id == 0);
     auto& alloc = dynamic_cast<HostAllocation&>(*allocation);
     m_bytes_remaining += alloc.size();
@@ -164,21 +166,24 @@ bool HostMemory::is_copy_possible(DeviceId src_id, DeviceId dst_id) {
 
 void HostMemory::copy_async(
     DeviceId src_id,
-    const Allocation* src_alloc,
+    const MemoryAllocation* src_alloc,
     size_t src_offset,
     DeviceId dst_id,
-    const Allocation* dst_alloc,
+    const MemoryAllocation* dst_alloc,
     size_t dst_offset,
     size_t num_bytes,
-    std::unique_ptr<Completion> completion) {
+    std::unique_ptr<MemoryCompletion> completion) {
     KMM_ASSERT(src_id == 0);
     KMM_ASSERT(dst_id == 0);
 
     const auto& src_host = dynamic_cast<const HostAllocation&>(*src_alloc);
     const auto& dst_host = dynamic_cast<const HostAllocation&>(*dst_alloc);
 
-    KMM_ASSERT(src_host.size() <= num_bytes);
-    KMM_ASSERT(dst_host.size() <= num_bytes);
+    KMM_ASSERT(num_bytes <= src_host.size());
+    KMM_ASSERT(num_bytes <= dst_host.size());
+
+    KMM_ASSERT(src_offset <= src_host.size() - num_bytes);
+    KMM_ASSERT(dst_offset <= dst_host.size() - num_bytes);
 
     m_executor->copy_async(
         static_cast<const char*>(src_host.data()) + src_offset,

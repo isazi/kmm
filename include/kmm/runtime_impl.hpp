@@ -20,7 +20,7 @@ class RuntimeImpl {
     OperationId submit_task(
         std::shared_ptr<Task> task,
         TaskRequirements buffers,
-        std::vector<OperationId> dependencies) const;
+        std::vector<OperationId> dependencies = {}) const;
 
     OperationId submit_barrier() const;
     OperationId submit_buffer_barrier(BufferId) const;

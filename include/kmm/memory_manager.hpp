@@ -40,7 +40,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
     PollResult poll_request(const std::shared_ptr<Request>&);
     PollResult poll_requests(const std::vector<std::shared_ptr<Request>>&);
 
-    const Allocation* view_buffer(const std::shared_ptr<Request>&);
+    const MemoryAllocation* view_buffer(const std::shared_ptr<Request>&);
 
     void delete_request(
         const std::shared_ptr<Request>&,

@@ -22,7 +22,7 @@ void initialize(float* A, float* B, unsigned int size) {
     }
 }
 
-void execute(float* C, unsigned int size) {}
+void execute(float* C, const float* A, const float* B, unsigned int size) {}
 
 void verify(const float* C, unsigned int size) {
     for (unsigned int item = 0; item < size; item++) {
@@ -54,13 +54,14 @@ int main(void) {
     //    auto gpu = kmm::CUDA();
 
     // TODO: run initialization
+    manager.submit(kmm::Host(), initialize, write(A), write(B), 100);
 
     // Copy data to the GPU
     //    manager.move_to(gpu, A);
     //    manager.move_to(gpu, B);
 
     // TODO: run kernel
-    manager.submit(kmm::Host(), execute, write(C), 100);
+    manager.submit(kmm::Host(), execute, write(C), A, B, 100);
 
     //    manager.copy_release(C, C_h);
     // TODO: run verify

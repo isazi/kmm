@@ -89,8 +89,10 @@ struct VirtualBufferRequirement {
 };
 
 struct TaskRequirements {
+    TaskRequirements(DeviceId id) : device_id(id) {}
+
     DeviceId device_id;
-    std::vector<VirtualBufferRequirement> buffers;
+    std::vector<VirtualBufferRequirement> buffers = {};
 };
 
 class RuntimeImpl;
