@@ -22,7 +22,11 @@ void initialize(float* A, float* B, unsigned int size) {
     }
 }
 
-void execute(float* C, const float* A, const float* B, unsigned int size) {}
+void execute(float* C, const float* A, const float* B, unsigned int size) {
+    for (unsigned int item = 0; item < size; item++) {
+        C[item] = A[item] + B[item];
+    }
+}
 
 void verify(const float* C, unsigned int size) {
     for (unsigned int item = 0; item < size; item++) {
@@ -41,7 +45,7 @@ int main(void) {
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
     int n = SIZE;
 
-    // Create memory manager
+    // Create manager
     auto manager = kmm::build_runtime();
 
     // Request 3 memory areas of a certain size
@@ -49,24 +53,10 @@ int main(void) {
     auto B = manager.allocate<float>({n});
     auto C = manager.allocate<float>({n});
 
-    // Create devices
-    //    auto cpu = kmm::CPU();
-    //    auto gpu = kmm::CUDA();
-
-    // TODO: run initialization
     manager.submit(kmm::Host(), initialize, write(A), write(B), 100);
-
-    // Copy data to the GPU
-    //    manager.move_to(gpu, A);
-    //    manager.move_to(gpu, B);
-
-    // TODO: run kernel
     manager.submit(kmm::Host(), execute, write(C), A, B, 100);
-
-    //    manager.copy_release(C, C_h);
-    // TODO: run verify
     manager.submit(kmm::Host(), verify, C, 100);
-
     manager.barrier().wait();
+
     return 0;
 }
