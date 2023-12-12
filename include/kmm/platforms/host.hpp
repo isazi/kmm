@@ -4,10 +4,10 @@
 
 #include "kmm/executor.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/types.hpp"
-#include "kmm/task_args.hpp"
-#include "kmm/runtime_impl.hpp"
 #include "kmm/runtime.hpp"
+#include "kmm/runtime_impl.hpp"
+#include "kmm/task_args.hpp"
+#include "kmm/types.hpp"
 
 namespace kmm {
 
@@ -20,7 +20,11 @@ class ParallelExecutor: public Executor {
     ParallelExecutor();
     ~ParallelExecutor() override;
     void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
-    void copy_async(const void* src_ptr, void* dst_ptr, size_t nbytes, std::unique_ptr<MemoryCompletion> completion) const;
+    void copy_async(
+        const void* src_ptr,
+        void* dst_ptr,
+        size_t nbytes,
+        std::unique_ptr<MemoryCompletion> completion) const;
 
   private:
     struct Queue;
@@ -47,11 +51,12 @@ class HostAllocation: public MemoryAllocation {
 
 class HostMemory: public Memory {
   public:
-    HostMemory(std::shared_ptr<ParallelExecutor> executor, size_t max_bytes = std::numeric_limits<size_t>::max());
+    HostMemory(
+        std::shared_ptr<ParallelExecutor> executor,
+        size_t max_bytes = std::numeric_limits<size_t>::max());
 
-    std::optional<std::unique_ptr<MemoryAllocation>> allocate(
-        DeviceId id,
-        size_t num_bytes) override;
+    std::optional<std::unique_ptr<MemoryAllocation>> allocate(DeviceId id, size_t num_bytes)
+        override;
 
     void deallocate(DeviceId id, std::unique_ptr<MemoryAllocation> allocation) override;
 
@@ -91,7 +96,7 @@ struct Host {
     }
 };
 
-template <typename T, size_t N>
+template<typename T, size_t N>
 struct PackedArray {
     size_t buffer_index;
 };
@@ -135,5 +140,4 @@ struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<T, N>> {
     }
 };
 
-
-}
+}  // namespace kmm
