@@ -24,13 +24,6 @@
 
 namespace kmm {
 
-template<typename T>
-void remove_duplicates(T& input) {
-    std::sort(std::begin(input), std::end(input));
-    auto last_unique = std::unique(std::begin(input), std::end(input));
-    input.erase(last_unique, std::end(input));
-}
-
 [[noreturn]] void panic(const char* filename, int line, const char* expression);
 
 template<typename... Args>

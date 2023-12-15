@@ -108,7 +108,7 @@ class CopyJob: public ParallelExecutor::Job {
         const void* src_ptr,
         void* dst_ptr,
         size_t nbytes,
-        std::unique_ptr<MemoryCompletion>&& completion) :
+        std::unique_ptr<TransferCompletion>&& completion) :
         src_ptr(src_ptr),
         dst_ptr(dst_ptr),
         nbytes(nbytes),
@@ -123,14 +123,14 @@ class CopyJob: public ParallelExecutor::Job {
     const void* src_ptr;
     void* dst_ptr;
     size_t nbytes;
-    std::unique_ptr<MemoryCompletion> completion;
+    std::unique_ptr<TransferCompletion> completion;
 };
 
 void ParallelExecutor::copy_async(
     const void* src_ptr,
     void* dst_ptr,
     size_t nbytes,
-    std::unique_ptr<MemoryCompletion> completion) const {
+    std::unique_ptr<TransferCompletion> completion) const {
     m_queue->push(std::make_unique<CopyJob>(src_ptr, dst_ptr, nbytes, std::move(completion)));
 }
 
@@ -172,7 +172,7 @@ void HostMemory::copy_async(
     const MemoryAllocation* dst_alloc,
     size_t dst_offset,
     size_t num_bytes,
-    std::unique_ptr<MemoryCompletion> completion) {
+    std::unique_ptr<TransferCompletion> completion) {
     KMM_ASSERT(src_id == 0);
     KMM_ASSERT(dst_id == 0);
 

@@ -8,11 +8,10 @@ namespace kmm {
 RuntimeImpl::RuntimeImpl(
     std::vector<std::shared_ptr<Executor>> executors,
     std::shared_ptr<Memory> memory) :
-    m_object_manager(std::make_shared<ObjectManager>()),
     m_scheduler(std::make_shared<Scheduler>(
         executors,
         std::make_shared<MemoryManager>(memory),
-        m_object_manager)),
+        std::make_shared<BlockManager>())),
     m_thread(m_scheduler) {}
 
 RuntimeImpl::~RuntimeImpl() {
@@ -20,41 +19,72 @@ RuntimeImpl::~RuntimeImpl() {
     m_thread.join();
 }
 
-BufferId RuntimeImpl::create_buffer(const BufferLayout& spec) const {
+EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements reqs, EventList deps)
+    const {
     std::lock_guard guard {m_mutex};
-    return m_dag_builder.create_buffer(spec);
+
+    for (auto& input : reqs.inputs) {
+        auto accesses = m_block_accesses.at(input.block_id);
+        deps.extend(accesses);
+    }
+
+    auto id = EventId(m_next_event++);
+    m_scheduler->submit_command(
+        id,
+        CommandExecute {
+            .device_id = reqs.device_id,
+            .task = std::move(task),
+            .inputs = std::move(reqs.inputs),
+            .outputs = std::move(reqs.outputs),
+        },
+        std::move(deps));
+
+    return id;
 }
 
-void RuntimeImpl::delete_buffer(BufferId id) const {
+EventId RuntimeImpl::delete_block(BlockId block_id, EventList deps) const {
     std::lock_guard guard {m_mutex};
-    m_dag_builder.delete_buffer(id);
+
+    auto& accesses = m_block_accesses[block_id];
+    deps.extend(accesses);
+
+    auto id = EventId(m_next_event++);
+    m_scheduler->submit_command(id, CommandBlockDelete {block_id}, std::move(deps));
+
+    m_block_accesses.erase(block_id);
+    return id;
 }
 
-OperationId RuntimeImpl::submit_task(
-    std::shared_ptr<Task> task,
-    TaskRequirements reqs,
-    std::vector<OperationId> dependencies) const {
+EventId RuntimeImpl::join_events(EventList deps) const {
     std::lock_guard guard {m_mutex};
-    return m_dag_builder.submit_task(std::move(task), std::move(reqs), std::move(dependencies));
+
+    auto id = EventId(m_next_event++);
+    m_scheduler->submit_command(id, CommandNoop {}, std::move(deps));
+    return id;
 }
 
-OperationId RuntimeImpl::submit_barrier() const {
+EventId RuntimeImpl::submit_barrier() const {
     std::lock_guard guard {m_mutex};
-    return m_dag_builder.submit_barrier();
+
+    auto deps = EventList {};
+    auto id = EventId(m_next_event++);
+
+    for (auto& entry : m_block_accesses) {
+        auto& accesses = entry.second;
+        deps.extend(accesses);
+        accesses = {id};
+    }
+
+    return id;
 }
 
-OperationId RuntimeImpl::submit_buffer_barrier(BufferId id) const {
-    std::lock_guard guard {m_mutex};
-    return m_dag_builder.submit_buffer_barrier(id);
+bool RuntimeImpl::query_event(
+    EventId id,
+    std::chrono::time_point<std::chrono::system_clock> deadline) const {
+    // No need to get the lock, the scheduler has its own internal lock
+    //std::lock_guard guard {m_mutex};
+
+    return m_scheduler->query_event(id, deadline);
 }
 
-OperationId RuntimeImpl::submit_promise(OperationId op_id, std::promise<void> promise) const {
-    std::lock_guard guard {m_mutex};
-    auto task_id = m_dag_builder.submit_promise(op_id, std::move(promise));
-
-    // Flush to ensure that the command is actually pushed to the scheduler.
-    m_dag_builder.flush(*m_scheduler);
-
-    return task_id;
-}
 }  // namespace kmm

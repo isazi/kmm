@@ -15,6 +15,14 @@ struct TaskArgPack {
     }
 };
 
+template<ExecutionSpace Space, typename T>
+using pack_task_argument_type = typename TaskArgPack<Space, std::decay_t<T>>::type;
+
+template<ExecutionSpace Space, typename T>
+pack_task_argument_type<Space, T> pack_task_argument(T&& input, TaskRequirements& reqs) {
+    return TaskArgPack<Space, std::decay_t<T>>::call(std::forward<T>(input), reqs);
+}
+
 template<ExecutionSpace Space, typename T, typename = void>
 struct TaskArgUnpack {
     static const T& call(const T& value, TaskContext& context) {
@@ -28,15 +36,18 @@ class TaskImpl: public Task {
     TaskImpl(Fun fun, Args... args) : m_fun(std::move(fun)), m_args(std::move(args)...) {}
 
     TaskResult execute(ExecutorContext& executor, TaskContext& context) override {
-        execute_impl(executor, context, std::make_index_sequence<sizeof...(Args)>());
-        return {};
+        try {
+            execute_impl(executor, context, std::make_index_sequence<sizeof...(Args)>());
+            return {};
+        } catch (const std::exception& e) {
+            return TaskError(e);
+        }
     }
 
   private:
     template<size_t... Is>
-    auto execute_impl(ExecutorContext& executor, TaskContext& context, std::index_sequence<Is...>)
-        -> decltype(auto) {
-        return m_fun(TaskArgUnpack<Space, Args>::call(std::get<Is>(m_args), context)...);
+    void execute_impl(ExecutorContext& executor, TaskContext& context, std::index_sequence<Is...>) {
+        m_fun(TaskArgUnpack<Space, Args>::call(std::get<Is>(m_args), context)...);
     }
 
   private:
@@ -46,12 +57,12 @@ class TaskImpl: public Task {
 
 template<typename T>
 struct Write {
-    T inner;
+    T& inner;
 };
 
 template<typename T>
-Write<std::decay_t<T>> write(T&& value) {
-    return {std::forward<T>(value)};
+Write<T> write(T& value) {
+    return {value};
 }
 
 }  // namespace kmm

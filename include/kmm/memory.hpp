@@ -15,9 +15,9 @@ class MemoryAllocation {
     virtual ~MemoryAllocation() = default;
 };
 
-class MemoryCompletion {
+class TransferCompletion {
   public:
-    virtual ~MemoryCompletion() = default;
+    virtual ~TransferCompletion() = default;
     virtual void complete() = 0;
 };
 
@@ -37,7 +37,7 @@ class Memory {
         const MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        std::unique_ptr<MemoryCompletion> completion) = 0;
+        std::unique_ptr<TransferCompletion> completion) = 0;
 
     virtual bool is_copy_possible(kmm::DeviceId src_id, kmm::DeviceId dst_id) = 0;
 };

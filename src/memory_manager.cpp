@@ -7,8 +7,8 @@
 
 namespace kmm {
 
-struct MemoryManager::TransferCompletion: public MemoryCompletion {
-    TransferCompletion(MemoryManager& manager, PhysicalBufferId buffer_id, DeviceId dst_id);
+struct MemoryManager::TransferCompletion: public kmm::TransferCompletion {
+    TransferCompletion(MemoryManager& manager, BufferId buffer_id, DeviceId dst_id);
     TransferCompletion(const TransferCompletion&) = delete;
     TransferCompletion(TransferCompletion&&) noexcept = delete;
     ~TransferCompletion() override;
@@ -16,7 +16,7 @@ struct MemoryManager::TransferCompletion: public MemoryCompletion {
 
   private:
     std::shared_ptr<MemoryManager> m_manager;
-    PhysicalBufferId m_buffer_id;
+    BufferId m_buffer_id;
     DeviceId m_dst_id;
 };
 
@@ -96,7 +96,7 @@ struct MemoryManager::LRULinks {
 };
 
 struct MemoryManager::BufferState {
-    PhysicalBufferId id;
+    BufferId id;
     size_t num_bytes;
     uint64_t num_requests_active = 0;
     uint64_t num_readers = 0;
@@ -120,49 +120,53 @@ MemoryManager::MemoryManager(std::shared_ptr<Memory> memory) : m_memory(std::mov
 
 MemoryManager::~MemoryManager() = default;
 
-void MemoryManager::create_buffer(PhysicalBufferId id, const BufferLayout& descr) {
+BufferId MemoryManager::create_buffer(const BlockLayout& layout) {
+    auto id = BufferId(m_next_buffer_id++);
     auto state = std::unique_ptr<BufferState, BufferDeleter>(new BufferState {
         .id = id,
-        .num_bytes = descr.num_bytes,
+        .num_bytes = layout.num_bytes,
     });
 
     m_buffers.insert({id, std::move(state)});
 }
 
-void MemoryManager::delete_buffer(PhysicalBufferId id) {
-    if (auto it = m_buffers.find(id); it != m_buffers.end()) {
-        auto& buffer = it->second;
+void MemoryManager::delete_buffer(BufferId id) {
+    auto it = m_buffers.find(id);
 
-        KMM_ASSERT(buffer->num_requests_active == 0);
-
-        for (uint8_t i = 0; i < MAX_DEVICES; i++) {
-            auto& entry = buffer->entries[i];
-            KMM_ASSERT(entry.status != Entry::Status::IncomingTransfer);
-
-            auto& links = buffer->links[i];
-            KMM_ASSERT(links.num_users == 0);
-        }
-
-        for (uint8_t i = 0; i < MAX_DEVICES; i++) {
-            auto& entry = buffer->entries[i];
-
-            if (entry.data.has_value()) {
-                auto alloc = std::move(*entry.data);
-
-                entry.data = nullptr;
-                entry.status = Entry::Status::Invalid;
-
-                remove_buffer_from_lru(DeviceId(i), buffer.get());
-                m_memory->deallocate(DeviceId(i), std::move(alloc));
-            }
-        }
-
-        m_buffers.erase(it);
+    if (it == m_buffers.end()) {
+        return;
     }
+
+    auto& buffer = it->second;
+    KMM_ASSERT(buffer->num_requests_active == 0);
+
+    for (uint8_t i = 0; i < MAX_DEVICES; i++) {
+        auto& entry = buffer->entries[i];
+        KMM_ASSERT(entry.status != Entry::Status::IncomingTransfer);
+
+        auto& links = buffer->links[i];
+        KMM_ASSERT(links.num_users == 0);
+    }
+
+    for (uint8_t i = 0; i < MAX_DEVICES; i++) {
+        auto& entry = buffer->entries[i];
+
+        if (entry.data.has_value()) {
+            auto alloc = std::move(*entry.data);
+
+            entry.data = nullptr;
+            entry.status = Entry::Status::Invalid;
+
+            remove_buffer_from_lru(DeviceId(i), buffer.get());
+            m_memory->deallocate(DeviceId(i), std::move(alloc));
+        }
+    }
+
+    m_buffers.erase(it);
 }
 
 std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
-    PhysicalBufferId buffer_id,
+    BufferId buffer_id,
     DeviceId device_id,
     bool writable,
     std::shared_ptr<Waker> waker) {
@@ -176,9 +180,7 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
         .waker = std::move(waker)});
 }
 
-void MemoryManager::delete_request(
-    const std::shared_ptr<Request>& request,
-    std::optional<std::string> poison_reason) {
+void MemoryManager::delete_request(const std::shared_ptr<Request>& request) {
     if (request->status == Request::Status::Terminated) {
         return;
     }
@@ -579,7 +581,7 @@ void MemoryManager::increment_buffer_users(DeviceId device_id, MemoryManager::Bu
     }
 }
 
-void MemoryManager::complete_transfer(PhysicalBufferId buffer_id, DeviceId dst_id) {
+void MemoryManager::complete_transfer(BufferId buffer_id, DeviceId dst_id) {
     auto& buffer = m_buffers.at(buffer_id);
     auto& entry = buffer->entries.at(dst_id);
 
@@ -681,7 +683,7 @@ void MemoryManager::remove_buffer_from_lru(DeviceId device_id, MemoryManager::Bu
 
 MemoryManager::TransferCompletion::TransferCompletion(
     MemoryManager& manager,
-    PhysicalBufferId buffer_id,
+    BufferId buffer_id,
     DeviceId dst_id) :
     m_manager(manager.shared_from_this()),
     m_buffer_id(buffer_id),

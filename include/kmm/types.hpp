@@ -1,10 +1,18 @@
 #pragma once
 
+#include <algorithm>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "fmt/format.h"
 
 namespace kmm {
+
+class RuntimeImpl;
+class Runtime;
+class Object;
+class BlockHeader;
 
 template<typename T, typename Tag = void>
 class Identifier {
@@ -66,38 +74,76 @@ T format_as(const Identifier<T, Tag>& id) {
 
 using index_t = int;
 using DeviceId = Identifier<uint8_t, struct DeviceTag>;
-using OperationId = Identifier<uint64_t, struct OperationTag>;
+using EventId = Identifier<uint64_t, struct EventTag>;
 using BufferId = Identifier<uint64_t, struct BufferTag>;
-using PhysicalBufferId = Identifier<uint64_t, struct PhysicalBufferTag>;
-using ObjectId = Identifier<uint64_t, struct ObjectTag>;
+using BlockId = Identifier<uint64_t, struct BlockTag>;
 
-struct BufferLayout {
-    size_t num_bytes;
-    size_t alignment;
-    DeviceId home;
-    std::string name;
+struct TaskInput {
+    DeviceId memory_id;
+    BlockId block_id;
 };
 
-enum class AccessMode {
-    Read,
-    Write,
-};
-
-struct VirtualBufferRequirement {
-    BufferId buffer_id;
-    AccessMode mode;
+struct TaskOutput {
+    DeviceId memory_id;
+    BlockId block_id;
+    std::unique_ptr<BlockHeader> meta;
 };
 
 struct TaskRequirements {
     TaskRequirements(DeviceId id) : device_id(id) {}
 
     DeviceId device_id;
-    std::vector<VirtualBufferRequirement> buffers = {};
+    std::vector<TaskInput> inputs = {};
+    std::vector<TaskOutput> outputs = {};
 };
 
-class RuntimeImpl;
-class Runtime;
-class Object;
+class EventList {
+  public:
+    EventList() = default;
+    EventList(std::initializer_list<EventId> list) {
+        extend(list.begin(), list.size());
+    }
+    EventList(const std::vector<EventId>& list) {
+        extend(list.data(), list.size());
+    }
+
+    const EventId* begin() const {
+        return &*events_.begin();
+    }
+
+    const EventId* end() const {
+        return begin() + size();
+    }
+
+    EventId operator[](size_t index) const {
+        return *(begin() + index);
+    }
+
+    size_t size() const {
+        return events_.size();
+    }
+
+    void extend(const EventId* data, size_t len) {
+        events_.insert(events_.end(), data, data + len);
+    }
+
+    void extend(const EventList& that) {
+        extend(that.begin(), that.size());
+    }
+
+    void push_back(EventId event) {
+        events_.push_back(event);
+    }
+
+    void remove_duplicates() {
+        std::sort(events_.begin(), events_.end());
+        auto last_unique = std::unique(std::begin(events_), std::end(events_));
+        events_.erase(last_unique, std::end(events_));
+    }
+
+  private:
+    std::vector<EventId> events_ = {};
+};
 
 }  // namespace kmm
 

@@ -6,6 +6,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "kmm/block.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/types.hpp"
 
@@ -28,11 +29,11 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
     MemoryManager(std::shared_ptr<Memory> memory);
     ~MemoryManager();
 
-    void create_buffer(PhysicalBufferId buffer_id, const BufferLayout&);
-    void delete_buffer(PhysicalBufferId buffer_id);
+    BufferId create_buffer(const BlockLayout&);
+    void delete_buffer(BufferId buffer_id);
 
     std::shared_ptr<Request> create_request(
-        PhysicalBufferId buffer_id,
+        BufferId buffer_id,
         DeviceId device_id,
         bool writable,
         std::shared_ptr<Waker> waker);
@@ -42,9 +43,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
 
     const MemoryAllocation* view_buffer(const std::shared_ptr<Request>&);
 
-    void delete_request(
-        const std::shared_ptr<Request>&,
-        std::optional<std::string> poison_reason = {});
+    void delete_request(const std::shared_ptr<Request>&);
 
   private:
     struct TransferCompletion;
@@ -64,7 +63,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
         DeviceId src_id,
         DeviceId dst_id,
         BufferState* buffer);
-    void complete_transfer(PhysicalBufferId buffer_id, DeviceId dst_id);
+    void complete_transfer(BufferId buffer_id, DeviceId dst_id);
 
     PollResult submit_buffer_lock(const std::shared_ptr<Request>& request) const;
     PollResult poll_buffer_lock(const std::shared_ptr<Request>& request) const;
@@ -88,8 +87,9 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
     void remove_buffer_from_lru(DeviceId device_id, MemoryManager::BufferState* buffer);
 
     std::array<std::unique_ptr<Resource>, MAX_DEVICES> m_resources;
-    std::unordered_map<PhysicalBufferId, std::unique_ptr<BufferState, BufferDeleter>> m_buffers;
+    std::unordered_map<BufferId, std::unique_ptr<BufferState, BufferDeleter>> m_buffers;
     std::shared_ptr<Memory> m_memory;
+    uint64_t m_next_buffer_id = 1;
 };
 
 using MemoryRequest = std::shared_ptr<MemoryManager::Request>;

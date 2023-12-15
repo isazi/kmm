@@ -9,11 +9,11 @@
 #include <variant>
 #include <vector>
 
+#include "kmm/block_manager.hpp"
 #include "kmm/command.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/memory_manager.hpp"
-#include "kmm/object_manager.hpp"
 #include "kmm/types.hpp"
 
 namespace kmm {
@@ -26,11 +26,12 @@ class Scheduler: public std::enable_shared_from_this<Scheduler> {
     Scheduler(
         std::vector<std::shared_ptr<Executor>> executors,
         std::shared_ptr<MemoryManager> memory_manager,
-        std::shared_ptr<ObjectManager> object_manager);
+        std::shared_ptr<BlockManager> block_manager);
 
     void make_progress(
         std::optional<std::chrono::time_point<std::chrono::system_clock>> deadline = {});
-    void submit_command(CommandPacket packet);
+    void submit_command(EventId id, Command command, EventList dependencies);
+    bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {});
     void wakeup(const std::shared_ptr<Operation>& op);
     void shutdown();
     bool has_shutdown();
@@ -67,10 +68,11 @@ class Scheduler: public std::enable_shared_from_this<Scheduler> {
     ReadyQueue m_ready_queue;
 
     std::mutex m_lock;
-    std::unordered_map<OperationId, std::shared_ptr<Operation>> m_ops;
+    std::condition_variable m_ops_waiters;
+    std::unordered_map<EventId, std::shared_ptr<Operation>> m_ops;
     std::vector<std::shared_ptr<Executor>> m_executors;
     std::shared_ptr<MemoryManager> m_memory_manager;
-    std::shared_ptr<ObjectManager> m_object_manager;
+    std::shared_ptr<BlockManager> m_block_manager;
     bool m_shutdown = false;
 };
 

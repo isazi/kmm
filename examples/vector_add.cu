@@ -49,9 +49,9 @@ int main(void) {
     auto manager = kmm::build_runtime();
 
     // Request 3 memory areas of a certain size
-    auto A = manager.allocate<float>({n});
-    auto B = manager.allocate<float>({n});
-    auto C = manager.allocate<float>({n});
+    auto A = kmm::Array<float>({n});
+    auto B = kmm::Array<float>({n});
+    auto C = kmm::Array<float>({n});
 
     manager.submit(kmm::Host(), initialize, write(A), write(B), 100);
     manager.submit(kmm::Host(), execute, write(C), A, B, 100);

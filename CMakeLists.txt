@@ -83,9 +83,6 @@ endif()
 add_executable(
   kmmTestCxx
   test/test_memory_manager.cpp
-  test/test_object.cpp
-  test/test_object_manager.cpp
-  test/test_dag_builder.cpp
 )
 target_include_directories(
     kmmTestCxx

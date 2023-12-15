@@ -4,24 +4,33 @@
 #include <variant>
 #include <vector>
 
+#include "kmm/block.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/object.hpp"
 #include "kmm/types.hpp"
 
 namespace kmm {
-struct BufferAccess {
+struct InputBlock {
+    BlockId block_id;
+    std::shared_ptr<const BlockHeader> header;
     const MemoryAllocation* allocation = nullptr;
-    bool writable = false;
+};
+
+struct OutputBuffer {
+    BlockId block_id;
+    BlockHeader* header;
+    const MemoryAllocation* allocation = nullptr;
 };
 
 struct TaskContext {
-    std::vector<BufferAccess> buffers;
-    std::vector<ObjectHandle> objects;
+    std::vector<InputBlock> inputs;
+    std::vector<OutputBuffer> outputs;
 };
 
 class TaskError {
   public:
-    TaskError(const std::string& error = {}) : m_reason(std::make_shared<std::string>(error)) {}
+    TaskError(const char* error) : m_reason(std::make_shared<std::string>(error)) {}
+    TaskError(const std::exception& e) : TaskError(e.what()) {}
+    TaskError(const std::string& e) : TaskError(e.c_str()) {}
 
     const std::string& get() const {
         return *m_reason;
@@ -31,7 +40,7 @@ class TaskError {
     std::shared_ptr<const std::string> m_reason;
 };
 
-using TaskResult = std::variant<std::monostate, ObjectHandle, TaskError>;
+using TaskResult = std::variant<std::monostate, TaskError>;
 
 class TaskCompletion {
   public:

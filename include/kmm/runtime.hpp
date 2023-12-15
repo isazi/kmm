@@ -5,7 +5,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "kmm/dag_builder.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/types.hpp"
 #include "kmm/utils.hpp"
@@ -14,25 +13,28 @@ namespace kmm {
 
 class Event {
   public:
-    Event(OperationId id, std::shared_ptr<RuntimeImpl> runtime) :
+    Event(EventId id, std::shared_ptr<RuntimeImpl> runtime) :
         m_id(id),
         m_runtime(std::move(runtime)) {}
 
-    OperationId id() const;
+    EventId id() const;
+    bool is_done() const;
     void wait() const;
+    bool wait_until(typename std::chrono::system_clock::time_point) const;
+    bool wait_for(typename std::chrono::system_clock::duration) const;
 
   private:
-    OperationId m_id;
+    EventId m_id;
     std::shared_ptr<RuntimeImpl> m_runtime;
 };
 
 class Buffer {
   public:
-    Buffer(BufferId id, std::shared_ptr<RuntimeImpl> runtime);
+    Buffer(BlockId id, std::shared_ptr<RuntimeImpl> runtime);
     Buffer(Buffer&&) = delete;
     Buffer(const Buffer&) = default;
 
-    BufferId id() const;
+    BlockId id() const;
     Runtime runtime() const;
     Event barrier() const;
     void destroy() const;
@@ -45,7 +47,7 @@ class Buffer {
 template<typename T, size_t N = 1>
 class Array {
   public:
-    Array(Buffer buffer, std::array<index_t, N> sizes) : m_buffer(buffer), m_sizes(sizes) {}
+    Array(std::array<index_t, N> sizes) : m_sizes(sizes) {}
 
     std::array<index_t, N> sizes() const {
         return m_sizes;
@@ -60,21 +62,21 @@ class Array {
     }
 
     Buffer buffer() const {
-        return m_buffer;
+        return m_buffer.value();
     }
 
-    BufferId id() const {
-        return m_buffer.id();
-    }
-
-    Event barrier() const {
-        return m_buffer.barrier();
+    BlockId id() const {
+        return m_buffer.value().id();
     }
 
     Runtime runtime() const;
 
+    ArrayHeader<T> header() const {
+        return {size()};
+    }
+
   private:
-    Buffer m_buffer;
+    std::optional<Buffer> m_buffer;
     std::array<index_t, N> m_sizes;
 };
 
@@ -82,29 +84,16 @@ class Runtime {
   public:
     Runtime(std::shared_ptr<RuntimeImpl> impl);
 
-    Buffer allocate_buffer(
-        size_t num_elements,
-        size_t element_size,
-        size_t element_align,
-        DeviceId home = DeviceId(0)) const;
-
     Event submit_task(
         std::shared_ptr<Task> task,
         TaskRequirements reqs,
-        std::vector<OperationId> dependencies = {}) const;
+        EventList dependencies = {}) const;
 
     Event barrier() const;
-    Event barrier_buffer(BufferId) const;
-
-    template<typename T, size_t N = 1>
-    Array<T, N> allocate(std::array<index_t, N> sizes, DeviceId home = DeviceId(0)) const {
-        size_t total_size = checked_product(sizes.begin(), sizes.end());
-        return {allocate_buffer(total_size, sizeof(T), alignof(T), home), sizes};
-    }
 
     template<typename Device, typename... Args>
     Event submit(const Device& device, Args&&... args) {
-        OperationId id = device(*m_impl, std::forward<Args>(args)...);
+        EventId id = device(*m_impl, std::forward<Args>(args)...);
         return {id, m_impl};
     }
 
