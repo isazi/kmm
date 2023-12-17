@@ -4,76 +4,57 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
-#include <utility>
-#include <variant>
 #include <vector>
 
-#include "kmm/block_manager.hpp"
+#include "spdlog/spdlog.h"
+
 #include "kmm/command.hpp"
 #include "kmm/executor.hpp"
-#include "kmm/memory.hpp"
 #include "kmm/memory_manager.hpp"
-#include "kmm/types.hpp"
+#include "kmm/utils.hpp"
 
 namespace kmm {
 
-class Scheduler: public std::enable_shared_from_this<Scheduler> {
+class Job {
   public:
-    friend class TaskCompletion;
-    struct Operation;
+    enum class Status { Created, Pending, Running, Done };
 
-    Scheduler(
-        std::vector<std::shared_ptr<Executor>> executors,
-        std::shared_ptr<MemoryManager> memory_manager,
-        std::shared_ptr<BlockManager> block_manager);
+    explicit Job(EventId id) : identifier(id) {}
+    virtual ~Job() = default;
 
-    void make_progress(
-        std::optional<std::chrono::time_point<std::chrono::system_clock>> deadline = {});
-    void submit_command(EventId id, Command command, EventList dependencies);
-    bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {});
-    void wakeup(const std::shared_ptr<Operation>& op);
-    void shutdown();
-    bool has_shutdown();
-
-  protected:
-    void complete(const std::shared_ptr<Operation>& op, TaskResult result);
+    EventId id() const {
+        return identifier;
+    }
 
   private:
-    void make_progress_impl(
-        std::unique_lock<std::mutex> guard,
-        std::optional<std::chrono::time_point<std::chrono::system_clock>> deadline = {});
-    void stage_op(const std::shared_ptr<Operation>& op);
-    void poll_op(const std::shared_ptr<Operation>& op);
-    void schedule_op(const std::shared_ptr<Operation>& op);
-    void complete_op(const std::shared_ptr<Operation>& op, TaskResult result);
-    void trigger_predecessor_completed(const std::shared_ptr<Operation>& op, size_t count = 1);
+    friend class Scheduler;
 
-    class ReadyQueue {
-      public:
-        void push(std::shared_ptr<Operation> op) const;
-        void pop_nonblocking(std::deque<std::shared_ptr<Operation>>& output) const;
-        void pop_blocking(
-            std::chrono::time_point<std::chrono::system_clock> deadline,
-            std::deque<std::shared_ptr<Operation>>& output) const;
+    EventId identifier;
+    Status status = Status::Created;
+    size_t unsatisfied_predecessors = 0;
+    std::vector<std::shared_ptr<Job>> successors = {};
+};
 
-      private:
-        void pop_impl(std::deque<std::shared_ptr<Operation>>& output) const;
+class Scheduler {
+  public:
+    void insert_job(std::shared_ptr<Job> node, EventList dependencies);
+    std::optional<std::shared_ptr<Job>> pop_ready_job();
+    void mark_job_complete(EventId id);
+    bool all_complete() const;
+    bool is_job_complete(EventId id) const;
+    bool is_job_complete_with_deadline(
+        EventId id,
+        std::unique_lock<std::mutex>& guard,
+        std::chrono::time_point<std::chrono::system_clock> deadline);
 
-        mutable std::mutex m_lock;
-        mutable std::condition_variable m_cond;
-        mutable std::deque<std::shared_ptr<Operation>> m_queue;
-    };
+  private:
+    void trigger_predecessor_completed(const std::shared_ptr<Job>& op, size_t count = 1);
 
-    ReadyQueue m_ready_queue;
-
-    std::mutex m_lock;
-    std::condition_variable m_ops_waiters;
-    std::unordered_map<EventId, std::shared_ptr<Operation>> m_ops;
-    std::vector<std::shared_ptr<Executor>> m_executors;
-    std::shared_ptr<MemoryManager> m_memory_manager;
-    std::shared_ptr<BlockManager> m_block_manager;
-    bool m_shutdown = false;
+    std::unordered_map<EventId, std::shared_ptr<Job>> m_jobs;
+    std::condition_variable m_completion_condvar;
+    std::deque<std::shared_ptr<Job>> m_ready_queue;
 };
 
 }  // namespace kmm

@@ -3,14 +3,14 @@
 #include <memory>
 #include <thread>
 
-#include "kmm/scheduler.hpp"
+#include "kmm/worker.hpp"
 
 namespace kmm {
 
-class SchedulerThread {
+class WorkerThread {
   public:
-    SchedulerThread(std::shared_ptr<Scheduler> scheduler);
-    ~SchedulerThread();
+    WorkerThread(std::shared_ptr<Worker> scheduler);
+    ~WorkerThread();
     void join();
 
   private:

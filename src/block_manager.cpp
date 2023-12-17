@@ -22,8 +22,9 @@ void BlockManager::insert_entry(BlockId id, std::variant<Entry, TaskError> entry
     auto [_, success] = m_entries.insert({id, std::move(entry)});
 
     if (!success) {
-        throw std::runtime_error(
-            fmt::format("cannot insert block {}, block with same identifier already exists", id));
+        throw std::runtime_error(fmt::format(
+            "cannot insert_job block {}, block with same identifier already exists",
+            id));
     }
 }
 

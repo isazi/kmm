@@ -12,14 +12,6 @@
 
 namespace kmm {
 
-class Waker {
-  public:
-    virtual ~Waker() = default;
-    virtual void wakeup() const = 0;
-};
-
-enum class PollResult { Pending, Ready };
-
 class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
   public:
     static constexpr size_t MAX_DEVICES = 5;

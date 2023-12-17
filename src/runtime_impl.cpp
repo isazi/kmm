@@ -1,21 +1,18 @@
 #include <utility>
 
 #include "kmm/runtime_impl.hpp"
-#include "kmm/scheduler.hpp"
+#include "kmm/worker.hpp"
 
 namespace kmm {
 
 RuntimeImpl::RuntimeImpl(
     std::vector<std::shared_ptr<Executor>> executors,
     std::shared_ptr<Memory> memory) :
-    m_scheduler(std::make_shared<Scheduler>(
-        executors,
-        std::make_shared<MemoryManager>(memory),
-        std::make_shared<BlockManager>())),
-    m_thread(m_scheduler) {}
+    m_worker(std::make_shared<Worker>(executors, std::make_unique<MemoryManager>(memory))),
+    m_thread(m_worker) {}
 
 RuntimeImpl::~RuntimeImpl() {
-    m_scheduler->shutdown();
+    m_worker->shutdown();
     m_thread.join();
 }
 
@@ -29,7 +26,7 @@ EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements re
     }
 
     auto id = EventId(m_next_event++);
-    m_scheduler->submit_command(
+    m_worker->submit_command(
         id,
         CommandExecute {
             .device_id = reqs.device_id,
@@ -49,7 +46,7 @@ EventId RuntimeImpl::delete_block(BlockId block_id, EventList deps) const {
     deps.extend(accesses);
 
     auto id = EventId(m_next_event++);
-    m_scheduler->submit_command(id, CommandBlockDelete {block_id}, std::move(deps));
+    m_worker->submit_command(id, CommandBlockDelete {block_id}, std::move(deps));
 
     m_block_accesses.erase(block_id);
     return id;
@@ -59,7 +56,7 @@ EventId RuntimeImpl::join_events(EventList deps) const {
     std::lock_guard guard {m_mutex};
 
     auto id = EventId(m_next_event++);
-    m_scheduler->submit_command(id, CommandNoop {}, std::move(deps));
+    m_worker->submit_command(id, CommandNoop {}, std::move(deps));
     return id;
 }
 
@@ -84,7 +81,7 @@ bool RuntimeImpl::query_event(
     // No need to get the lock, the scheduler has its own internal lock
     //std::lock_guard guard {m_mutex};
 
-    return m_scheduler->query_event(id, deadline);
+    return m_worker->query_event(id, deadline);
 }
 
 }  // namespace kmm

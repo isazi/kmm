@@ -58,11 +58,11 @@ class ArrayHeader: public ArrayBaseHeader {
     }
 };
 
-template <typename T>
+template<typename T>
 class Scalar;
 
 class ScalarBase: public BlockHeader {
-  public :
+  public:
     virtual const std::type_info& type() const = 0;
 
     BlockLayout layout() const override {
@@ -76,12 +76,12 @@ class ScalarBase: public BlockHeader {
         return type() == t;
     }
 
-    template <typename T>
+    template<typename T>
     bool is() const {
         return is(typeid(T));
     }
 
-    template <typename T>
+    template<typename T>
     T* get_if() {
         if (auto ptr = dynamic_cast<Scalar<T>*>(this)) {
             return ptr->get();
@@ -90,8 +90,8 @@ class ScalarBase: public BlockHeader {
         }
     }
 
-    template <typename T>
-    const T* get_if() const  {
+    template<typename T>
+    const T* get_if() const {
         if (auto ptr = dynamic_cast<const Scalar<T>*>(this)) {
             return ptr->get();
         } else {
@@ -100,11 +100,11 @@ class ScalarBase: public BlockHeader {
     }
 };
 
-template <typename T>
+template<typename T>
 class Scalar: public ScalarBase {
-  public :
+  public:
     Scalar() {}
-    Scalar(T value): m_value(std::move(value)) {}
+    Scalar(T value) : m_value(std::move(value)) {}
 
     const std::type_info& type() const override {
         return typeid(T);

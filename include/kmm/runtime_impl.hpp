@@ -3,10 +3,11 @@
 #include <mutex>
 
 #include "kmm/memory_manager.hpp"
-#include "kmm/scheduler.hpp"
-#include "kmm/scheduler_thread.hpp"
+#include "kmm/worker_thread.hpp"
 
 namespace kmm {
+
+class Worker;
 
 class RuntimeImpl {
   public:
@@ -23,8 +24,8 @@ class RuntimeImpl {
         const;
 
   private:
-    std::shared_ptr<Scheduler> m_scheduler;
-    SchedulerThread m_thread;
+    std::shared_ptr<Worker> m_worker;
+    WorkerThread m_thread;
 
     mutable std::mutex m_mutex;
     mutable uint64_t m_next_event = 1;

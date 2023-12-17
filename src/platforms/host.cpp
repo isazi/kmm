@@ -2,8 +2,8 @@
 #include <utility>
 
 #include "kmm/platforms/host.hpp"
-#include "kmm/scheduler.hpp"
 #include "kmm/utils.hpp"
+#include "kmm/worker.hpp"
 
 namespace kmm {
 
@@ -73,9 +73,9 @@ ParallelExecutor::ParallelExecutor() :
 
 ParallelExecutor::~ParallelExecutor() = default;
 
-class ExecuteJob: public ParallelExecutor::Job {
+class ExecutionJob: public ParallelExecutor::Job {
   public:
-    ExecuteJob(std::shared_ptr<Task>&& task, TaskContext&& context, TaskCompletion&& completion) :
+    ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context, TaskCompletion&& completion) :
         m_task(std::move(task)),
         m_context(std::move(context)),
         m_completion(std::move(completion)) {}
@@ -99,7 +99,7 @@ void ParallelExecutor::submit(
     TaskContext context,
     TaskCompletion completion) {
     m_queue->push(
-        std::make_unique<ExecuteJob>(std::move(task), std::move(context), std::move(completion)));
+        std::make_unique<ExecutionJob>(std::move(task), std::move(context), std::move(completion)));
 }
 
 class CopyJob: public ParallelExecutor::Job {

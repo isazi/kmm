@@ -210,7 +210,7 @@ PollResult MemoryManager::poll_requests(const std::vector<std::shared_ptr<Reques
     PollResult result = PollResult::Ready;
 
     for (const auto& request : requests) {
-        if (poll_request(request) == PollResult::Pending) {
+        if (request && poll_request(request) == PollResult::Pending) {
             result = PollResult::Pending;
         }
     }
@@ -455,7 +455,7 @@ PollResult MemoryManager::poll_buffer_lock(const std::shared_ptr<Request>& reque
 
         // TODO: Maybe check if all requests are ready instead of just waking up the first one
         if (!buffer->waiters.is_empty()) {
-            buffer->waiters.front()->waker->wakeup();
+            buffer->waiters.front()->waker->trigger_wakeup();
         }
 
         return PollResult::Ready;
@@ -497,7 +497,7 @@ void MemoryManager::unlock_buffer_for_request(
 
     // TODO: Maybe check if all requests are ready instead of just waking up the first one
     if (!buffer->waiters.is_empty()) {
-        buffer->waiters.front()->waker->wakeup();
+        buffer->waiters.front()->waker->trigger_wakeup();
     }
 }
 
@@ -557,7 +557,7 @@ PollResult MemoryManager::poll_resource(
 
     resource->waiters.pop_front();
     if (!resource->waiters.is_empty()) {
-        resource->waiters.front()->waker->wakeup();
+        resource->waiters.front()->waker->trigger_wakeup();
     }
 
     return PollResult::Ready;
@@ -593,7 +593,7 @@ void MemoryManager::complete_transfer(BufferId buffer_id, DeviceId dst_id) {
 
     while (!transfer->requests.is_empty()) {
         auto req = transfer->requests.pop_front();
-        req->waker->wakeup();
+        req->waker->trigger_wakeup();
     }
 
     while (!transfer->devices.empty()) {
@@ -656,7 +656,7 @@ void MemoryManager::add_buffer_to_lru(DeviceId device_id, MemoryManager::BufferS
         links.next = buffer;
 
         if (!resource->waiters.is_empty()) {
-            resource->waiters.front()->waker->wakeup();
+            resource->waiters.front()->waker->trigger_wakeup();
         }
     }
 }

@@ -3,7 +3,7 @@
 #include "kmm/memory_manager.hpp"
 
 class MockWaker: public kmm::Waker {
-    void wakeup() const override {}
+    void trigger_wakeup() const override {}
 };
 
 class MockAllocation: public kmm::MemoryAllocation {
@@ -81,7 +81,7 @@ class MockMemory: public kmm::Memory {
         ASSERT_EQ(allocations.at(dst_id), dst_device);
         ASSERT_TRUE(callback);
 
-        callback->complete();
+        callback->mark_job_complete();
         transfers.pop_front();
     }
 

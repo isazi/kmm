@@ -145,6 +145,14 @@ class EventList {
     std::vector<EventId> events_ = {};
 };
 
+enum class PollResult { Pending, Ready };
+
+class Waker {
+  public:
+    virtual ~Waker() = default;
+    virtual void trigger_wakeup() const = 0;
+};
+
 }  // namespace kmm
 
 namespace std {
