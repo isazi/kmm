@@ -71,8 +71,8 @@ class Array {
 
     Runtime runtime() const;
 
-    ArrayHeader<T> header() const {
-        return {size()};
+    ArrayHeader header() const {
+        return ArrayHeader::for_type<T>(size());
     }
 
   private:

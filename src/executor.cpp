@@ -2,7 +2,7 @@
 
 namespace kmm {
 
-TaskCompletion::TaskCompletion(std::shared_ptr<Impl> impl) : m_impl(std::move(impl)) {}
+TaskCompletion::TaskCompletion(std::shared_ptr<ITaskCompletion> impl) : m_impl(std::move(impl)) {}
 
 void TaskCompletion::complete(TaskResult result) {
     if (auto inner = std::exchange(m_impl, {})) {

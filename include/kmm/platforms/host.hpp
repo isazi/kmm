@@ -19,7 +19,7 @@ class ParallelExecutor: public Executor {
 
     ParallelExecutor();
     ~ParallelExecutor() override;
-    void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
+    void submit(std::shared_ptr<Task>, TaskContext) override;
     void copy_async(const void* src_ptr, void* dst_ptr, size_t nbytes, std::unique_ptr<TransferCompletion> completion) const;
 
   private:
@@ -116,11 +116,11 @@ struct TaskArgPack<ExecutionSpace::Host, Write<Array<T, N>>> {
 
     static type call(const Write<Array<T, N>>& array, TaskRequirements& requirements) {
         size_t index = requirements.outputs.size();
-        auto meta = array.inner.header();
+        auto header = array.inner.header();
 
         requirements.outputs.push_back(TaskOutput {
             .memory_id = requirements.device_id,
-            .meta = std::make_unique<decltype(meta)>(meta),
+            .header = std::make_unique<decltype(header)>(header),
         });
 
         return {index};
@@ -130,8 +130,9 @@ struct TaskArgPack<ExecutionSpace::Host, Write<Array<T, N>>> {
 template<typename T, size_t N>
 struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<T, N>> {
     static T* call(const PackedArray<T, N>& array, TaskContext& context) {
-        auto access = context.outputs.at(array.buffer_index);
-        KMM_ASSERT(dynamic_cast<const ArrayHeader<T>*>(access.header) != nullptr);
+        const auto& access = context.outputs.at(array.buffer_index);
+        const auto* header = dynamic_cast<const ArrayHeader*>(access.header);
+        KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
 
         auto& alloc = dynamic_cast<const HostAllocation&>(*access.allocation);
         return reinterpret_cast<T*>(alloc.data());
@@ -141,13 +142,13 @@ struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<T, N>> {
 template<typename T, size_t N>
 struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<const T, N>> {
     static const T* call(const PackedArray<const T, N>& array, TaskContext& context) {
-        auto access = context.inputs.at(array.buffer_index);
-        KMM_ASSERT(dynamic_cast<const ArrayHeader<T>*>(access.header.get()) != nullptr);
+        const auto& access = context.inputs.at(array.buffer_index);
+        const auto* header = dynamic_cast<const ArrayHeader*>(access.header);
+        KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
 
         auto& alloc = dynamic_cast<const HostAllocation&>(*access.allocation);
         return reinterpret_cast<const T*>(alloc.data());
     }
 };
-
 
 }

@@ -5,227 +5,93 @@
 #include "fmt/ranges.h"
 #include "spdlog/spdlog.h"
 
+#include "kmm/jobs.hpp"
 #include "kmm/memory_manager.hpp"
 #include "kmm/utils.hpp"
 #include "kmm/worker.hpp"
 
 namespace kmm {
 
-void WorkerJob::start(Worker& worker) {
-    m_worker = worker.weak_from_this();
-}
-
-void WorkerJob::stop(Worker& worker) {
-    m_worker.reset();
-}
-
 void WorkerJob::trigger_wakeup() const {
-    if (auto owner = m_worker.lock()) {
+    if (auto owner = worker.lock()) {
         owner->wakeup(const_cast<WorkerJob*>(this)->shared_from_this());
     }
 }
 
 void WorkerJob::trigger_wakeup_and_poll() const {
-    if (auto owner = m_worker.lock()) {
+    if (auto owner = worker.lock()) {
         owner->wakeup(const_cast<WorkerJob*>(this)->shared_from_this(), true);
     }
 }
 
-PollResult ExecuteJob::poll(Worker& worker) {
-    if (status == Status::Created) {
-        auto requests = std::vector<MemoryRequest>();
-
-        for (const auto& arg : inputs) {
-            auto buffer_id_opt = worker.m_block_manager.get_block_buffer(arg.block_id);
-
-            if (buffer_id_opt) {
-                requests.emplace_back(worker.m_memory_manager->create_request(  //
-                    *buffer_id_opt,
-                    arg.memory_id,
-                    false,
-                    shared_from_this()));
-            } else {
-                requests.emplace_back(nullptr);
-            }
-        }
-
-        for (const auto& arg : outputs) {
-            auto layout = arg.meta->layout();
-
-            if (layout.num_bytes > 0) {
-                auto buffer_id = worker.m_memory_manager->create_buffer(arg.meta->layout());
-
-                output_buffers.emplace_back(buffer_id);
-                requests.emplace_back(worker.m_memory_manager->create_request(  //
-                    buffer_id,
-                    arg.memory_id,
-                    true,
-                    shared_from_this()));
-            } else {
-                output_buffers.emplace_back(std::nullopt);
-                requests.emplace_back(nullptr);
-            }
-        }
-
-        status = Status::Staging;
-        memory_requests = std::move(requests);
-    }
-
-    if (status == Status::Staging) {
-        if (worker.m_memory_manager->poll_requests(memory_requests) != PollResult::Ready) {
-            return PollResult::Pending;
-        }
-
-        try {
-            auto context = TaskContext {};
-            size_t index = 0;
-
-            for (const auto& input : inputs) {
-                const auto& req = memory_requests[index++];
-                auto header = worker.m_block_manager.get_block_header(input.block_id);
-                const auto* allocation = req ? worker.m_memory_manager->view_buffer(req) : nullptr;
-
-                context.inputs.push_back(InputBlock {
-                    .block_id = input.block_id,
-                    .header = header,
-                    .allocation = allocation,
-                });
-            }
-
-            for (const auto& output : outputs) {
-                const auto& req = memory_requests[index++];
-                const auto* allocation = req ? worker.m_memory_manager->view_buffer(req) : nullptr;
-
-                context.outputs.push_back(OutputBuffer {
-                    .block_id = output.block_id,
-                    .header = output.meta.get(),
-                    .allocation = allocation,
-                });
-            }
-
-            // Mmmmm, do we need the cast here?
-            auto completion = std::dynamic_pointer_cast<ExecuteJob>(shared_from_this());
-
-            worker.m_executors.at(device_id)->submit(
-                task,
-                std::move(context),
-                TaskCompletion(std::move(completion)));
-        } catch (const std::exception& e) {
-            result = TaskError(e);
-        }
-
-        status = Status::Running;
-    }
-
-    if (status == Status::Running) {
-        if (!result.has_value()) {
-            return PollResult::Pending;
-        }
-
-        for (const auto& request : memory_requests) {
-            if (request) {
-                worker.m_memory_manager->delete_request(request);
-            }
-        }
-
-        memory_requests.clear();
-
-        size_t num_outputs = outputs.size();
-        const auto* error = std::get_if<TaskError>(&*result);
-
-        for (size_t i = 0; i < num_outputs; i++) {
-            auto& output = outputs[i];
-            auto block_id = output.block_id;
-            auto buffer_id = output_buffers[i];
-
-            if (error == nullptr) {
-                worker.m_block_manager.insert_block(block_id, std::move(output.meta), buffer_id);
-            } else {
-                worker.m_block_manager.poison_block(block_id, *error);
-
-                if (buffer_id) {
-                    worker.m_memory_manager->delete_buffer(*buffer_id);
-                }
-            }
-        }
-
-        status = Status::Done;
-    }
-
-    return PollResult::Ready;
+bool JobQueue::is_empty() const {
+    return m_head == nullptr;
 }
 
-void ExecuteJob::complete_task(TaskResult result) {
-    // Maybe we need some lock?
-    this->result = std::move(result);
-
-    trigger_wakeup_and_poll();
-}
-
-PollResult DeleteBlockJob::poll(Worker& worker) {
-    auto buffer_id_opt = worker.m_block_manager.delete_block(block_id);
-
-    if (buffer_id_opt) {
-        worker.m_memory_manager->delete_buffer(*buffer_id_opt);
+bool JobQueue::push(std::shared_ptr<WorkerJob> op) {
+    if (op->in_queue.test_and_set()) {
+        return false;
     }
 
-    return PollResult::Ready;
+    op->next_item = nullptr;
+
+    if (m_head == nullptr) {
+        m_tail = op.get();
+        m_head = std::move(op);
+
+    } else {
+        auto* old_tail = std::exchange(m_tail, op.get());
+        old_tail->next_item = std::move(op);
+    }
+
+    return true;
 }
 
-PollResult EmptyJob::poll(Worker& worker) {
-    return PollResult::Ready;
+std::optional<std::shared_ptr<WorkerJob>> JobQueue::pop() {
+    if (m_head == nullptr) {
+        return std::nullopt;
+    }
+
+    auto op = std::move(m_head);
+    m_head = std::move(op->next_item);
+
+    op->in_queue.clear();
+    return std::optional {std::move(op)};
 }
 
-void Worker::WorkQueue::push(std::shared_ptr<WorkerJob> op) const {
+bool SharedJobQueue::push(std::shared_ptr<WorkerJob> op) const {
     std::lock_guard guard {m_lock};
+    bool needs_notify = m_queue.is_empty();
 
-    if (!op->is_ready) {
-        bool was_empty = m_queue.empty();
-
-        op->is_ready = true;
-        m_queue.push_back(std::move(op));
-
-        // If this is the first entry, notify any waiters
-        if (was_empty) {
+    if (m_queue.push(std::move(op))) {
+        if (needs_notify) {
             m_cond.notify_one();
         }
+
+        return true;
     }
+
+    return false;
 }
 
-void Worker::WorkQueue::pop_nonblocking(std::deque<std::shared_ptr<WorkerJob>>& output) const {
+JobQueue SharedJobQueue::pop_all(
+    std::chrono::time_point<std::chrono::system_clock> deadline) const {
     std::unique_lock guard {m_lock};
-    pop_impl(output);
-}
-
-void Worker::WorkQueue::pop_blocking(
-    std::chrono::time_point<std::chrono::system_clock> deadline,
-    std::deque<std::shared_ptr<WorkerJob>>& output) const {
-    std::unique_lock guard {m_lock};
-    while (m_queue.empty()) {
-        if (m_cond.wait_until(guard, deadline) == std::cv_status::timeout) {
-            return;
+    if (deadline != std::chrono::time_point<std::chrono::system_clock> {}) {
+        while (m_queue.is_empty()) {
+            if (m_cond.wait_until(guard, deadline) == std::cv_status::timeout) {
+                break;
+            }
         }
     }
 
-    pop_impl(output);
-}
-
-void Worker::WorkQueue::pop_impl(std::deque<std::shared_ptr<WorkerJob>>& output) const {
-    while (!m_queue.empty()) {
-        auto op = std::move(m_queue.front());
-        m_queue.pop_front();
-
-        op->is_ready = false;
-
-        output.push_back(std::move(op));
-    }
+    return std::move(m_queue);
 }
 
 Worker::Worker(
     std::vector<std::shared_ptr<Executor>> executors,
-    std::unique_ptr<MemoryManager> memory_manager) :
-    m_executors(std::move(executors)),
-    m_memory_manager(std::move(memory_manager)) {}
+    std::shared_ptr<MemoryManager> memory_manager) :
+    m_state {executors, memory_manager, BlockManager()} {}
 
 void Worker::make_progress(std::chrono::time_point<std::chrono::system_clock> deadline) {
     make_progress_impl(std::unique_lock {m_lock}, deadline);
@@ -234,13 +100,13 @@ void Worker::make_progress(std::chrono::time_point<std::chrono::system_clock> de
 void Worker::wakeup(std::shared_ptr<WorkerJob> op, bool allow_progress) {
     if (allow_progress) {
         if (auto guard = std::unique_lock {m_lock, std::try_to_lock}) {
-            m_queue.push_back(std::move(op));
+            m_poll_queue.push(std::move(op));
             make_progress_impl(std::move(guard));
             return;
         }
     }
 
-    m_poll_queue.push(op);
+    m_shared_poll_queue.push(std::move(op));
 }
 
 void Worker::submit_command(EventId id, Command command, EventList dependencies) {
@@ -256,20 +122,65 @@ void Worker::submit_command(EventId id, Command command, EventList dependencies)
     if (auto* cmd = std::get_if<CommandExecute>(&command)) {
         op = std::make_shared<ExecuteJob>(id, std::move(*cmd));
     } else if (auto* cmd = std::get_if<CommandBlockDelete>(&command)) {
-        op = std::make_shared<DeleteBlockJob>(id, cmd->id);
+        op = std::make_shared<DeleteJob>(id, cmd->id);
     } else if (std::get_if<CommandNoop>(&command)) {
         op = std::make_shared<EmptyJob>(id);
+    } else if (const auto* cmd = std::get_if<CommandPrefetch>(&command)) {
+        op = std::make_shared<PrefetchJob>(id, cmd->device_id, cmd->block_id);
     } else {
         KMM_PANIC("invalid command");
     }
 
-    m_scheduler.insert_job(std::move(op), std::move(dependencies));
+    KMM_ASSERT(op->status == WorkerJob::Status::Created);
+    op->status = WorkerJob::Status::Pending;
+    op->unsatisfied_predecessors = dependencies.size() + 1;
+
+    dependencies.remove_duplicates();
+    size_t satisfied = 1;
+
+    for (auto dep_id : dependencies) {
+        auto it = m_jobs.find(dep_id);
+
+        if (it != m_jobs.end()) {
+            auto predecessor = it->second;
+            predecessor->successors.push_back(op);
+        } else {
+            satisfied++;
+        }
+    }
+
+    satisfy_job_dependencies(std::move(op), satisfied);
     make_progress_impl(std::move(guard));
+}
+
+void Worker::satisfy_job_dependencies(std::shared_ptr<WorkerJob> op, size_t satisfied) {
+    if (op->unsatisfied_predecessors > satisfied) {
+        op->unsatisfied_predecessors -= satisfied;
+        return;
+    }
+
+    // Job is now ready!
+    op->unsatisfied_predecessors = 0;
+    op->status = WorkerJob::Status::Ready;
+    m_ready_queue.push(std::move(op));
 }
 
 bool Worker::query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline) {
     std::unique_lock<std::mutex> guard {m_lock};
-    return m_scheduler.is_job_complete_with_deadline(id, guard, deadline);
+
+    while (true) {
+        if (m_jobs.find(id) == m_jobs.end()) {
+            return true;
+        }
+
+        if (deadline == decltype(deadline)()) {
+            return false;
+        }
+
+        if (m_job_completion.wait_until(guard, deadline) == std::cv_status::timeout) {
+            return false;
+        }
+    }
 }
 
 void Worker::shutdown() {
@@ -277,39 +188,36 @@ void Worker::shutdown() {
     m_shutdown = true;
 }
 
-bool Worker::has_shutdown() {
+bool Worker::is_shutdown() {
     std::unique_lock<std::mutex> guard {m_lock};
-    return m_shutdown && m_scheduler.all_complete();
+    return m_shutdown && m_jobs.empty();
 }
 
 void Worker::make_progress_impl(
     std::unique_lock<std::mutex> guard,
     std::chrono::time_point<std::chrono::system_clock> deadline) {
-    m_poll_queue.pop_nonblocking(m_queue);
-    if (m_queue.empty() && deadline != std::chrono::time_point<std::chrono::system_clock>()) {
-        guard.unlock();
-        m_poll_queue.pop_blocking(deadline, m_queue);
-        guard.lock();
+    if (m_poll_queue.is_empty()) {
+        m_poll_queue = m_shared_poll_queue.pop_all();
+
+        if (m_poll_queue.is_empty() && deadline != decltype(deadline)()) {
+            guard.unlock();
+            m_poll_queue = m_shared_poll_queue.pop_all(deadline);
+            guard.lock();
+        }
     }
 
     while (true) {
-        if (!m_queue.empty()) {
-            for (const auto& op : m_queue) {
-                poll_job(op);
+        if (!m_poll_queue.is_empty()) {
+            while (auto op = m_poll_queue.pop()) {
+                poll_job(*op);
             }
 
-            m_poll_queue.pop_nonblocking(m_queue);
+            m_poll_queue = m_shared_poll_queue.pop_all();
             continue;
         }
 
-        if (auto ready = m_scheduler.pop_ready_job()) {
-            auto op = std::dynamic_pointer_cast<WorkerJob>(*ready);
-            KMM_ASSERT(op != nullptr);
-
-            op->is_running = true;
-            op->start(*this);
-
-            poll_job(op);
+        if (auto op = m_ready_queue.pop()) {
+            start_job(*op);
             continue;
         }
 
@@ -317,13 +225,37 @@ void Worker::make_progress_impl(
     }
 }
 
+void Worker::start_job(std::shared_ptr<WorkerJob>& op) {
+    KMM_ASSERT(op->status == WorkerJob::Status::Ready);
+    op->status = WorkerJob::Status::Running;
+    op->worker = shared_from_this();
+    op->start(m_state);
+
+    poll_job(op);
+}
+
 void Worker::poll_job(const std::shared_ptr<WorkerJob>& op) {
-    if (op->is_running && op->poll(*this) == PollResult::Ready) {
-        spdlog::debug("scheduling operation id={}", op->id());
-        op->is_running = false;
-        op->stop(*this);
-        m_scheduler.mark_job_complete(op->id());
+    // Status has to be `Running`
+    if (op->status == WorkerJob::Status::Running) {
+        if (op->poll(m_state) == PollResult::Ready) {
+            stop_job(op);
+        }
     }
+}
+
+void Worker::stop_job(const std::shared_ptr<WorkerJob>& op) {
+    spdlog::debug("removing job id={}", op->id());
+    op->status = WorkerJob::Status::Done;
+    op->worker.reset();
+    op->stop(m_state);
+
+    auto successors = std::move(op->successors);
+    for (auto& successor : successors) {
+        satisfy_job_dependencies(std::move(successor));
+    }
+
+    m_jobs.erase(op->id());
+    m_job_completion.notify_all();
 }
 
 }  // namespace kmm

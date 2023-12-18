@@ -75,31 +75,27 @@ ParallelExecutor::~ParallelExecutor() = default;
 
 class ExecutionJob: public ParallelExecutor::Job {
   public:
-    ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context, TaskCompletion&& completion) :
+    ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context) :
         m_task(std::move(task)),
-        m_context(std::move(context)),
-        m_completion(std::move(completion)) {}
+        m_context(std::move(context)) {}
 
     void execute(ParallelExecutorContext& executor) override {
+        auto completion = std::move(m_context.completion);
+
         try {
-            m_completion.complete(m_task->execute(executor, m_context));
+            completion.complete(m_task->execute(executor, m_context));
         } catch (const std::exception& e) {
-            m_completion.complete_err(e.what());
+            completion.complete_err(e.what());
         }
     }
 
   private:
     std::shared_ptr<Task> m_task;
     TaskContext m_context;
-    TaskCompletion m_completion;
 };
 
-void ParallelExecutor::submit(
-    std::shared_ptr<Task> task,
-    TaskContext context,
-    TaskCompletion completion) {
-    m_queue->push(
-        std::make_unique<ExecutionJob>(std::move(task), std::move(context), std::move(completion)));
+void ParallelExecutor::submit(std::shared_ptr<Task> task, TaskContext context) {
+    m_queue->push(std::make_unique<ExecutionJob>(std::move(task), std::move(context)));
 }
 
 class CopyJob: public ParallelExecutor::Job {

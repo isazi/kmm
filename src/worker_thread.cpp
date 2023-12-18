@@ -5,8 +5,8 @@
 
 namespace kmm {
 void run_forever(std::shared_ptr<Worker> scheduler) {
-    while (!scheduler->has_shutdown()) {
-        auto deadline = std::chrono::system_clock::now() + std::chrono::seconds();
+    while (!scheduler->is_shutdown()) {
+        auto deadline = std::chrono::system_clock::now() + std::chrono::milliseconds(100);
         scheduler->make_progress(deadline);
     }
 }

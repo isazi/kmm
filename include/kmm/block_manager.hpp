@@ -6,27 +6,29 @@
 
 namespace kmm {
 
+struct BlockMetadata {
+    std::shared_ptr<BlockHeader> header;
+    std::optional<BufferId> buffer_id;
+    DeviceId home_memory;
+};
+
 class BlockManager {
   public:
     void insert_block(
         BlockId,
         std::shared_ptr<BlockHeader> header,
+        DeviceId home_memory,
         std::optional<BufferId> buffer_id);
     void poison_block(BlockId, TaskError);
     std::optional<BufferId> delete_block(BlockId);
 
-    std::shared_ptr<BlockHeader> get_block_header(BlockId) const;
+    const BlockMetadata& get_block(BlockId) const;
     std::optional<BufferId> get_block_buffer(BlockId) const;
 
   private:
-    struct Entry {
-        std::shared_ptr<BlockHeader> header;
-        std::optional<BufferId> buffer_id;
-    };
+    void insert_entry(BlockId, std::variant<BlockMetadata, TaskError>);
 
-    void insert_entry(BlockId, std::variant<Entry, TaskError>);
-
-    std::unordered_map<BlockId, std::variant<Entry, TaskError>> m_entries;
+    std::unordered_map<BlockId, std::variant<BlockMetadata, TaskError>> m_entries;
 };
 
 }  // namespace kmm

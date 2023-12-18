@@ -25,7 +25,12 @@ struct CommandBlockDelete {
     BlockId id;
 };
 
-using Command = std::variant<CommandNoop, CommandExecute, CommandBlockDelete>;
+struct CommandPrefetch {
+    DeviceId device_id;
+    BlockId block_id;
+};
+
+using Command = std::variant<CommandNoop, CommandExecute, CommandBlockDelete, CommandPrefetch>;
 
 static const char* format_as(const Command& cmd) {
     switch (cmd.index()) {
@@ -35,6 +40,8 @@ static const char* format_as(const Command& cmd) {
             return "CommandExecute";
         case 2:
             return "CommandBlockDelete";
+        case 3:
+            return "CommandPrefetch";
         default:
             return "???";
     }

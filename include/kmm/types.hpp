@@ -86,7 +86,7 @@ struct TaskInput {
 struct TaskOutput {
     DeviceId memory_id;
     BlockId block_id;
-    std::unique_ptr<BlockHeader> meta;
+    std::unique_ptr<BlockHeader> header;
 };
 
 struct TaskRequirements {
@@ -108,7 +108,7 @@ class EventList {
     }
 
     const EventId* begin() const {
-        return &*events_.begin();
+        return &*m_events.begin();
     }
 
     const EventId* end() const {
@@ -120,11 +120,11 @@ class EventList {
     }
 
     size_t size() const {
-        return events_.size();
+        return m_events.size();
     }
 
     void extend(const EventId* data, size_t len) {
-        events_.insert(events_.end(), data, data + len);
+        m_events.insert(m_events.end(), data, data + len);
     }
 
     void extend(const EventList& that) {
@@ -132,17 +132,17 @@ class EventList {
     }
 
     void push_back(EventId event) {
-        events_.push_back(event);
+        m_events.push_back(event);
     }
 
     void remove_duplicates() {
-        std::sort(events_.begin(), events_.end());
-        auto last_unique = std::unique(std::begin(events_), std::end(events_));
-        events_.erase(last_unique, std::end(events_));
+        std::sort(m_events.begin(), m_events.end());
+        auto last_unique = std::unique(std::begin(m_events), std::end(m_events));
+        m_events.erase(last_unique, std::end(m_events));
     }
 
   private:
-    std::vector<EventId> events_ = {};
+    std::vector<EventId> m_events = {};
 };
 
 enum class PollResult { Pending, Ready };

@@ -16,12 +16,31 @@ class BlockHeader {
     virtual std::string name() const = 0;
 };
 
-class ArrayBaseHeader: public BlockHeader {
-  public:
-    ArrayBaseHeader(index_t n) : length_(n) {}
+class ArrayHeader: public BlockHeader {
+  private:
+    ArrayHeader(
+        index_t length,
+        size_t element_size,
+        size_t element_align,
+        const std::type_info& element_type) :
+        length_(length),
+        element_size_(element_size),
+        element_align_(element_align),
+        element_type_(element_type) {}
 
-    virtual BlockLayout element_layout() const = 0;
-    virtual const std::type_info& element_type() const = 0;
+  public:
+    template<typename T>
+    static ArrayHeader for_type(index_t num_elements) {
+        return {num_elements, sizeof(T), alignof(T), typeid(T)};
+    }
+
+    BlockLayout element_layout() const {
+        return {element_size_, element_align_};
+    }
+
+    const std::type_info& element_type() const {
+        return element_type_;
+    }
 
     index_t num_elements() const {
         return length_;
@@ -42,20 +61,9 @@ class ArrayBaseHeader: public BlockHeader {
 
   private:
     index_t length_;
-};
-
-template<typename T>
-class ArrayHeader: public ArrayBaseHeader {
-  public:
-    ArrayHeader(index_t n = 0) : ArrayBaseHeader(n) {}
-
-    BlockLayout element_layout() const final {
-        return BlockLayout {.num_bytes = sizeof(T), .alignment = alignof(T)};
-    }
-
-    const std::type_info& element_type() const final {
-        return typeid(T);
-    }
+    size_t element_size_;
+    size_t element_align_;
+    const std::type_info& element_type_;
 };
 
 template<typename T>

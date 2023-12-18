@@ -5,12 +5,14 @@ namespace kmm {
 void BlockManager::insert_block(
     BlockId id,
     std::shared_ptr<BlockHeader> header,
+    DeviceId home_memory,
     std::optional<BufferId> buffer_id) {
     insert_entry(
         id,
-        Entry {
+        BlockMetadata {
             .header = std::move(header),
             .buffer_id = buffer_id,
+            .home_memory = home_memory,
         });
 }
 
@@ -18,7 +20,7 @@ void BlockManager::poison_block(BlockId id, TaskError error) {
     insert_entry(id, std::move(error));
 }
 
-void BlockManager::insert_entry(BlockId id, std::variant<Entry, TaskError> entry) {
+void BlockManager::insert_entry(BlockId id, std::variant<BlockMetadata, TaskError> entry) {
     auto [_, success] = m_entries.insert({id, std::move(entry)});
 
     if (!success) {
@@ -36,7 +38,7 @@ std::optional<BufferId> BlockManager::delete_block(BlockId id) {
     }
 
     std::optional<BufferId> result = std::nullopt;
-    if (auto* entry = std::get_if<Entry>(&it->second)) {
+    if (auto* entry = std::get_if<BlockMetadata>(&it->second)) {
         result = entry->buffer_id;
     }
 
@@ -44,12 +46,12 @@ std::optional<BufferId> BlockManager::delete_block(BlockId id) {
     return result;
 }
 
-std::shared_ptr<BlockHeader> BlockManager::get_block_header(BlockId id) const {
+const BlockMetadata& BlockManager::get_block(BlockId id) const {
     auto it = m_entries.find(id);
 
     if (it != m_entries.end()) {
-        if (const auto* entry = std::get_if<Entry>(&it->second)) {
-            return entry->header;
+        if (const auto* entry = std::get_if<BlockMetadata>(&it->second)) {
+            return *entry;
         } else if (const auto* error = std::get_if<TaskError>(&it->second)) {
             throw std::runtime_error(error->get());
         }
@@ -62,7 +64,7 @@ std::optional<BufferId> BlockManager::get_block_buffer(BlockId id) const {
     auto it = m_entries.find(id);
 
     if (it != m_entries.end()) {
-        if (const auto* entry = std::get_if<Entry>(&it->second)) {
+        if (const auto* entry = std::get_if<BlockMetadata>(&it->second)) {
             return entry->buffer_id;
         }
     }

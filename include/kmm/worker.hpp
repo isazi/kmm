@@ -20,111 +20,105 @@
 namespace kmm {
 
 class Worker;
+class WorkerState;
 
-class WorkerJob: public Waker, public Job, public std::enable_shared_from_this<WorkerJob> {
+class WorkerJob: public Waker, public std::enable_shared_from_this<WorkerJob> {
   public:
-    explicit WorkerJob(EventId id) : Job(id) {}
+    explicit WorkerJob(EventId id) : identifier(id) {}
+    ~WorkerJob() override = default;
+
+    EventId id() const {
+        return identifier;
+    }
+
+    virtual void start(WorkerState&) {}
+    virtual PollResult poll(WorkerState&) = 0;
+    virtual void stop(WorkerState&) {}
 
     void trigger_wakeup() const final;
     void trigger_wakeup_and_poll() const;
 
-    void start(Worker&);
-    virtual PollResult poll(Worker&) = 0;
-    void stop(Worker&);
-
-  public:
-    bool is_running = false;
-    bool is_ready = false;
-    std::weak_ptr<Worker> m_worker;
-};
-
-class ExecuteJob: public WorkerJob, public TaskCompletion::Impl {
-  public:
-    ExecuteJob(EventId id, CommandExecute command) :
-        WorkerJob(id),
-        device_id(command.device_id),
-        task(std::move(command.task)),
-        inputs(std::move(command.inputs)),
-        outputs(std::move(command.outputs)) {}
-
-    PollResult poll(Worker&) final;
-    void complete_task(TaskResult result) final;
-
   private:
-    enum class Status { Created, Staging, Running, Done };
+    friend class Worker;
+    friend class JobQueue;
+
+    enum class Status { Created, Pending, Ready, Running, Done };
     Status status = Status::Created;
-
-    DeviceId device_id;
-    std::shared_ptr<Task> task;
-    std::vector<TaskInput> inputs;
-    std::vector<TaskOutput> outputs;
-    std::vector<std::optional<BufferId>> output_buffers;
-    std::vector<MemoryRequest> memory_requests = {};
-    std::optional<TaskResult> result = std::nullopt;
+    EventId identifier;
+    std::weak_ptr<Worker> worker;
+    size_t unsatisfied_predecessors = 0;
+    std::vector<std::shared_ptr<WorkerJob>> successors = {};
+    std::atomic_flag in_queue = false;
+    std::shared_ptr<WorkerJob> next_item = nullptr;
 };
 
-class DeleteBlockJob: public WorkerJob {
+class JobQueue {
   public:
-    DeleteBlockJob(EventId id, BlockId block_id) : WorkerJob(id), block_id(block_id) {}
-    PollResult poll(Worker&) final;
+    JobQueue() = default;
+    JobQueue(const JobQueue&) = delete;
+    JobQueue(JobQueue&&) noexcept = default;
+
+    JobQueue& operator=(const JobQueue&) = delete;
+    JobQueue& operator=(JobQueue&&) noexcept = default;
+
+    bool is_empty() const;
+    bool push(std::shared_ptr<WorkerJob>);
+    std::optional<std::shared_ptr<WorkerJob>> pop();
 
   private:
-    BlockId block_id;
+    std::shared_ptr<WorkerJob> m_head = nullptr;
+    WorkerJob* m_tail = nullptr;
 };
 
-class EmptyJob: public WorkerJob {
+class SharedJobQueue {
   public:
-    EmptyJob(EventId id) : WorkerJob(id) {}
-    PollResult poll(Worker&) final;
+    bool push(std::shared_ptr<WorkerJob>) const;
+    JobQueue pop_all(std::chrono::time_point<std::chrono::system_clock> deadline = {}) const;
+
+  private:
+    mutable std::mutex m_lock;
+    mutable std::condition_variable m_cond;
+    mutable JobQueue m_queue;
+};
+
+class WorkerState {
+  public:
+    std::vector<std::shared_ptr<Executor>> executors;
+    std::shared_ptr<MemoryManager> memory_manager;
+    BlockManager block_manager;
 };
 
 class Worker: public std::enable_shared_from_this<Worker> {
   public:
     Worker(
         std::vector<std::shared_ptr<Executor>> executors,
-        std::unique_ptr<MemoryManager> memory_manager);
+        std::shared_ptr<MemoryManager> memory_manager);
 
     void make_progress(std::chrono::time_point<std::chrono::system_clock> deadline = {});
     void submit_command(EventId id, Command command, EventList dependencies);
     bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {});
     void wakeup(std::shared_ptr<WorkerJob> op, bool allow_progress = false);
     void shutdown();
-    bool has_shutdown();
+    bool is_shutdown();
 
   private:
-    friend class ExecuteJob;
-    friend class DeleteBlockJob;
-    friend class TaskCompletion;
-
     void make_progress_impl(
         std::unique_lock<std::mutex> guard,
         std::chrono::time_point<std::chrono::system_clock> deadline = {});
+
+    void satisfy_job_dependencies(std::shared_ptr<WorkerJob> op, size_t satisfied = 1);
+    void start_job(std::shared_ptr<WorkerJob>& op);
     void poll_job(const std::shared_ptr<WorkerJob>& op);
+    void stop_job(const std::shared_ptr<WorkerJob>& op);
 
-    class WorkQueue {
-      public:
-        void push(std::shared_ptr<WorkerJob> op) const;
-        void pop_nonblocking(std::deque<std::shared_ptr<WorkerJob>>& output) const;
-        void pop_blocking(
-            std::chrono::time_point<std::chrono::system_clock> deadline,
-            std::deque<std::shared_ptr<WorkerJob>>& output) const;
-
-      private:
-        void pop_impl(std::deque<std::shared_ptr<WorkerJob>>& output) const;
-
-        mutable std::mutex m_lock;
-        mutable std::condition_variable m_cond;
-        mutable std::deque<std::shared_ptr<WorkerJob>> m_queue;
-    };
-
-    WorkQueue m_poll_queue;
+    SharedJobQueue m_shared_poll_queue;
 
     std::mutex m_lock;
-    mutable std::deque<std::shared_ptr<WorkerJob>> m_queue;
-    std::vector<std::shared_ptr<Executor>> m_executors;
-    std::unique_ptr<MemoryManager> m_memory_manager;
-    BlockManager m_block_manager;
-    Scheduler m_scheduler;
+    std::condition_variable m_job_completion;
+    std::unordered_map<EventId, std::shared_ptr<WorkerJob>> m_jobs;
+    JobQueue m_poll_queue;
+    JobQueue m_ready_queue;
+    WorkerState m_state;
     bool m_shutdown = false;
 };
 

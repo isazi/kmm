@@ -9,22 +9,6 @@
 #include "kmm/types.hpp"
 
 namespace kmm {
-struct InputBlock {
-    BlockId block_id;
-    std::shared_ptr<const BlockHeader> header;
-    const MemoryAllocation* allocation = nullptr;
-};
-
-struct OutputBuffer {
-    BlockId block_id;
-    BlockHeader* header;
-    const MemoryAllocation* allocation = nullptr;
-};
-
-struct TaskContext {
-    std::vector<InputBlock> inputs;
-    std::vector<OutputBuffer> outputs;
-};
 
 class TaskError {
   public:
@@ -42,24 +26,44 @@ class TaskError {
 
 using TaskResult = std::variant<std::monostate, TaskError>;
 
+struct BlockAccessor {
+    BlockId block_id;
+    std::shared_ptr<const BlockHeader> header;
+    const MemoryAllocation* allocation = nullptr;
+};
+
+struct BlockAccessorMut {
+    BlockId block_id;
+    BlockHeader* header;
+    const MemoryAllocation* allocation = nullptr;
+};
+
+class ITaskCompletion {
+  public:
+    virtual ~ITaskCompletion() = default;
+    virtual void complete_task(TaskResult) = 0;
+};
+
 class TaskCompletion {
   public:
-    class Impl {
-      public:
-        virtual ~Impl() = default;
-        virtual void complete_task(TaskResult) = 0;
-    };
-
-    explicit TaskCompletion(std::shared_ptr<Impl> = {});
+    explicit TaskCompletion(std::shared_ptr<ITaskCompletion> = {});
     TaskCompletion(TaskCompletion&&) noexcept = default;
-    TaskCompletion(const TaskContext&) = delete;
+    TaskCompletion(const TaskCompletion&) = delete;
     ~TaskCompletion();
 
     void complete(TaskResult);
     void complete_err(const std::string& error);
 
   private:
-    std::shared_ptr<Impl> m_impl;
+    std::shared_ptr<ITaskCompletion> m_impl;
+};
+
+struct TaskContext {
+    TaskContext(TaskCompletion completion) : completion(std::move(completion)) {}
+
+    std::vector<BlockAccessor> inputs;
+    std::vector<BlockAccessorMut> outputs;
+    TaskCompletion completion;
 };
 
 class ExecutorContext {};
@@ -73,7 +77,7 @@ class Task {
 class Executor {
   public:
     virtual ~Executor() = default;
-    virtual void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) = 0;
+    virtual void submit(std::shared_ptr<Task>, TaskContext) = 0;
 };
 
 }  // namespace kmm
