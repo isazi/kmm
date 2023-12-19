@@ -3,7 +3,7 @@
 #include <memory>
 #include <thread>
 
-#include "kmm/worker.hpp"
+#include "kmm/worker/worker.hpp"
 
 namespace kmm {
 

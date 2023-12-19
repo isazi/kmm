@@ -34,6 +34,9 @@ class Buffer {
     Buffer(Buffer&&) = delete;
     Buffer(const Buffer&) = default;
 
+    Buffer& operator=(Buffer&&) = delete;
+    Buffer& operator=(const Buffer&) = default;
+
     BlockId id() const;
     Runtime runtime() const;
     Event barrier() const;
@@ -48,6 +51,7 @@ template<typename T, size_t N = 1>
 class Array {
   public:
     Array(std::array<index_t, N> sizes) : m_sizes(sizes) {}
+    Array(std::array<index_t, N> sizes, Buffer buffer) : m_sizes(sizes), m_buffer(buffer) {}
 
     std::array<index_t, N> sizes() const {
         return m_sizes;
@@ -95,6 +99,13 @@ class Runtime {
     Event submit(const Device& device, Args&&... args) {
         EventId id = device(*m_impl, std::forward<Args>(args)...);
         return {id, m_impl};
+    }
+
+    Event join(std::vector<Event> events) const;
+
+    template<typename... Es>
+    Event join(Es... events) const {
+        return join(std::vector<Event> {events...});
     }
 
     std::shared_ptr<RuntimeImpl> inner() const {

@@ -4,10 +4,10 @@
 
 #include "kmm/executor.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/types.hpp"
-#include "kmm/task_args.hpp"
-#include "kmm/runtime_impl.hpp"
 #include "kmm/runtime.hpp"
+#include "kmm/runtime_impl.hpp"
+#include "kmm/task_serialize.hpp"
+#include "kmm/types.hpp"
 
 namespace kmm {
 
@@ -20,7 +20,11 @@ class ParallelExecutor: public Executor {
     ParallelExecutor();
     ~ParallelExecutor() override;
     void submit(std::shared_ptr<Task>, TaskContext) override;
-    void copy_async(const void* src_ptr, void* dst_ptr, size_t nbytes, std::unique_ptr<TransferCompletion> completion) const;
+    void copy_async(
+        const void* src_ptr,
+        void* dst_ptr,
+        size_t nbytes,
+        std::unique_ptr<TransferCompletion> completion) const;
 
   private:
     struct Queue;
@@ -47,11 +51,12 @@ class HostAllocation: public MemoryAllocation {
 
 class HostMemory: public Memory {
   public:
-    HostMemory(std::shared_ptr<ParallelExecutor> executor, size_t max_bytes = std::numeric_limits<size_t>::max());
+    HostMemory(
+        std::shared_ptr<ParallelExecutor> executor,
+        size_t max_bytes = std::numeric_limits<size_t>::max());
 
-    std::optional<std::unique_ptr<MemoryAllocation>> allocate(
-        DeviceId id,
-        size_t num_bytes) override;
+    std::optional<std::unique_ptr<MemoryAllocation>> allocate(DeviceId id, size_t num_bytes)
+        override;
 
     void deallocate(DeviceId id, std::unique_ptr<MemoryAllocation> allocation) override;
 
@@ -75,47 +80,64 @@ class HostMemory: public Memory {
 struct Host {
     template<typename Fun, typename... Args>
     EventId operator()(RuntimeImpl& rt, Fun&& fun, Args&&... args) const {
+        return call_impl(std::index_sequence_for<Args...>(), rt, fun, args...);
+    }
+
+  private:
+    template<typename Fun, size_t... Is, typename... Args>
+    static EventId call_impl(
+        std::index_sequence<Is...>,
+        RuntimeImpl& rt,
+        Fun&& fun,
+        Args&&... args) {
         auto device_id = DeviceId(0);
         auto reqs = TaskRequirements(device_id);
+        auto serializers =
+            std::tuple<TaskArgumentSerializer<ExecutionSpace::Host, std::decay_t<Args>>...>();
 
         std::shared_ptr<Task> task = std::make_shared<TaskImpl<
             ExecutionSpace::Host,
             std::decay_t<Fun>,
-            pack_task_argument_type<ExecutionSpace::Host, Args>...>>(
+            typename TaskArgumentSerializer<ExecutionSpace::Host, std::decay_t<Args>>::type...>>(
             std::forward<Fun>(fun),
-            pack_task_argument<ExecutionSpace::Host>(std::forward<Args>(args), reqs)
-            ...);
+            std::get<Is>(serializers).serialize(std::forward<Args>(args), reqs)...);
 
-        return rt.submit_task(std::move(task), std::move(reqs));
+        auto event_id = rt.submit_task(std::move(task), std::move(reqs));
+        (std::get<Is>(serializers).update(rt, event_id), ...);
+
+        return event_id;
     }
 };
 
-template <typename T, size_t N>
-struct PackedArray {
+template<typename T, size_t N>
+struct SerializedArray {
     size_t buffer_index;
+    std::array<index_t, N> sizes;
 };
 
 template<typename T, size_t N>
-struct TaskArgPack<ExecutionSpace::Host, Array<T, N>> {
-    using type = PackedArray<const T, N>;
+struct TaskArgumentSerializer<ExecutionSpace::Host, Array<T, N>> {
+    using type = SerializedArray<const T, N>;
 
-    static type call(const Array<T>& array, TaskRequirements& requirements) {
+    type serialize(const Array<T>& array, TaskRequirements& requirements) {
         size_t index = requirements.inputs.size();
         requirements.inputs.push_back(TaskInput {
             .memory_id = requirements.device_id,
             .block_id = array.id(),
         });
 
-        return {index};
+        return {index, array.sizes()};
     }
+
+    void update(RuntimeImpl& rt, EventId event_id) {}
 };
 
 template<typename T, size_t N>
-struct TaskArgPack<ExecutionSpace::Host, Write<Array<T, N>>> {
-    using type = PackedArray<T, N>;
+struct TaskArgumentSerializer<ExecutionSpace::Host, Write<Array<T, N>>> {
+    using type = SerializedArray<T, N>;
 
-    static type call(const Write<Array<T, N>>& array, TaskRequirements& requirements) {
-        size_t index = requirements.outputs.size();
+    type serialize(const Write<Array<T, N>>& array, TaskRequirements& requirements) {
+        size_t output_index = requirements.outputs.size();
         auto header = array.inner.header();
 
         requirements.outputs.push_back(TaskOutput {
@@ -123,13 +145,29 @@ struct TaskArgPack<ExecutionSpace::Host, Write<Array<T, N>>> {
             .header = std::make_unique<decltype(header)>(header),
         });
 
-        return {index};
+        m_target = &array.inner;
+        m_output_index = output_index;
+
+        return {output_index, array.inner.sizes()};
     }
+
+    void update(RuntimeImpl& rt, EventId event_id) {
+        if (m_target) {
+            auto buffer = Buffer(BlockId(event_id, m_output_index), rt.shared_from_this());
+            *m_target = Array<T, N>(m_target->sizes(), buffer);
+        }
+    }
+
+  private:
+    Array<T, N>* m_target = nullptr;
+    size_t m_output_index = ~0;
 };
 
 template<typename T, size_t N>
-struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<T, N>> {
-    static T* call(const PackedArray<T, N>& array, TaskContext& context) {
+struct TaskArgumentDeserializer<ExecutionSpace::Host, SerializedArray<T, N>> {
+    using type = T*;
+
+    T* deserialize(const SerializedArray<T, N>& array, TaskContext& context) {
         const auto& access = context.outputs.at(array.buffer_index);
         const auto* header = dynamic_cast<const ArrayHeader*>(access.header);
         KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
@@ -140,10 +178,12 @@ struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<T, N>> {
 };
 
 template<typename T, size_t N>
-struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<const T, N>> {
-    static const T* call(const PackedArray<const T, N>& array, TaskContext& context) {
+struct TaskArgumentDeserializer<ExecutionSpace::Host, SerializedArray<const T, N>> {
+    using type = const T*;
+
+    const T* deserialize(const SerializedArray<const T, N>& array, TaskContext& context) {
         const auto& access = context.inputs.at(array.buffer_index);
-        const auto* header = dynamic_cast<const ArrayHeader*>(access.header);
+        const auto* header = dynamic_cast<const ArrayHeader*>(access.header.get());
         KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
 
         auto& alloc = dynamic_cast<const HostAllocation&>(*access.allocation);
@@ -151,4 +191,4 @@ struct TaskArgUnpack<ExecutionSpace::Host, PackedArray<const T, N>> {
     }
 };
 
-}
+}  // namespace kmm

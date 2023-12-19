@@ -10,6 +10,24 @@
 
 namespace kmm {
 
+struct TaskInput {
+    DeviceId memory_id;
+    BlockId block_id;
+};
+
+struct TaskOutput {
+    DeviceId memory_id;
+    std::unique_ptr<BlockHeader> header;
+};
+
+struct TaskRequirements {
+    TaskRequirements(DeviceId id) : device_id(id) {}
+
+    DeviceId device_id;
+    std::vector<TaskInput> inputs = {};
+    std::vector<TaskOutput> outputs = {};
+};
+
 class TaskError {
   public:
     TaskError(const char* error) : m_reason(std::make_shared<std::string>(error)) {}
@@ -25,18 +43,6 @@ class TaskError {
 };
 
 using TaskResult = std::variant<std::monostate, TaskError>;
-
-struct BlockAccessor {
-    BlockId block_id;
-    std::shared_ptr<const BlockHeader> header;
-    const MemoryAllocation* allocation = nullptr;
-};
-
-struct BlockAccessorMut {
-    BlockId block_id;
-    BlockHeader* header;
-    const MemoryAllocation* allocation = nullptr;
-};
 
 class ITaskCompletion {
   public:
@@ -56,6 +62,18 @@ class TaskCompletion {
 
   private:
     std::shared_ptr<ITaskCompletion> m_impl;
+};
+
+struct BlockAccessor {
+    BlockId block_id;
+    std::shared_ptr<const BlockHeader> header;
+    const MemoryAllocation* allocation = nullptr;
+};
+
+struct BlockAccessorMut {
+    BlockId block_id;
+    BlockHeader* header;
+    const MemoryAllocation* allocation = nullptr;
 };
 
 struct TaskContext {

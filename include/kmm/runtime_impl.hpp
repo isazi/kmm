@@ -2,14 +2,13 @@
 
 #include <mutex>
 
-#include "kmm/memory_manager.hpp"
 #include "kmm/worker_thread.hpp"
 
 namespace kmm {
 
 class Worker;
 
-class RuntimeImpl {
+class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
   public:
     RuntimeImpl(std::vector<std::shared_ptr<Executor>> executors, std::shared_ptr<Memory> memory);
     ~RuntimeImpl();

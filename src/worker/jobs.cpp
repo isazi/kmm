@@ -1,27 +1,30 @@
-#include "kmm/jobs.hpp"
+#include "kmm/worker/jobs.hpp"
+#include "kmm/worker/worker.hpp"
 
 namespace kmm {
 
 struct ExecuteJob::Result: ITaskCompletion {
-    Result(WorkerJob& job) : m_job(job.shared_from_this()) {}
+    Result(std::shared_ptr<const Waker> job) : m_job(std::move(job)) {}
     Result(TaskResult result) : m_inner(std::move(result)) {}
 
     void complete_task(TaskResult result) final {
         if (auto job = std::exchange(this->m_job, nullptr)) {
             m_inner = std::move(result);
-            job->trigger_wakeup_and_poll();
+            job->trigger_wakeup(true);
         }
     }
 
     std::optional<TaskResult> take_result() {
-        if (m_inner) {
-            m_job = nullptr;
-            return std::move(m_inner);
+        if (!m_inner) {
+            return std::nullopt;
         }
+
+        m_job = nullptr;
+        return std::move(m_inner);
     }
 
   private:
-    std::shared_ptr<WorkerJob> m_job;
+    std::shared_ptr<const Waker> m_job;
     std::optional<TaskResult> m_inner;
 };
 
@@ -71,8 +74,8 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
         }
 
         try {
-            auto result = std::make_shared<Result>(*this);
-            auto context = TaskContext(TaskCompletion(m_result));
+            auto result = std::make_shared<Result>(shared_from_this());
+            auto context = TaskContext(TaskCompletion(result));
 
             unsigned long index = 0;
 
@@ -88,12 +91,14 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                 });
             }
 
+            size_t output_index = 0;
+
             for (const auto& output : m_outputs) {
                 const auto& req = m_memory_requests[index++];
                 const auto* allocation = req ? worker.memory_manager->view_buffer(req) : nullptr;
 
                 context.outputs.push_back(BlockAccessorMut {
-                    .block_id = output.block_id,
+                    .block_id = BlockId(m_id, static_cast<uint8_t>(output_index++)),
                     .header = output.header.get(),
                     .allocation = allocation,
                 });
@@ -128,7 +133,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
 
         for (unsigned long i = 0; i < num_outputs; i++) {
             auto& output = m_outputs[i];
-            auto block_id = output.block_id;
+            auto block_id = BlockId(m_id, static_cast<uint8_t>(i));
             auto buffer_id = m_output_buffers[i];
 
             if (error == nullptr) {
@@ -153,9 +158,11 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
 }
 
 PollResult DeleteJob::poll(WorkerState& worker) {
+    spdlog::debug("delete block id={}", m_block_id);
     auto buffer_id_opt = worker.block_manager.delete_block(m_block_id);
 
     if (buffer_id_opt) {
+        spdlog::debug("delete buffer id={}", *buffer_id_opt);
         worker.memory_manager->delete_buffer(*buffer_id_opt);
     }
 
@@ -197,6 +204,20 @@ PollResult PrefetchJob::poll(WorkerState& state) {
 
 PollResult EmptyJob::poll(WorkerState& worker) {
     return PollResult::Ready;
+}
+
+std::shared_ptr<Job> build_job_for_command(EventId id, Command command) {
+    if (auto* cmd_exe = std::get_if<ExecuteCommand>(&command)) {
+        return std::make_shared<ExecuteJob>(id, std::move(*cmd_exe));
+    } else if (auto* cmd_del = std::get_if<BlockDeleteCommand>(&command)) {
+        return std::make_shared<DeleteJob>(id, std::move(*cmd_del));
+    } else if (const auto* cmd_noop = std::get_if<EmptyCommand>(&command)) {
+        return std::make_shared<EmptyJob>(id);
+    } else if (auto* cmd_fetch = std::get_if<BlockPrefetchCommand>(&command)) {
+        return std::make_shared<PrefetchJob>(id, std::move(*cmd_fetch));
+    } else {
+        KMM_PANIC("invalid command");
+    }
 }
 
 }  // namespace kmm

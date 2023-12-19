@@ -3,7 +3,6 @@
 
 #include "kmm/platforms/host.hpp"
 #include "kmm/utils.hpp"
-#include "kmm/worker.hpp"
 
 namespace kmm {
 
@@ -131,7 +130,7 @@ void ParallelExecutor::copy_async(
 }
 
 HostAllocation::HostAllocation(size_t nbytes) : m_nbytes(nbytes) {
-    m_data = std::make_unique<char[]>(nbytes);
+    m_data = std::unique_ptr<char[]>(new char[nbytes]);
 }
 
 HostMemory::HostMemory(std::shared_ptr<ParallelExecutor> executor, size_t max_bytes) :

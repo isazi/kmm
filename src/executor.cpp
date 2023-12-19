@@ -1,3 +1,5 @@
+#include "spdlog/spdlog.h"
+
 #include "kmm/executor.hpp"
 
 namespace kmm {
@@ -5,6 +7,7 @@ namespace kmm {
 TaskCompletion::TaskCompletion(std::shared_ptr<ITaskCompletion> impl) : m_impl(std::move(impl)) {}
 
 void TaskCompletion::complete(TaskResult result) {
+    spdlog::debug("TaskCompletion::complete {}", size_t(m_impl.get()));
     if (auto inner = std::exchange(m_impl, {})) {
         inner->complete_task(std::move(result));
     }

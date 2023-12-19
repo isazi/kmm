@@ -5,14 +5,19 @@
 #include <stdexcept>
 #include <vector>
 
-#include "kmm/worker.hpp"
+#include "kmm/executor.hpp"
+#include "kmm/types.hpp"
+#include "kmm/worker/command.hpp"
+#include "kmm/worker/memory_manager.hpp"
+#include "kmm/worker/worker.hpp"
 
 namespace kmm {
 
-class ExecuteJob: public WorkerJob {
+class ExecuteJob: public Job {
   public:
-    ExecuteJob(EventId id, CommandExecute command) :
-        WorkerJob(id),
+    ExecuteJob(EventId id, ExecuteCommand command) :
+        Job(id),
+        m_id(id),
         m_device_id(command.device_id),
         m_task(std::move(command.task)),
         m_inputs(std::move(command.inputs)),
@@ -20,10 +25,11 @@ class ExecuteJob: public WorkerJob {
 
     PollResult poll(WorkerState&) final;
 
-  private:
+    //  private:
     enum class Status { Created, Staging, Running, Done };
     Status m_status = Status::Created;
 
+    EventId m_id;
     DeviceId m_device_id;
     std::shared_ptr<Task> m_task;
     std::vector<TaskInput> m_inputs;
@@ -35,21 +41,21 @@ class ExecuteJob: public WorkerJob {
     std::shared_ptr<Result> m_result = nullptr;
 };
 
-class DeleteJob: public WorkerJob {
+class DeleteJob: public Job {
   public:
-    DeleteJob(EventId id, BlockId block_id) : WorkerJob(id), m_block_id(block_id) {}
+    DeleteJob(EventId id, BlockDeleteCommand cmd) : Job(id), m_block_id(cmd.id) {}
     PollResult poll(WorkerState&) final;
 
   private:
     BlockId m_block_id;
 };
 
-class PrefetchJob: public WorkerJob {
+class PrefetchJob: public Job {
   public:
-    PrefetchJob(EventId id, DeviceId device_id, BlockId block_id) :
-        WorkerJob(id),
-        m_device_id(device_id),
-        m_block_id(block_id) {}
+    PrefetchJob(EventId id, BlockPrefetchCommand cmd) :
+        Job(id),
+        m_device_id(cmd.device_id),
+        m_block_id(cmd.block_id) {}
 
     PollResult poll(WorkerState&) final;
 
@@ -61,9 +67,12 @@ class PrefetchJob: public WorkerJob {
     BlockId m_block_id;
 };
 
-class EmptyJob: public WorkerJob {
+class EmptyJob: public Job {
   public:
-    EmptyJob(EventId id) : WorkerJob(id) {}
+    EmptyJob(EventId id) : Job(id) {}
     PollResult poll(WorkerState&) final;
 };
+
+std::shared_ptr<Job> build_job_for_command(EventId id, Command command);
+
 }  // namespace kmm

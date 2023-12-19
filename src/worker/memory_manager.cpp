@@ -2,8 +2,8 @@
 #include <stdexcept>
 #include <utility>
 
-#include "kmm/memory_manager.hpp"
 #include "kmm/utils.hpp"
+#include "kmm/worker/memory_manager.hpp"
 
 namespace kmm {
 
@@ -64,7 +64,7 @@ class MemoryManager::Request {
     BufferState* buffer;
     DeviceId device_id;
     bool writable;
-    std::shared_ptr<Waker> waker;
+    std::shared_ptr<const Waker> waker;
 };
 
 struct MemoryManager::Resource {
@@ -121,13 +121,16 @@ MemoryManager::MemoryManager(std::shared_ptr<Memory> memory) : m_memory(std::mov
 MemoryManager::~MemoryManager() = default;
 
 BufferId MemoryManager::create_buffer(const BlockLayout& layout) {
-    auto id = BufferId(m_next_buffer_id++);
+    size_t num_bytes = layout.num_bytes;
+
+    auto id = BufferId(m_next_buffer_id++, num_bytes);
     auto state = std::unique_ptr<BufferState, BufferDeleter>(new BufferState {
         .id = id,
-        .num_bytes = layout.num_bytes,
+        .num_bytes = num_bytes,
     });
 
     m_buffers.insert({id, std::move(state)});
+    return id;
 }
 
 void MemoryManager::delete_buffer(BufferId id) {
@@ -169,7 +172,7 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     BufferId buffer_id,
     DeviceId device_id,
     bool writable,
-    std::shared_ptr<Waker> waker) {
+    std::shared_ptr<const Waker> waker) {
     auto& buffer = m_buffers.at(buffer_id);
     buffer->num_requests_active += 1;
 

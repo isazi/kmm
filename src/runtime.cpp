@@ -79,6 +79,20 @@ Event Runtime::barrier() const {
     return {event_id, m_impl};
 }
 
+Event Runtime::join(std::vector<Event> events) const {
+    if (events.size() == 1) {
+        return events[0];
+    }
+
+    EventList deps;
+    for (auto& event : events) {
+        deps.push_back(event.id());
+    }
+
+    auto event_id = m_impl->join_events(deps);
+    return {event_id, m_impl};
+}
+
 Runtime build_runtime() {
     auto host_executor = std::make_shared<ParallelExecutor>();
     std::vector<std::shared_ptr<Executor>> executors = {host_executor};

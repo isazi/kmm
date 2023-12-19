@@ -9,47 +9,49 @@
 #include <variant>
 #include <vector>
 
-#include "kmm/block_manager.hpp"
-#include "kmm/command.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/memory_manager.hpp"
-#include "kmm/scheduler.hpp"
 #include "kmm/types.hpp"
+#include "kmm/worker/block_manager.hpp"
+#include "kmm/worker/command.hpp"
+#include "kmm/worker/memory_manager.hpp"
+#include "kmm/worker/scheduler.hpp"
 
 namespace kmm {
 
 class Worker;
 class WorkerState;
 
-class WorkerJob: public Waker, public std::enable_shared_from_this<WorkerJob> {
+class Job: public Waker, public std::enable_shared_from_this<Job> {
   public:
-    explicit WorkerJob(EventId id) : identifier(id) {}
-    ~WorkerJob() override = default;
+    Job(EventId id) : identifier(id) {}
+    Job(const Job&) = delete;
+    Job(Job&&) = delete;
+
+    virtual ~Job() = default;
+    virtual void start(WorkerState&) {}
+    virtual PollResult poll(WorkerState&) = 0;
+    virtual void stop(WorkerState&) {}
+
+    void trigger_wakeup(bool allow_progress) const final;
 
     EventId id() const {
         return identifier;
     }
 
-    virtual void start(WorkerState&) {}
-    virtual PollResult poll(WorkerState&) = 0;
-    virtual void stop(WorkerState&) {}
-
-    void trigger_wakeup() const final;
-    void trigger_wakeup_and_poll() const;
-
   private:
     friend class Worker;
     friend class JobQueue;
 
-    enum class Status { Created, Pending, Ready, Running, Done };
+    enum class Status { Created, Running, Done };
     Status status = Status::Created;
+
+    std::atomic_flag in_queue = false;
+    std::shared_ptr<Job> next_queue_item = nullptr;
+
     EventId identifier;
     std::weak_ptr<Worker> worker;
-    size_t unsatisfied_predecessors = 0;
-    std::vector<std::shared_ptr<WorkerJob>> successors = {};
-    std::atomic_flag in_queue = false;
-    std::shared_ptr<WorkerJob> next_item = nullptr;
+    std::shared_ptr<Scheduler::Node> completion = nullptr;
 };
 
 class JobQueue {
@@ -62,17 +64,17 @@ class JobQueue {
     JobQueue& operator=(JobQueue&&) noexcept = default;
 
     bool is_empty() const;
-    bool push(std::shared_ptr<WorkerJob>);
-    std::optional<std::shared_ptr<WorkerJob>> pop();
+    bool push(std::shared_ptr<Job>);
+    std::optional<std::shared_ptr<Job>> pop();
 
   private:
-    std::shared_ptr<WorkerJob> m_head = nullptr;
-    WorkerJob* m_tail = nullptr;
+    std::shared_ptr<Job> m_head = nullptr;
+    Job* m_tail = nullptr;
 };
 
 class SharedJobQueue {
   public:
-    bool push(std::shared_ptr<WorkerJob>) const;
+    bool push(std::shared_ptr<Job>) const;
     JobQueue pop_all(std::chrono::time_point<std::chrono::system_clock> deadline = {}) const;
 
   private:
@@ -97,7 +99,7 @@ class Worker: public std::enable_shared_from_this<Worker> {
     void make_progress(std::chrono::time_point<std::chrono::system_clock> deadline = {});
     void submit_command(EventId id, Command command, EventList dependencies);
     bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {});
-    void wakeup(std::shared_ptr<WorkerJob> op, bool allow_progress = false);
+    void wakeup(std::shared_ptr<Job> job, bool allow_progress = false);
     void shutdown();
     bool is_shutdown();
 
@@ -106,18 +108,16 @@ class Worker: public std::enable_shared_from_this<Worker> {
         std::unique_lock<std::mutex> guard,
         std::chrono::time_point<std::chrono::system_clock> deadline = {});
 
-    void satisfy_job_dependencies(std::shared_ptr<WorkerJob> op, size_t satisfied = 1);
-    void start_job(std::shared_ptr<WorkerJob>& op);
-    void poll_job(const std::shared_ptr<WorkerJob>& op);
-    void stop_job(const std::shared_ptr<WorkerJob>& op);
+    void start_job(std::shared_ptr<Scheduler::Node> node);
+    void poll_job(Job& job);
+    void stop_job(Job& job);
 
     SharedJobQueue m_shared_poll_queue;
 
     std::mutex m_lock;
     std::condition_variable m_job_completion;
-    std::unordered_map<EventId, std::shared_ptr<WorkerJob>> m_jobs;
-    JobQueue m_poll_queue;
-    JobQueue m_ready_queue;
+    JobQueue m_local_poll_queue;
+    Scheduler m_scheduler;
     WorkerState m_state;
     bool m_shutdown = false;
 };

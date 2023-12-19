@@ -118,20 +118,16 @@ class Scalar: public ScalarBase {
         return typeid(T);
     }
 
+    void set(T new_value) {
+        m_value = std::move(new_value);
+    }
+
     T& get() {
         return m_value;
     }
 
     const T& get() const {
         return m_value;
-    }
-
-    operator T&() {
-        return get();
-    }
-
-    operator const T&() const {
-        return get();
     }
 
     operator T() const {

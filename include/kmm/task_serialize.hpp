@@ -7,25 +7,19 @@ namespace kmm {
 enum struct ExecutionSpace { Host, Cuda };
 
 template<ExecutionSpace Space, typename T, typename = void>
-struct TaskArgPack {
+struct TaskArgumentSerializer {
     using type = std::decay_t<T>;
 
-    static type call(T value, TaskRequirements& requirements) {
-        return value;
+    type serialize(T value, TaskRequirements& requirements) {
+        return std::forward<T>(value);
     }
+
+    void update(RuntimeImpl& rt, EventId id) {}
 };
 
-template<ExecutionSpace Space, typename T>
-using pack_task_argument_type = typename TaskArgPack<Space, std::decay_t<T>>::type;
-
-template<ExecutionSpace Space, typename T>
-pack_task_argument_type<Space, T> pack_task_argument(T&& input, TaskRequirements& reqs) {
-    return TaskArgPack<Space, std::decay_t<T>>::call(std::forward<T>(input), reqs);
-}
-
 template<ExecutionSpace Space, typename T, typename = void>
-struct TaskArgUnpack {
-    static const T& call(const T& value, TaskContext& context) {
+struct TaskArgumentDeserializer {
+    const T& deserialize(const T& value, TaskContext& context) {
         return value;
     }
 };
@@ -47,10 +41,10 @@ class TaskImpl: public Task {
   private:
     template<size_t... Is>
     void execute_impl(ExecutorContext& executor, TaskContext& context, std::index_sequence<Is...>) {
-        m_fun(TaskArgUnpack<Space, Args>::call(std::get<Is>(m_args), context)...);
+        m_fun(
+            TaskArgumentDeserializer<Space, Args>().deserialize(std::get<Is>(m_args), context)...);
     }
 
-  private:
     Fun m_fun;
     std::tuple<Args...> m_args;
 };

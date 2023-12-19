@@ -6,33 +6,34 @@
 
 #include "fmt/format.h"
 
-#include "kmm/block_manager.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/types.hpp"
+#include "kmm/worker/block_manager.hpp"
 
 namespace kmm {
 
-struct CommandExecute {
+struct ExecuteCommand {
     DeviceId device_id;
     std::shared_ptr<Task> task;
     std::vector<TaskInput> inputs;
     std::vector<TaskOutput> outputs;
 };
 
-struct CommandNoop {};
+struct EmptyCommand {};
 
-struct CommandBlockDelete {
+struct BlockDeleteCommand {
     BlockId id;
 };
 
-struct CommandPrefetch {
+struct BlockPrefetchCommand {
     DeviceId device_id;
     BlockId block_id;
 };
 
-using Command = std::variant<CommandNoop, CommandExecute, CommandBlockDelete, CommandPrefetch>;
+using Command =
+    std::variant<EmptyCommand, ExecuteCommand, BlockDeleteCommand, BlockPrefetchCommand>;
 
-static const char* format_as(const Command& cmd) {
+inline const char* format_as(const Command& cmd) {
     switch (cmd.index()) {
         case 0:
             return "CommandNoop";

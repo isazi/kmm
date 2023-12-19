@@ -28,7 +28,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
         BufferId buffer_id,
         DeviceId device_id,
         bool writable,
-        std::shared_ptr<Waker> waker);
+        std::shared_ptr<const Waker> waker);
 
     PollResult poll_request(const std::shared_ptr<Request>&);
     PollResult poll_requests(const std::vector<std::shared_ptr<Request>>&);
