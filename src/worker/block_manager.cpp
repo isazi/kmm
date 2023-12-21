@@ -5,7 +5,7 @@ namespace kmm {
 void BlockManager::insert_block(
     BlockId id,
     std::shared_ptr<BlockHeader> header,
-    DeviceId home_memory,
+    MemoryId home_memory,
     std::optional<BufferId> buffer_id) {
     insert_entry(
         id,

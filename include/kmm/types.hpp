@@ -66,7 +66,8 @@ T format_as(const Identifier<T, Tag>& id) {
 }
 
 using index_t = int;
-using DeviceId = Identifier<uint8_t, struct DeviceTag>;
+using MemoryId = Identifier<uint8_t, struct MemoryTag>;
+using ExecutorId = Identifier<uint8_t, struct ExecutorTag>;
 using EventId = Identifier<uint64_t, struct EventTag>;
 
 class BlockId {
@@ -156,11 +157,24 @@ inline uint64_t format_as(const BufferId& id) {
 class EventList {
   public:
     EventList() = default;
+    EventList(EventId id) {
+        push_back(id);
+    }
+
     EventList(std::initializer_list<EventId> list) {
         extend(list.begin(), list.size());
     }
+
     EventList(const std::vector<EventId>& list) {
         extend(list.data(), list.size());
+    }
+
+    EventId* begin() {
+        return &*m_events.begin();
+    }
+
+    EventId* end() {
+        return begin() + size();
     }
 
     const EventId* begin() const {
@@ -191,31 +205,26 @@ class EventList {
         m_events.push_back(event);
     }
 
-    void remove_duplicates() {
-        std::sort(m_events.begin(), m_events.end());
-        auto last_unique = std::unique(std::begin(m_events), std::end(m_events));
-        m_events.erase(last_unique, std::end(m_events));
-    }
-
   private:
     std::vector<EventId> m_events = {};
 };
 
 enum class PollResult { Pending, Ready };
 
-class Waker {
+class Waker: public std::enable_shared_from_this<Waker> {
   public:
     virtual ~Waker() = default;
     virtual void trigger_wakeup(bool allow_progress = false) const = 0;
 };
 
-using WakerRef = const std::enable_shared_from_this<Waker>&;
-
 }  // namespace kmm
 
 namespace std {
 template<>
-struct hash<kmm::DeviceId>: hash<uint8_t> {};
+struct hash<kmm::MemoryId>: hash<uint8_t> {};
+
+template<>
+struct hash<kmm::ExecutorId>: hash<uint8_t> {};
 
 template<>
 struct hash<kmm::EventId>: hash<uint64_t> {};

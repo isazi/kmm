@@ -13,7 +13,7 @@
 namespace kmm {
 
 struct ExecuteCommand {
-    DeviceId device_id;
+    ExecutorId executor_id;
     std::shared_ptr<Task> task;
     std::vector<TaskInput> inputs;
     std::vector<TaskOutput> outputs;
@@ -26,7 +26,7 @@ struct BlockDeleteCommand {
 };
 
 struct BlockPrefetchCommand {
-    DeviceId device_id;
+    MemoryId memory_id;
     BlockId block_id;
 };
 

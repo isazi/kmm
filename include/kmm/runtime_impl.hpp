@@ -15,9 +15,11 @@ class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
 
     EventId submit_task(std::shared_ptr<Task> task, TaskRequirements reqs, EventList deps = {})
         const;
-    EventId delete_block(BlockId id, EventList deps = {}) const;
+    EventId delete_block(BlockId block_id, EventList deps = {}) const;
     EventId join_events(EventList deps) const;
     EventId submit_barrier() const;
+    EventId submit_block_barrier(BlockId block_id) const;
+    EventId submit_block_prefetch(BlockId block_id, MemoryId memory_id, EventList deps = {}) const;
 
     bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {})
         const;

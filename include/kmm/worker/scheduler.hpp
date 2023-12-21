@@ -24,7 +24,7 @@ class Scheduler {
         Node(EventId id, size_t predecessors, Command command, std::shared_ptr<Node> parent) :
             identifier(id),
             command(std::move(command)),
-            parent(parent),
+            parent(std::move(parent)),
             unsatisfied_predecessors(predecessors) {}
         Node(const Node&) = delete;
         Node(Node&&) = delete;

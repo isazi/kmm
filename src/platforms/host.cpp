@@ -138,7 +138,7 @@ HostMemory::HostMemory(std::shared_ptr<ParallelExecutor> executor, size_t max_by
     m_bytes_remaining(max_bytes) {}
 
 std::optional<std::unique_ptr<MemoryAllocation>> HostMemory::allocate(
-    DeviceId id,
+    MemoryId id,
     size_t num_bytes) {
     KMM_ASSERT(id == 0);
     if (m_bytes_remaining >= num_bytes) {
@@ -149,21 +149,21 @@ std::optional<std::unique_ptr<MemoryAllocation>> HostMemory::allocate(
     }
 }
 
-void HostMemory::deallocate(DeviceId id, std::unique_ptr<MemoryAllocation> allocation) {
+void HostMemory::deallocate(MemoryId id, std::unique_ptr<MemoryAllocation> allocation) {
     KMM_ASSERT(id == 0);
     auto& alloc = dynamic_cast<HostAllocation&>(*allocation);
     m_bytes_remaining += alloc.size();
 }
 
-bool HostMemory::is_copy_possible(DeviceId src_id, DeviceId dst_id) {
+bool HostMemory::is_copy_possible(MemoryId src_id, MemoryId dst_id) {
     return src_id == 0 && dst_id == 0;
 }
 
 void HostMemory::copy_async(
-    DeviceId src_id,
+    MemoryId src_id,
     const MemoryAllocation* src_alloc,
     size_t src_offset,
-    DeviceId dst_id,
+    MemoryId dst_id,
     const MemoryAllocation* dst_alloc,
     size_t dst_offset,
     size_t num_bytes,

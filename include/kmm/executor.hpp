@@ -11,19 +11,19 @@
 namespace kmm {
 
 struct TaskInput {
-    DeviceId memory_id;
+    MemoryId memory_id;
     BlockId block_id;
 };
 
 struct TaskOutput {
-    DeviceId memory_id;
+    MemoryId memory_id;
     std::unique_ptr<BlockHeader> header;
 };
 
 struct TaskRequirements {
-    TaskRequirements(DeviceId id) : device_id(id) {}
+    TaskRequirements(ExecutorId id) : executor_id(id) {}
 
-    DeviceId device_id;
+    ExecutorId executor_id;
     std::vector<TaskInput> inputs = {};
     std::vector<TaskOutput> outputs = {};
 };

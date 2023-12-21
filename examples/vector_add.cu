@@ -2,6 +2,7 @@
 
 #include "spdlog/spdlog.h"
 
+#include "kmm/array.hpp"
 #include "kmm/platforms/host.hpp"
 #include "kmm/runtime.hpp"
 
@@ -60,7 +61,8 @@ int main(void) {
         manager.submit(kmm::Host(), execute, write(C), A, B, 100);
         manager.submit(kmm::Host(), verify, C, 100);
     }
-    manager.barrier().wait();
+
+    manager.synchronize();
     std::cout << "done\n";
 
     return 0;

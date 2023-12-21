@@ -9,7 +9,7 @@ namespace kmm {
 struct BlockMetadata {
     std::shared_ptr<BlockHeader> header;
     std::optional<BufferId> buffer_id;
-    DeviceId home_memory;
+    MemoryId home_memory;
 };
 
 class BlockManager {
@@ -17,7 +17,7 @@ class BlockManager {
     void insert_block(
         BlockId,
         std::shared_ptr<BlockHeader> header,
-        DeviceId home_memory,
+        MemoryId home_memory,
         std::optional<BufferId> buffer_id);
 
     void poison_block(BlockId, TaskError);

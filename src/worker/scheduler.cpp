@@ -12,14 +12,21 @@ std::shared_ptr<Scheduler::Node> Scheduler::insert(
         parent->active_children++;
     }
 
-    auto node =
-        std::make_shared<Node>(id, dependencies.size() + 1, std::move(command), std::move(parent));
+    std::sort(dependencies.begin(), dependencies.end());
+    const EventId* unique_end = std::unique(dependencies.begin(), dependencies.end());
+    auto num_dependencies = static_cast<size_t>(unique_end - dependencies.begin());
+
+    auto node = std::make_shared<Node>(
+        id,  //
+        num_dependencies + 1,
+        std::move(command),
+        std::move(parent));
     m_jobs.insert({id, node});
 
     size_t satisfied = 1;
 
-    for (auto dep_id : dependencies) {
-        auto it = m_jobs.find(dep_id);
+    for (size_t i = 0; i < num_dependencies; i++) {
+        auto it = m_jobs.find(dependencies[i]);
 
         if (it != m_jobs.end()) {
             auto predecessor = it->second;

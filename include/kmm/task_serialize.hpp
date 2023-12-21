@@ -31,7 +31,7 @@ class TaskImpl: public Task {
 
     TaskResult execute(ExecutorContext& executor, TaskContext& context) override {
         try {
-            execute_impl(executor, context, std::make_index_sequence<sizeof...(Args)>());
+            execute_impl(executor, context, std::index_sequence_for<Args...>());
             return {};
         } catch (const std::exception& e) {
             return TaskError(e);
@@ -41,12 +41,44 @@ class TaskImpl: public Task {
   private:
     template<size_t... Is>
     void execute_impl(ExecutorContext& executor, TaskContext& context, std::index_sequence<Is...>) {
-        m_fun(
-            TaskArgumentDeserializer<Space, Args>().deserialize(std::get<Is>(m_args), context)...);
+        m_fun(TaskArgumentDeserializer<Space, Args>().deserialize(  //
+            std::get<Is>(m_args),
+            context)...);
     }
 
     Fun m_fun;
     std::tuple<Args...> m_args;
+};
+
+template<ExecutionSpace Space, typename Fun, typename... Args>
+struct TaskLauncher {
+    static EventId call(ExecutorId executor_id, RuntimeImpl& rt, Fun fun, Args... args) {
+        return call_impl(std::index_sequence_for<Args...>(), executor_id, rt, fun, args...);
+    }
+
+  private:
+    template<size_t... Is>
+    static EventId call_impl(
+        std::index_sequence<Is...>,
+        ExecutorId executor_id,
+        RuntimeImpl& rt,
+        Fun fun,
+        Args... args) {
+        auto reqs = TaskRequirements(executor_id);
+        auto serializers = std::tuple<TaskArgumentSerializer<Space, std::decay_t<Args>>...>();
+
+        std::shared_ptr<Task> task = std::make_shared<TaskImpl<
+            Space,
+            std::decay_t<Fun>,
+            typename TaskArgumentSerializer<Space, std::decay_t<Args>>::type...>>(
+            std::forward<Fun>(fun),
+            std::get<Is>(serializers).serialize(std::forward<Args>(args), reqs)...);
+
+        auto event_id = rt.submit_task(std::move(task), std::move(reqs));
+        (std::get<Is>(serializers).update(rt, event_id), ...);
+
+        return event_id;
+    }
 };
 
 template<typename T>

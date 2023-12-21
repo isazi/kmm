@@ -14,74 +14,11 @@
 #include "kmm/types.hpp"
 #include "kmm/worker/block_manager.hpp"
 #include "kmm/worker/command.hpp"
+#include "kmm/worker/job.hpp"
 #include "kmm/worker/memory_manager.hpp"
 #include "kmm/worker/scheduler.hpp"
 
 namespace kmm {
-
-class Worker;
-class WorkerState;
-
-class Job: public Waker, public std::enable_shared_from_this<Job> {
-  public:
-    Job(EventId id) : identifier(id) {}
-    Job(const Job&) = delete;
-    Job(Job&&) = delete;
-
-    virtual ~Job() = default;
-    virtual void start(WorkerState&) {}
-    virtual PollResult poll(WorkerState&) = 0;
-    virtual void stop(WorkerState&) {}
-
-    void trigger_wakeup(bool allow_progress) const final;
-
-    EventId id() const {
-        return identifier;
-    }
-
-  private:
-    friend class Worker;
-    friend class JobQueue;
-
-    enum class Status { Created, Running, Done };
-    Status status = Status::Created;
-
-    std::atomic_flag in_queue = false;
-    std::shared_ptr<Job> next_queue_item = nullptr;
-
-    EventId identifier;
-    std::weak_ptr<Worker> worker;
-    std::shared_ptr<Scheduler::Node> completion = nullptr;
-};
-
-class JobQueue {
-  public:
-    JobQueue() = default;
-    JobQueue(const JobQueue&) = delete;
-    JobQueue(JobQueue&&) noexcept = default;
-
-    JobQueue& operator=(const JobQueue&) = delete;
-    JobQueue& operator=(JobQueue&&) noexcept = default;
-
-    bool is_empty() const;
-    bool push(std::shared_ptr<Job>);
-    std::optional<std::shared_ptr<Job>> pop();
-
-  private:
-    std::shared_ptr<Job> m_head = nullptr;
-    Job* m_tail = nullptr;
-};
-
-class SharedJobQueue {
-  public:
-    bool push(std::shared_ptr<Job>) const;
-    JobQueue pop_all(std::chrono::time_point<std::chrono::system_clock> deadline = {}) const;
-
-  private:
-    mutable std::mutex m_lock;
-    mutable std::condition_variable m_cond;
-    mutable JobQueue m_queue;
-};
 
 class WorkerState {
   public:

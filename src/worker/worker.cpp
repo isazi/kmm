@@ -12,83 +12,6 @@
 
 namespace kmm {
 
-void Job::trigger_wakeup(bool allow_progress) const {
-    if (auto owner = worker.lock()) {
-        auto self = std::shared_ptr<Job>(shared_from_this(), const_cast<Job*>(this));
-        owner->wakeup(self, allow_progress);
-    }
-}
-
-bool JobQueue::is_empty() const {
-    return m_head == nullptr;
-}
-
-bool JobQueue::push(std::shared_ptr<Job> op) {
-    if (op->in_queue.test_and_set()) {
-        return false;
-    }
-
-    op->next_queue_item = nullptr;
-
-    if (m_head == nullptr) {
-        m_tail = op.get();
-        m_head = std::move(op);
-    } else {
-        auto* old_tail = std::exchange(m_tail, op.get());
-        old_tail->next_queue_item = std::move(op);
-    }
-
-    return true;
-}
-
-std::optional<std::shared_ptr<Job>> JobQueue::pop() {
-    if (m_head == nullptr) {
-        return std::nullopt;
-    }
-
-    auto op = std::move(m_head);
-    m_head = std::move(op->next_queue_item);
-
-    op->in_queue.clear();
-    return std::optional {std::move(op)};
-}
-
-bool SharedJobQueue::push(std::shared_ptr<Job> op) const {
-    std::lock_guard guard {m_lock};
-    auto id = op->id();
-    bool needs_notify = m_queue.is_empty();
-
-    if (m_queue.push(std::move(op))) {
-        spdlog::debug("pushed id={}, needs_notify={}", id, needs_notify);
-        if (needs_notify) {
-            m_cond.notify_one();
-        }
-
-        return true;
-    }
-
-    return false;
-}
-
-JobQueue SharedJobQueue::pop_all(
-    std::chrono::time_point<std::chrono::system_clock> deadline) const {
-    std::unique_lock guard {m_lock};
-    if (deadline != std::chrono::time_point<std::chrono::system_clock> {}) {
-        while (m_queue.is_empty()) {
-            if (m_cond.wait_until(guard, deadline) == std::cv_status::timeout) {
-                break;
-            }
-
-            spdlog::debug(
-                "woke up! is_empty={} deadline={}",
-                m_queue.is_empty(),
-                deadline.time_since_epoch().count());
-        }
-    }
-
-    return std::move(m_queue);
-}
-
 Worker::Worker(
     std::vector<std::shared_ptr<Executor>> executors,
     std::shared_ptr<MemoryManager> memory_manager) :
@@ -110,8 +33,14 @@ void Worker::wakeup(std::shared_ptr<Job> job, bool allow_progress) {
         }
     }
 
-    auto result = m_shared_poll_queue.push(std::move(job));
-    spdlog::debug("add shared poll id={} result={}", id, result);
+    std::lock_guard guard {m_shared_poll_queue.m_lock};
+    bool needs_notify = m_shared_poll_queue.m_queue.is_empty();
+
+    if (m_shared_poll_queue.m_queue.push(std::move(job))) {
+        if (needs_notify) {
+            m_shared_poll_queue.m_cond.notify_one();
+        }
+    }
 }
 
 void Worker::submit_command(EventId id, Command command, EventList dependencies) {
@@ -159,30 +88,36 @@ bool Worker::is_shutdown() {
 void Worker::make_progress_impl(
     std::unique_lock<std::mutex> guard,
     std::chrono::time_point<std::chrono::system_clock> deadline) {
-    if (m_local_poll_queue.is_empty()) {
-        auto result = m_shared_poll_queue.pop_all();
-
-        if (result.is_empty() && deadline != decltype(deadline)()) {
-            guard.unlock();
-            result = m_shared_poll_queue.pop_all(deadline);
-            guard.lock();
-        }
-
-        m_local_poll_queue = std::move(result);
-    }
+    bool should_wait = deadline != decltype(deadline)();
 
     while (true) {
-        if (!m_local_poll_queue.is_empty()) {
-            while (auto op = m_local_poll_queue.pop()) {
-                poll_job(**op);
-            }
-
-            m_local_poll_queue = m_shared_poll_queue.pop_all();
+        // First, drain the local poll queue
+        if (auto op = m_local_poll_queue.pop()) {
+            poll_job(**op);
+            should_wait = false;
             continue;
         }
 
+        m_local_poll_queue.push_all(m_shared_poll_queue.pop_all());
+        if (!m_local_poll_queue.is_empty()) {
+            should_wait = false;
+            continue;
+        }
+
+        // Next, check if the scheduler has a job
         if (auto op = m_scheduler.pop_ready()) {
             start_job(std::move(*op));
+            should_wait = false;
+            continue;
+        }
+
+        if (should_wait) {
+            guard.unlock();
+            auto result = m_shared_poll_queue.pop_all(deadline);
+            guard.lock();
+
+            m_local_poll_queue.push_all(std::move(result));
+            should_wait = false;
             continue;
         }
 
@@ -191,9 +126,17 @@ void Worker::make_progress_impl(
 }
 
 void Worker::start_job(std::shared_ptr<Scheduler::Node> node) {
-    spdlog::debug("start job id={}", node->id());
+    auto command = node->take_command();
 
-    auto job = build_job_for_command(node->id(), node->take_command());
+    // For empty commands, bypass the regular job procedure and immediately complete it.
+    if (std::holds_alternative<EmptyCommand>(command)) {
+        m_scheduler.complete(std::move(node));
+        m_job_completion.notify_all();
+        return;
+    }
+
+    spdlog::debug("start job id={}", node->id());
+    auto job = build_job_for_command(node->id(), std::move(command));
 
     KMM_ASSERT(job->status == Job::Status::Created);
     job->status = Job::Status::Running;

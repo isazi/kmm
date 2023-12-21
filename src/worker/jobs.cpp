@@ -181,7 +181,7 @@ PollResult PrefetchJob::poll(WorkerState& state) {
 
         m_memory_request = state.memory_manager->create_request(  //
             *buffer_id,
-            m_device_id,
+            m_memory_id,
             false,
             shared_from_this());
 

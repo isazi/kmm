@@ -18,7 +18,7 @@ class ExecuteJob: public Job {
     ExecuteJob(EventId id, ExecuteCommand command) :
         Job(id),
         m_id(id),
-        m_device_id(command.device_id),
+        m_device_id(command.executor_id),
         m_task(std::move(command.task)),
         m_inputs(std::move(command.inputs)),
         m_outputs(std::move(command.outputs)) {}
@@ -30,7 +30,7 @@ class ExecuteJob: public Job {
     Status m_status = Status::Created;
 
     EventId m_id;
-    DeviceId m_device_id;
+    ExecutorId m_device_id;
     std::shared_ptr<Task> m_task;
     std::vector<TaskInput> m_inputs;
     std::vector<TaskOutput> m_outputs;
@@ -54,7 +54,7 @@ class PrefetchJob: public Job {
   public:
     PrefetchJob(EventId id, BlockPrefetchCommand cmd) :
         Job(id),
-        m_device_id(cmd.device_id),
+        m_memory_id(cmd.memory_id),
         m_block_id(cmd.block_id) {}
 
     PollResult poll(WorkerState&) final;
@@ -63,7 +63,7 @@ class PrefetchJob: public Job {
     enum class Status { Created, Active, Done };
     Status m_status;
     MemoryRequest m_memory_request = nullptr;
-    DeviceId m_device_id;
+    MemoryId m_memory_id;
     BlockId m_block_id;
 };
 

@@ -27,7 +27,6 @@ EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements re
     for (auto& input : reqs.inputs) {
         spdlog::info("input={}", input.block_id);
         auto& accesses = m_block_accesses.at(input.block_id);
-        deps.extend(accesses);
         accesses.push_back(event_id);
     }
 
@@ -39,7 +38,7 @@ EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements re
     m_worker->submit_command(
         event_id,
         ExecuteCommand {
-            .device_id = reqs.device_id,
+            .executor_id = reqs.executor_id,
             .task = std::move(task),
             .inputs = std::move(reqs.inputs),
             .outputs = std::move(reqs.outputs),
@@ -86,11 +85,50 @@ EventId RuntimeImpl::submit_barrier() const {
     return id;
 }
 
+EventId RuntimeImpl::submit_block_barrier(BlockId block_id) const {
+    std::lock_guard guard {m_mutex};
+    auto id = EventId(m_next_event++);
+    EventList deps;
+
+    auto it = m_block_accesses.find(block_id);
+    if (it != m_block_accesses.end()) {
+        auto& accesses = it->second;
+        deps.extend(accesses);
+        accesses = {id};
+    }
+
+    m_worker->submit_command(id, EmptyCommand {}, std::move(deps));
+    return id;
+}
+
+EventId RuntimeImpl::submit_block_prefetch(BlockId block_id, MemoryId memory_id, EventList deps)
+    const {
+    auto id = EventId(m_next_event++);
+
+    // Add the event that created the block as a dependency
+    deps.push_back(block_id.event());
+
+    // Try to find the block. If we cannot find it, it was probably deleted and
+    // thus prefetching has no effect. We can just create an event that joins all dependencies.
+    auto it = m_block_accesses.find(block_id);
+    if (it == m_block_accesses.end()) {
+        return join_events(std::move(deps));
+    }
+
+    // Add prefetch event as access
+    auto& accesses = it->second;
+    accesses.push_back(id);
+
+    // Submit the command!
+    m_worker->submit_command(id, BlockPrefetchCommand {memory_id, block_id}, std::move(deps));
+    return id;
+}
+
 bool RuntimeImpl::query_event(
     EventId id,
     std::chrono::time_point<std::chrono::system_clock> deadline) const {
-    // No need to get the lock, the scheduler has its own internal lock
-    //std::lock_guard guard {m_mutex};
+    // No need to get the lock, the worker has its own internal lock
+    /* std::lock_guard guard {m_mutex}; */
 
     return m_worker->query_event(id, deadline);
 }
