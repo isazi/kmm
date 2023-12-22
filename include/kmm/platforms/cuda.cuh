@@ -13,7 +13,11 @@ class CudaExecutor: public Executor {
     CudaExecutor();
     ~CudaExecutor() override;
     void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
-    void copy_async(const void* src_ptr, void* dst_ptr, size_t nbytes, std::unique_ptr<MemoryCompletion> completion) const;
+    void copy_async(
+        const void* src_ptr,
+        void* dst_ptr,
+        size_t nbytes,
+        std::unique_ptr<MemoryCompletion> completion) const;
 
   private:
     std::shared_ptr<Queue> m_queue;

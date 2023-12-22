@@ -1,9 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <thread>
 #include <variant>
 #include <vector>
-#include <thread>
 
 #include "kmm/memory.hpp"
 #include "kmm/object.hpp"
