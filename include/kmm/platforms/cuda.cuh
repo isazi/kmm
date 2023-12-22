@@ -1,9 +1,23 @@
 #pragma once
 
+#include "kmm/executor.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/types.hpp"
 
 namespace kmm {
+
+class CudaExecutorContext: public ExecutorContext {};
+
+class CudaExecutor: public Executor {
+  public:
+    CudaExecutor();
+    ~CudaExecutor() override;
+    void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
+    void copy_async(const void* src_ptr, void* dst_ptr, size_t nbytes, std::unique_ptr<MemoryCompletion> completion) const;
+
+  private:
+    std::shared_ptr<Queue> m_queue;
+};
 
 class CudaAllocation: public MemoryAllocation {
   public:
