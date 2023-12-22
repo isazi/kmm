@@ -7,63 +7,6 @@
 
 namespace kmm {
 
-struct ParallelExecutor::Job {
-    virtual ~Job() = default;
-    virtual void execute(ParallelExecutorContext&) = 0;
-    std::unique_ptr<Job> next;
-};
-
-struct ParallelExecutor::Queue {
-    std::mutex lock;
-    std::condition_variable cond;
-    bool has_shutdown = false;
-    std::unique_ptr<Job> front = nullptr;
-    Job* back = nullptr;
-
-    void shutdown() {
-        std::lock_guard<std::mutex> guard(lock);
-        has_shutdown = true;
-        cond.notify_all();
-    }
-
-    void push(std::unique_ptr<Job> unit) {
-        std::lock_guard<std::mutex> guard(lock);
-        if (front) {
-            unit->next = nullptr;
-            back->next = std::move(unit);
-            back = back->next.get();
-        } else {
-            front = std::move(unit);
-            back = front.get();
-            cond.notify_all();
-        }
-    }
-
-    void process_forever() {
-        std::unique_lock<std::mutex> guard(lock);
-        ParallelExecutorContext context {};
-
-        while (!has_shutdown || front != nullptr) {
-            if (front == nullptr) {
-                cond.wait(guard);
-                continue;
-            }
-
-            auto popped = std::move(front);
-            if (popped->next != nullptr) {
-                front = std::move(popped->next);
-            } else {
-                front = nullptr;
-                back = nullptr;
-            }
-
-            guard.unlock();
-            popped->execute(context);
-            guard.lock();
-        }
-    }
-};
-
 ParallelExecutor::ParallelExecutor() :
     m_queue(std::make_shared<Queue>()),
     m_thread([q = m_queue] { q->process_forever(); }) {
@@ -73,14 +16,14 @@ ParallelExecutor::ParallelExecutor() :
 
 ParallelExecutor::~ParallelExecutor() = default;
 
-class ExecuteJob: public ParallelExecutor::Job {
+class ExecuteJob: public Job {
   public:
     ExecuteJob(std::shared_ptr<Task>&& task, TaskContext&& context, TaskCompletion&& completion) :
         m_task(std::move(task)),
         m_context(std::move(context)),
         m_completion(std::move(completion)) {}
 
-    void execute(ParallelExecutorContext& executor) override {
+    void execute(ExecutorContext& executor) override {
         try {
             m_completion.complete(m_task->execute(executor, m_context));
         } catch (const std::exception& e) {
@@ -102,7 +45,7 @@ void ParallelExecutor::submit(
         std::make_unique<ExecuteJob>(std::move(task), std::move(context), std::move(completion)));
 }
 
-class CopyJob: public ParallelExecutor::Job {
+class CopyJob: public Job {
   public:
     CopyJob(
         const void* src_ptr,
@@ -114,7 +57,7 @@ class CopyJob: public ParallelExecutor::Job {
         nbytes(nbytes),
         completion(std::move(completion)) {}
 
-    void execute(ParallelExecutorContext&) override {
+    void execute(ExecutorContext&) override {
         std::memcpy(dst_ptr, src_ptr, nbytes);
         completion->complete();
     }

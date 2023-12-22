@@ -15,8 +15,6 @@ class ParallelExecutorContext: public ExecutorContext {};
 
 class ParallelExecutor: public Executor {
   public:
-    struct Job;
-
     ParallelExecutor();
     ~ParallelExecutor() override;
     void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
@@ -27,7 +25,6 @@ class ParallelExecutor: public Executor {
         std::unique_ptr<MemoryCompletion> completion) const;
 
   private:
-    struct Queue;
     std::shared_ptr<Queue> m_queue;
     std::thread m_thread;
 };
