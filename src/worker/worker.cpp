@@ -12,13 +12,23 @@
 
 namespace kmm {
 
-Worker::Worker(
-    std::vector<std::shared_ptr<Executor>> executors,
-    std::shared_ptr<MemoryManager> memory_manager) :
-    m_state {executors, memory_manager, BlockManager()} {}
+Worker::Worker(std::vector<std::shared_ptr<Executor>> executors, std::unique_ptr<Memory> memory) :
+    m_shared_poll_queue {std::make_shared<SharedJobQueue>()},
+    m_state {executors, std::make_shared<MemoryManager>(std::move(memory)), BlockManager()} {}
 
 void Worker::make_progress(std::chrono::time_point<std::chrono::system_clock> deadline) {
-    make_progress_impl(std::unique_lock {m_lock}, deadline);
+    while (true) {
+        {
+            std::unique_lock guard {m_lock};
+            if (make_progress_impl()) {
+                return;
+            }
+        }
+
+        if (!m_shared_poll_queue->wait_until(deadline)) {
+            return;
+        }
+    }
 }
 
 void Worker::wakeup(std::shared_ptr<Job> job, bool allow_progress) {
@@ -28,19 +38,12 @@ void Worker::wakeup(std::shared_ptr<Job> job, bool allow_progress) {
         if (auto guard = std::unique_lock {m_lock, std::try_to_lock}) {
             bool result = m_local_poll_queue.push(std::move(job));
             spdlog::debug("add local poll id={} result={}", id, result);
-            make_progress_impl(std::move(guard));
+            make_progress_impl();
             return;
         }
     }
 
-    std::lock_guard guard {m_shared_poll_queue.m_lock};
-    bool needs_notify = m_shared_poll_queue.m_queue.is_empty();
-
-    if (m_shared_poll_queue.m_queue.push(std::move(job))) {
-        if (needs_notify) {
-            m_shared_poll_queue.m_cond.notify_one();
-        }
-    }
+    m_shared_poll_queue->push_job(std::move(job));
 }
 
 void Worker::submit_command(EventId id, Command command, EventList dependencies) {
@@ -52,7 +55,7 @@ void Worker::submit_command(EventId id, Command command, EventList dependencies)
 
     spdlog::debug("submit command id={} dependencies={} command={}", id, dependencies, command);
     m_scheduler.insert(id, std::move(command), std::move(dependencies));
-    make_progress_impl(std::move(guard));
+    make_progress_impl();
 }
 
 bool Worker::query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline) {
@@ -77,6 +80,7 @@ bool Worker::query_event(EventId id, std::chrono::time_point<std::chrono::system
 
 void Worker::shutdown() {
     std::unique_lock<std::mutex> guard {m_lock};
+    m_job_completion.notify_all();
     m_shutdown = true;
 }
 
@@ -85,44 +89,34 @@ bool Worker::is_shutdown() {
     return m_shutdown && m_scheduler.is_all_completed();
 }
 
-void Worker::make_progress_impl(
-    std::unique_lock<std::mutex> guard,
-    std::chrono::time_point<std::chrono::system_clock> deadline) {
-    bool should_wait = deadline != decltype(deadline)();
+bool Worker::make_progress_impl() {
+    bool progressed = false;
 
     while (true) {
         // First, drain the local poll queue
         if (auto op = m_local_poll_queue.pop()) {
             poll_job(**op);
-            should_wait = false;
+            progressed = true;
             continue;
         }
 
-        m_local_poll_queue.push_all(m_shared_poll_queue.pop_all());
+        m_local_poll_queue.push_all(m_shared_poll_queue->pop_all_jobs());
         if (!m_local_poll_queue.is_empty()) {
-            should_wait = false;
+            progressed = true;
             continue;
         }
 
         // Next, check if the scheduler has a job
         if (auto op = m_scheduler.pop_ready()) {
             start_job(std::move(*op));
-            should_wait = false;
-            continue;
-        }
-
-        if (should_wait) {
-            guard.unlock();
-            auto result = m_shared_poll_queue.pop_all(deadline);
-            guard.lock();
-
-            m_local_poll_queue.push_all(std::move(result));
-            should_wait = false;
+            progressed = true;
             continue;
         }
 
         break;
     }
+
+    return progressed;
 }
 
 void Worker::start_job(std::shared_ptr<Scheduler::Node> node) {

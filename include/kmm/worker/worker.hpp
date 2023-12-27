@@ -29,9 +29,7 @@ class WorkerState {
 
 class Worker: public std::enable_shared_from_this<Worker> {
   public:
-    Worker(
-        std::vector<std::shared_ptr<Executor>> executors,
-        std::shared_ptr<MemoryManager> memory_manager);
+    Worker(std::vector<std::shared_ptr<Executor>> executors, std::unique_ptr<Memory> memory);
 
     void make_progress(std::chrono::time_point<std::chrono::system_clock> deadline = {});
     void submit_command(EventId id, Command command, EventList dependencies);
@@ -41,15 +39,13 @@ class Worker: public std::enable_shared_from_this<Worker> {
     bool is_shutdown();
 
   private:
-    void make_progress_impl(
-        std::unique_lock<std::mutex> guard,
-        std::chrono::time_point<std::chrono::system_clock> deadline = {});
+    bool make_progress_impl();
 
     void start_job(std::shared_ptr<Scheduler::Node> node);
     void poll_job(Job& job);
     void stop_job(Job& job);
 
-    SharedJobQueue m_shared_poll_queue;
+    std::shared_ptr<SharedJobQueue> m_shared_poll_queue;
 
     std::mutex m_lock;
     std::condition_variable m_job_completion;

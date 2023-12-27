@@ -10,10 +10,17 @@ if(${USE_CUDA})
 endif()
 
 if(DEFINED CMAKE_CUDA_COMPILER)
-  file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp" "${PROJECT_SOURCE_DIR}/src/*/*.cpp" "${PROJECT_SOURCE_DIR}/src/*.cu")
-  #set_source_files_properties(${sources} PROPERTIES LANGUAGE CUDA)
+  file(GLOB_RECURSE sources
+      "${PROJECT_SOURCE_DIR}/src/*.cpp"
+      "${PROJECT_SOURCE_DIR}/src/*/*.cpp"
+      "${PROJECT_SOURCE_DIR}/include/kmm/*.h"
+      "${PROJECT_SOURCE_DIR}/include/kmm/*/*.h"
+      "${PROJECT_SOURCE_DIR}/src/*.cu")
+    set_source_files_properties(${sources} PROPERTIES LANGUAGE CXX)
 else()
-  file(GLOB_RECURSE sources "${PROJECT_SOURCE_DIR}/src/*.cpp")
+  file(GLOB_RECURSE sources
+      "${PROJECT_SOURCE_DIR}/src/*.cpp"
+      "${PROJECT_SOURCE_DIR}/include/kmm/*.h")
 endif()
 file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp" "${PROJECT_SOURCE_DIR}/include/*.cuh")
 add_library(${PROJECT_NAME} SHARED ${sources} ${includes})

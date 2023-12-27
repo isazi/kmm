@@ -16,18 +16,14 @@ class ParallelExecutorContext: public ExecutorContext {};
 class ParallelExecutor: public Executor {
   public:
     struct Job;
+    struct Queue;
 
     ParallelExecutor();
     ~ParallelExecutor() override;
     void submit(std::shared_ptr<Task>, TaskContext) override;
-    void copy_async(
-        const void* src_ptr,
-        void* dst_ptr,
-        size_t nbytes,
-        std::unique_ptr<TransferCompletion> completion) const;
+    void submit_job(std::unique_ptr<Job> job);
 
   private:
-    struct Queue;
     std::shared_ptr<Queue> m_queue;
     std::thread m_thread;
 };
@@ -70,7 +66,15 @@ class HostMemory: public Memory {
         const MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        std::unique_ptr<TransferCompletion> completion) override;
+        MemoryCompletion completion) override;
+
+    void fill_async(
+        MemoryId dst_id,
+        const MemoryAllocation* src_alloc,
+        size_t src_offset,
+        size_t num_bytes,
+        std::vector<uint8_t> fill_bytes,
+        MemoryCompletion completion) override;
 
   private:
     std::shared_ptr<ParallelExecutor> m_executor;

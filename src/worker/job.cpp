@@ -63,15 +63,15 @@ std::optional<std::shared_ptr<Job>> JobQueue::pop() {
     return std::optional {std::move(op)};
 }
 
-bool SharedJobQueue::push(std::shared_ptr<Job> op) const {
+bool SharedJobQueue::push_job(std::shared_ptr<Job> op) const {
     std::lock_guard guard {m_lock};
     auto id = op->id();
-    bool needs_notify = m_queue.is_empty();
 
     if (m_queue.push(std::move(op))) {
-        spdlog::debug("pushed id={}, needs_notify={}", id, needs_notify);
-        if (needs_notify) {
-            m_cond.notify_one();
+        spdlog::debug("pushed id={}, needs_notify={}", id, m_needs_processing);
+        if (!m_needs_processing) {
+            m_needs_processing = true;
+            m_cond.notify_all();
         }
 
         return true;
@@ -80,18 +80,19 @@ bool SharedJobQueue::push(std::shared_ptr<Job> op) const {
     return false;
 }
 
-JobQueue SharedJobQueue::pop_all(
-    std::chrono::time_point<std::chrono::system_clock> deadline) const {
+JobQueue SharedJobQueue::pop_all_jobs() const {
     std::unique_lock guard {m_lock};
-    if (deadline != std::chrono::time_point<std::chrono::system_clock> {}) {
-        while (m_queue.is_empty()) {
-            if (m_cond.wait_until(guard, deadline) == std::cv_status::timeout) {
-                break;
-            }
-        }
+    m_needs_processing = false;
+    return std::move(m_queue);
+}
+
+bool SharedJobQueue::wait_until(std::chrono::time_point<std::chrono::system_clock> deadline) const {
+    std::unique_lock guard {m_lock};
+    while (!m_needs_processing) {
+        m_cond.wait_until(guard, deadline);
     }
 
-    return std::move(m_queue);
+    return std::exchange(m_needs_processing, false);
 }
 
 }  // namespace kmm

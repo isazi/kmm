@@ -47,7 +47,8 @@ class DeleteJob: public Job {
     PollResult poll(WorkerState&) final;
 
   private:
-    BlockId m_block_id;
+    std::optional<BlockId> m_block_id;
+    std::optional<BufferId> m_buffer_id;
 };
 
 class PrefetchJob: public Job {

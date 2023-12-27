@@ -54,9 +54,9 @@ void Runtime::synchronize() const {
 Runtime build_runtime() {
     auto host_executor = std::make_shared<ParallelExecutor>();
     std::vector<std::shared_ptr<Executor>> executors = {host_executor};
-    std::shared_ptr<Memory> memory = std::make_shared<HostMemory>(host_executor);
+    std::unique_ptr<Memory> memory = std::make_unique<HostMemory>(host_executor);
 
-    return std::make_shared<RuntimeImpl>(executors, memory);
+    return std::make_shared<RuntimeImpl>(std::move(executors), std::move(memory));
 }
 
 Buffer::Buffer(std::shared_ptr<RuntimeImpl> runtime, BlockId id) :

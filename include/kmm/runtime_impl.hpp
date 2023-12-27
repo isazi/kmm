@@ -10,7 +10,7 @@ class Worker;
 
 class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
   public:
-    RuntimeImpl(std::vector<std::shared_ptr<Executor>> executors, std::shared_ptr<Memory> memory);
+    RuntimeImpl(std::vector<std::shared_ptr<Executor>> executors, std::unique_ptr<Memory> memory);
     ~RuntimeImpl();
 
     EventId submit_task(std::shared_ptr<Task> task, TaskRequirements reqs, EventList deps = {})

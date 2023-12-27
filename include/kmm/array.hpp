@@ -10,7 +10,7 @@ class Array {
         m_sizes(sizes),
         m_buffer(std::move(buffer)) {}
 
-    size_t ndims() const {
+    size_t rank() const {
         return N;
     }
 

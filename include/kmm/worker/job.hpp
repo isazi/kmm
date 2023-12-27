@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kmm/types.hpp"
+#include "kmm/worker/memory_manager.hpp"
 #include "kmm/worker/scheduler.hpp"
 
 namespace kmm {
@@ -61,10 +62,13 @@ class JobQueue {
 
 class SharedJobQueue {
   public:
-    bool push(std::shared_ptr<Job>) const;
-    JobQueue pop_all(std::chrono::time_point<std::chrono::system_clock> deadline = {}) const;
+    bool push_job(std::shared_ptr<Job>) const;
+    JobQueue pop_all_jobs() const;
+
+    bool wait_until(std::chrono::time_point<std::chrono::system_clock> deadline) const;
 
     mutable std::mutex m_lock;
+    mutable bool m_needs_processing = false;
     mutable std::condition_variable m_cond;
     mutable JobQueue m_queue;
 };

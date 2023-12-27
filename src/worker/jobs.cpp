@@ -146,7 +146,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                 worker.block_manager.poison_block(block_id, *error);
 
                 if (buffer_id) {
-                    worker.memory_manager->delete_buffer(*buffer_id);
+                    worker.memory_manager->delete_buffer(*buffer_id, shared_from_this());
                 }
             }
         }
@@ -158,12 +158,20 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
 }
 
 PollResult DeleteJob::poll(WorkerState& worker) {
-    spdlog::debug("delete block id={}", m_block_id);
-    auto buffer_id_opt = worker.block_manager.delete_block(m_block_id);
+    if (m_block_id) {
+        spdlog::debug("delete block id={}", *m_block_id);
+        m_buffer_id = worker.block_manager.delete_block(*m_block_id);
+        m_block_id = std::nullopt;
+    }
 
-    if (buffer_id_opt) {
-        spdlog::debug("delete buffer id={}", *buffer_id_opt);
-        worker.memory_manager->delete_buffer(*buffer_id_opt);
+    if (m_buffer_id) {
+        if (worker.memory_manager->delete_buffer(*m_buffer_id, shared_from_this())
+            == PollResult::Pending) {
+            return PollResult::Pending;
+        }
+
+        spdlog::debug("delete buffer id={}", *m_buffer_id);
+        m_buffer_id = std::nullopt;
     }
 
     return PollResult::Ready;

@@ -3,6 +3,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <unordered_map>
 
@@ -17,12 +18,13 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
     static constexpr size_t MAX_DEVICES = 5;
     static constexpr MemoryId HOST_MEMORY = MemoryId(0);
     class Request;
+    struct DataTransfer;
 
-    MemoryManager(std::shared_ptr<Memory> memory);
+    MemoryManager(std::unique_ptr<Memory> memory);
     ~MemoryManager();
 
     BufferId create_buffer(const BlockLayout&);
-    void delete_buffer(BufferId buffer_id);
+    PollResult delete_buffer(BufferId buffer_id, const std::shared_ptr<const Waker>& waker);
 
     std::shared_ptr<Request> create_request(
         BufferId buffer_id,
@@ -44,9 +46,9 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
         return poll_requests(&*requests.begin(), &*requests.end());
     }
 
+    void complete_transfer(DataTransfer& transfer);
+
   private:
-    struct TransferCompletion;
-    struct DataTransfer;
     struct BufferState;
     struct Entry;
     struct Resource;
@@ -58,13 +60,15 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
 
     PollResult poll_request_impl(const std::shared_ptr<Request>& request);
 
-    PollResult evict_buffer(MemoryId memory_id, BufferState* buffer);
+    PollResult evict_buffer(
+        MemoryId memory_id,
+        BufferState* buffer,
+        const std::shared_ptr<Request>& request);
 
-    std::shared_ptr<DataTransfer> initiate_transfer(
+    std::optional<std::shared_ptr<MemoryManager::DataTransfer>> initiate_transfer(
         MemoryId src_id,
         MemoryId dst_id,
         BufferState* buffer);
-    void complete_transfer(BufferId buffer_id, MemoryId dst_id);
 
     PollResult submit_buffer_lock(const std::shared_ptr<Request>& request) const;
     PollResult poll_buffer_lock(const std::shared_ptr<Request>& request) const;
@@ -89,7 +93,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
 
     std::array<std::unique_ptr<Resource>, MAX_DEVICES> m_resources;
     std::unordered_map<BufferId, std::unique_ptr<BufferState, BufferDeleter>> m_buffers;
-    std::shared_ptr<Memory> m_memory;
+    std::unique_ptr<Memory> m_memory;
     uint64_t m_next_buffer_id = 1;
 };
 
