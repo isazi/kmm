@@ -39,7 +39,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                 requests.emplace_back(worker.memory_manager->create_request(  //
                     *buffer_id_opt,
                     arg.memory_id,
-                    false,
+                    AccessMode::Read,
                     shared_from_this()));
             } else {
                 requests.emplace_back(nullptr);
@@ -56,7 +56,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                 requests.emplace_back(worker.memory_manager->create_request(  //
                     buffer_id,
                     arg.memory_id,
-                    true,
+                    AccessMode::ReadWrite,
                     shared_from_this()));
             } else {
                 m_output_buffers.emplace_back(std::nullopt);
@@ -146,7 +146,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                 worker.block_manager.poison_block(block_id, *error);
 
                 if (buffer_id) {
-                    worker.memory_manager->delete_buffer(*buffer_id, shared_from_this());
+                    worker.memory_manager->delete_buffer(*buffer_id);
                 }
             }
         }
@@ -162,16 +162,10 @@ PollResult DeleteJob::poll(WorkerState& worker) {
         spdlog::debug("delete block id={}", *m_block_id);
         m_buffer_id = worker.block_manager.delete_block(*m_block_id);
         m_block_id = std::nullopt;
-    }
 
-    if (m_buffer_id) {
-        if (worker.memory_manager->delete_buffer(*m_buffer_id, shared_from_this())
-            == PollResult::Pending) {
-            return PollResult::Pending;
+        if (m_buffer_id) {
+            worker.memory_manager->decrement_buffer_refcount(*m_buffer_id);
         }
-
-        spdlog::debug("delete buffer id={}", *m_buffer_id);
-        m_buffer_id = std::nullopt;
     }
 
     return PollResult::Ready;
@@ -190,7 +184,7 @@ PollResult PrefetchJob::poll(WorkerState& state) {
         m_memory_request = state.memory_manager->create_request(  //
             *buffer_id,
             m_memory_id,
-            false,
+            AccessMode::Read,
             shared_from_this());
 
         m_status = Status::Active;

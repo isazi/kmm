@@ -1,6 +1,7 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/utils.hpp"
+#include "kmm/worker/worker.hpp"
 #include "kmm/worker_thread.hpp"
 
 namespace kmm {

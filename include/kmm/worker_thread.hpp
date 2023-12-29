@@ -3,9 +3,9 @@
 #include <memory>
 #include <thread>
 
-#include "kmm/worker/worker.hpp"
-
 namespace kmm {
+
+class Worker;
 
 class WorkerThread {
   public:

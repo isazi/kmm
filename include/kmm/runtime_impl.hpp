@@ -1,7 +1,10 @@
 #pragma once
 
 #include <mutex>
+#include <vector>
 
+#include "kmm/executor.hpp"
+#include "kmm/memory.hpp"
 #include "kmm/worker_thread.hpp"
 
 namespace kmm {
