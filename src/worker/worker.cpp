@@ -62,9 +62,7 @@ bool Worker::query_event(EventId id, std::chrono::time_point<std::chrono::system
     std::unique_lock<std::mutex> guard {m_lock};
 
     while (true) {
-        spdlog::info("finding {}", id);
         if (m_scheduler.is_completed(id)) {
-            spdlog::info("found {}!", id);
             return true;
         }
 

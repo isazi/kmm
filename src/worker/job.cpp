@@ -89,7 +89,9 @@ JobQueue SharedJobQueue::pop_all_jobs() const {
 bool SharedJobQueue::wait_until(std::chrono::time_point<std::chrono::system_clock> deadline) const {
     std::unique_lock guard {m_lock};
     while (!m_needs_processing) {
-        m_cond.wait_until(guard, deadline);
+        if (m_cond.wait_until(guard, deadline) == std::cv_status::timeout) {
+            break;
+        }
     }
 
     return std::exchange(m_needs_processing, false);
