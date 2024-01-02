@@ -13,7 +13,15 @@
 
 namespace kmm {
 
-enum struct AccessMode { Read, ReadWrite, Atomic };
+/**
+ * There are three possible access modes:
+ * * `Read`: Only read from a buffer. Multiple readers can concurrently read from different memories.
+ * * `ReadWrite`: Read and write from a buffer. Only one reader-writer can be active concurrently.
+ *
+ * * `Write`: Only write to a buffer. Multiple writes can be active concurrently, however
+ *            concurrent writers can only write to the same memory.
+ */
+enum struct AccessMode { Read, ReadWrite, Write };
 
 class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
   public:
@@ -22,6 +30,8 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
 
     struct Request;
     struct Operation;
+    struct TransferOperation;
+    struct FailedOperation;
     struct Resource;
     struct Buffer;
     struct Transaction;
@@ -58,7 +68,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
         return poll_requests(&*requests.begin(), &*requests.end());
     }
 
-    void complete_operation(Operation& op);
+    void complete_operation(TransferOperation& op);
 
   private:
     void delete_buffer_when_idle(Buffer* buffer);

@@ -160,18 +160,18 @@ TEST_F(MemoryManagerTest, check_access) {
     std::tuple<AccessMode, AccessMode> combinations[] = {
         {AccessMode::Read, AccessMode::Read},
         {AccessMode::Read, AccessMode::ReadWrite},
-        {AccessMode::Read, AccessMode::Atomic},
+        {AccessMode::Read, AccessMode::Write},
         {AccessMode::ReadWrite, AccessMode::Read},
         {AccessMode::ReadWrite, AccessMode::ReadWrite},
-        {AccessMode::ReadWrite, AccessMode::Atomic},
-        {AccessMode::Atomic, AccessMode::Read},
-        {AccessMode::Atomic, AccessMode::ReadWrite},
-        {AccessMode::Atomic, AccessMode::Atomic},
+        {AccessMode::ReadWrite, AccessMode::Write},
+        {AccessMode::Write, AccessMode::Read},
+        {AccessMode::Write, AccessMode::ReadWrite},
+        {AccessMode::Write, AccessMode::Write},
     };
 
     for (auto [access_a, access_b] : combinations) {
         bool allow_concurrent = (access_a == AccessMode::Read && access_b == AccessMode::Read)
-            || (access_a == AccessMode::Atomic && access_b == AccessMode::Atomic);
+            || (access_a == AccessMode::Write && access_b == AccessMode::Write);
 
         auto buffer_id = manager->create_buffer(make_layout(50));
         auto transaction = make_transaction();

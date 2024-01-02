@@ -1,3 +1,5 @@
+#include "spdlog/spdlog.h"
+
 #include "kmm/result.hpp"
 #include "kmm/utils.hpp"
 #include "kmm/worker/memory_manager.hpp"
@@ -90,6 +92,7 @@ struct MemoryManager::Resource {
     void make_progress(MemoryManager& manager);
     bool try_allocate(AllocationGrant& link, MemoryManager& manager);
     bool is_out_of_memory(AllocationGrant& link) const;
+    Buffer* find_eviction_victim() const;
 
     void decrement_buffer_users(Buffer* buffer, MemoryManager& manager);
     void add_buffer_to_lru(Buffer* buffer);
@@ -113,11 +116,9 @@ struct BufferEntry {
         Valid,
         Invalid,
         IncomingTransfer,
-    };
-
-    Status status = Status::Unallocated;
+    } status = Status::Unallocated;
     std::unique_ptr<MemoryAllocation> allocation = nullptr;
-    MemoryManager::Operation* incoming_operation = nullptr;
+    MemoryManager::TransferOperation* incoming_operation = nullptr;
 };
 
 struct BufferLRULink {
@@ -127,7 +128,7 @@ struct BufferLRULink {
 };
 
 struct BufferLockGrant {
-    BufferLockGrant(const MemoryManager::Request* parent) : parent(parent) {}
+    explicit BufferLockGrant(const MemoryManager::Request* parent) : parent(parent) {}
 
     bool is_pending() const {
         return status != Status::Acquired;
@@ -170,8 +171,28 @@ struct MemoryManager::Buffer {
     IntrusiveQueue<BufferLockGrant> m_lock_queue;
 };
 
-struct MemoryManager::Operation: IMemoryCompletion, std::enable_shared_from_this<Operation> {
-    Operation(Buffer* buffer, MemoryId dst_id, MemoryId src_id = MemoryId::invalid()) :
+struct MemoryManager::Operation: std::enable_shared_from_this<Operation> {
+    bool is_running() const {
+        std::unique_lock guard {m_mutex};
+        return !m_completed;
+    }
+
+    Result<void> result() const {
+        std::unique_lock guard {m_mutex};
+        return m_result;
+    }
+
+    std::vector<std::shared_ptr<Request>> waiting_requests;
+    uint64_t waiting_resources;
+
+  protected:
+    mutable std::mutex m_mutex;
+    mutable bool m_completed = false;
+    mutable Result<void> m_result;
+};
+
+struct MemoryManager::TransferOperation: IMemoryCompletion, Operation {
+    TransferOperation(Buffer* buffer, MemoryId dst_id, MemoryId src_id = MemoryId::invalid()) :
         buffer(buffer),
         src_id(src_id),
         dst_id(dst_id) {}
@@ -181,16 +202,6 @@ struct MemoryManager::Operation: IMemoryCompletion, std::enable_shared_from_this
         if (!m_completed) {
             m_manager = manager.shared_from_this();
         }
-    }
-
-    bool is_running() const {
-        std::unique_lock guard {m_mutex};
-        return !m_completed;
-    }
-
-    Result<void> result() const {
-        std::unique_lock guard {m_mutex};
-        return m_result;
     }
 
     void complete(Result<void> result) final {
@@ -213,14 +224,16 @@ struct MemoryManager::Operation: IMemoryCompletion, std::enable_shared_from_this
     Buffer* const buffer;
     MemoryId const src_id;
     MemoryId const dst_id;
-    std::vector<std::shared_ptr<Request>> waiting_requests;
-    uint64_t waiting_resources;
 
   private:
-    mutable std::mutex m_mutex;
-    mutable bool m_completed = false;
-    mutable Result<void> m_result;
     mutable std::shared_ptr<MemoryManager> m_manager;
+};
+
+struct MemoryManager::FailedOperation: Operation {
+    FailedOperation(ErrorPtr error) {
+        m_completed = true;
+        m_result = std::move(error);
+    }
 };
 
 struct MemoryManager::Transaction {
@@ -280,13 +293,26 @@ std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
     return std::make_shared<Transaction>(waker);
 }
 
+static size_t round_up_to_power_of_two(size_t align) {
+    for (size_t i = 0; i < 63; i++) {
+        if (align <= (1 << i)) {
+            return 1 << i;
+        }
+    }
+    return 0;
+}
+
 BufferId MemoryManager::create_buffer(
     const BlockLayout& layout,
     std::vector<uint8_t> fill_pattern) {
     std::lock_guard guard {m_mutex};
-    size_t nbytes = layout.num_bytes;
+
+    size_t align = round_up_to_power_of_two(layout.alignment);
+    size_t nbytes = ((layout.num_bytes + align - 1) / align) * align;
     BufferId id = BufferId(m_next_buffer_id++, nbytes);
     m_buffers.insert({id, std::make_unique<Buffer>(id, layout, std::move(fill_pattern))});
+
+    spdlog::debug("created buffer: id={}, size={}", id.get(), nbytes);
     return id;
 }
 
@@ -330,10 +356,13 @@ void MemoryManager::delete_buffer_when_idle(Buffer* buffer) {
         }
     }
 
+    spdlog::debug("deleting buffer: id={}", buffer->id);
+
     for (uint8_t i = 0; i < MAX_DEVICES; i++) {
         auto& entry = buffer->entries[i];
 
         if (auto alloc = std::exchange(entry.allocation, nullptr)) {
+            spdlog::debug("deallocating buffer memory: id={} memory={}", buffer->id, i);
             m_memory->deallocate(MemoryId(i), std::move(alloc));
             m_resources[i]->remove_buffer_from_lru(buffer);
         }
@@ -355,7 +384,10 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     auto* buffer = m_buffers.at(buffer_id).get();
     buffer->active_requests += 1;
 
-    return std::make_shared<Request>(buffer, memory_id, mode, std::move(parent));
+    auto req = std::make_shared<Request>(buffer, memory_id, mode, std::move(parent));
+    spdlog::debug("create request for buffer: request={} buffer={}", (void*)req.get(), buffer_id);
+
+    return req;
 }
 
 const MemoryAllocation* MemoryManager::view_buffer(const std::shared_ptr<Request>& req) {
@@ -379,6 +411,11 @@ void MemoryManager::delete_request(const std::shared_ptr<Request>& req) {
     KMM_ASSERT(req->status == Request::Status::Ready || req->status == Request::Status::Error);
     req->status = Request::Status::Terminated;
 
+    spdlog::debug(
+        "delete request for buffer: request={} buffer={}",
+        (void*)req.get(),
+        req->buffer->id);
+
     auto* buffer = req->buffer;
     buffer->active_requests -= 1;
     buffer->unlock(req->buffer_lock);
@@ -389,16 +426,23 @@ void MemoryManager::delete_request(const std::shared_ptr<Request>& req) {
     delete_buffer_when_idle(buffer);
 }
 
-void MemoryManager::complete_operation(Operation& op) {
+void MemoryManager::complete_operation(TransferOperation& op) {
     std::lock_guard guard {m_mutex};
-
     auto* buffer = op.buffer;
     auto& dst_entry = buffer->entries[op.dst_id];
 
     KMM_ASSERT(dst_entry.incoming_operation == &op);
     dst_entry.incoming_operation = nullptr;
 
-    if (op.result()) {
+    bool success = bool(op.result());
+    spdlog::debug(
+        "transfer finished: buffer={} src={} dst={} success={}",
+        op.buffer->id,
+        op.src_id,
+        op.dst_id,
+        success);
+
+    if (success) {
         dst_entry.status = BufferEntry::Status::Valid;
     }
 
@@ -425,7 +469,7 @@ PollResult MemoryManager::poll_requests(
     PollResult result = PollResult::Ready;
 
     for (const auto* it = begin; it != end; it++) {
-        if (it != nullptr && poll_request_impl(*it) == PollResult::Pending) {
+        if (*it != nullptr && poll_request_impl(*it) == PollResult::Pending) {
             result = PollResult::Pending;
         }
     }
@@ -488,6 +532,10 @@ PollResult MemoryManager::poll_request_impl(const std::shared_ptr<Request>& requ
                 continue;
             }
 
+            spdlog::debug(
+                "granted request for buffer: request={} buffer={}",
+                (void*)request.get(),
+                request->buffer->id);
             request->status = Request::Status::Ready;
         } else if (
             status == Request::Status::Ready ||  //
@@ -522,8 +570,12 @@ bool MemoryManager::try_allocate_buffer(Buffer* buffer, MemoryId memory_id) {
 std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_buffer(
     MemoryId memory_id,
     Buffer* buffer) {
-    auto& entry = buffer->entries[memory_id];
+    spdlog::debug(
+        "attempt to evict victim buffer from memory: buffer={} memory={}",
+        buffer->id,
+        memory_id);
 
+    auto& entry = buffer->entries[memory_id];
     KMM_ASSERT(entry.status != BufferEntry::Status::Unallocated);
     KMM_ASSERT(entry.allocation != nullptr);
     KMM_ASSERT(buffer->lru_links[memory_id].num_users == 0);
@@ -539,13 +591,15 @@ std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_bu
 
 std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_storage_buffer(
     Buffer* buffer) {
-    auto op = std::make_shared<Operation>(buffer, MemoryId::invalid());
-    op->complete(ErrorPtr("cannot evict buffers from storage"));
-    return op;
+    return std::make_shared<FailedOperation>(ErrorPtr("cannot evict buffers from storage"));
 }
 
 std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_host_buffer(
     Buffer* buffer) {
+    if (!m_storage_id) {
+        return std::make_shared<FailedOperation>(ErrorPtr("out of host memory"));
+    }
+
     auto storage_id = m_storage_id.value();
     auto& host_entry = buffer->entries[HOST_MEMORY];
     auto& storage_entry = buffer->entries[storage_id];
@@ -579,7 +633,8 @@ std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_ho
 
         if (storage_entry.status == BufferEntry::Status::Unallocated) {
             if (!try_allocate_buffer(buffer, storage_id)) {
-                KMM_PANIC("failed to allocate storage memory");  // give nicer error
+                return std::make_shared<FailedOperation>(
+                    ErrorPtr("failed to allocate storage memory"));
             }
         }
 
@@ -699,6 +754,8 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_transfer(
     Buffer* buffer,
     MemoryId src_id,
     MemoryId dst_id) {
+    spdlog::debug("initiate transfer: buffer={} src={} dst={}", buffer->id, src_id, dst_id);
+
     auto& src_entry = buffer->entries[src_id];
     auto& dst_entry = buffer->entries[dst_id];
 
@@ -708,7 +765,7 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_transfer(
     KMM_ASSERT(dst_entry.allocation != nullptr);
     KMM_ASSERT(dst_entry.incoming_operation == nullptr);
 
-    auto op = std::make_shared<Operation>(buffer, dst_id, src_id);
+    auto op = std::make_shared<TransferOperation>(buffer, dst_id, src_id);
 
     m_memory->copy_async(
         src_id,
@@ -725,8 +782,18 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_transfer(
     if (op->is_running()) {
         dst_entry.status = BufferEntry::Status::IncomingTransfer;
         dst_entry.incoming_operation = op.get();
-    } else if (op->result()) {
-        dst_entry.status = BufferEntry::Status::Valid;
+    } else {
+        bool success = op->result().has_value();
+        spdlog::debug(
+            "transfer finished: buffer={} src={} dst={} success={}",
+            buffer->id,
+            src_id,
+            dst_id,
+            success);
+
+        if (success) {
+            dst_entry.status = BufferEntry::Status::Valid;
+        }
     }
 
     return op;
@@ -736,13 +803,15 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_fill(
     Buffer* buffer,
     MemoryId memory_id,
     const std::vector<uint8_t>& fill_pattern) {
+    spdlog::debug("initiate fill: buffer={} memory={}", buffer->id, memory_id);
+
     auto& entry = buffer->entries[memory_id];
 
     KMM_ASSERT(entry.status == BufferEntry::Status::Invalid);
     KMM_ASSERT(entry.allocation != nullptr);
     KMM_ASSERT(entry.incoming_operation == nullptr);
 
-    auto op = std::make_shared<Operation>(buffer, memory_id);
+    auto op = std::make_shared<TransferOperation>(buffer, memory_id);
 
     m_memory->fill_async(
         memory_id,
@@ -767,11 +836,13 @@ bool MemoryManager::Resource::submit_allocate(
     std::shared_ptr<AllocationGrant> link,
     MemoryManager& manager) {
     KMM_ASSERT(link->status == AllocationGrant::Status::Free);
-    link->status = AllocationGrant::Status::Queued;
 
     if (m_queue.is_empty() && try_allocate(*link, manager)) {
-        m_allocated.push_back(std::move(link));
+        if (link->status == AllocationGrant::Status::Acquired) {
+            m_allocated.push_back(std::move(link));
+        }
     } else {
+        link->status = AllocationGrant::Status::Queued;
         m_queue.push_back(std::move(link));
     }
 
@@ -802,7 +873,10 @@ void MemoryManager::Resource::make_progress(MemoryManager& manager) {
             break;
         }
 
-        m_allocated.push_back(m_queue.pop_front());
+        auto link = m_queue.pop(*head);
+        if (link->status == AllocationGrant::Status::Acquired) {
+            m_allocated.push_back(std::move(link));
+        }
         head->parent->parent->waker->trigger_wakeup();
     }
 }
@@ -821,23 +895,28 @@ bool MemoryManager::Resource::try_allocate(AllocationGrant& link, MemoryManager&
         // Second, if there is an eviction ongoing, wait until it completes.
         if (m_active_eviction) {
             if (m_active_eviction->is_running()) {
-                m_active_eviction->waiting_resources |= 1 << m_memory_id;
                 return false;
             }
 
-            if (const auto* error = m_active_eviction->result().error_if_present()) {
+            auto active_eviction = std::exchange(m_active_eviction, nullptr);
+
+            if (const auto* error = active_eviction->result().error_if_present()) {
                 link.status = AllocationGrant::Status::Error;
                 link.parent->error = *error;
                 return true;
             }
-
-            m_active_eviction = nullptr;
         }
 
         // Third, check if we can evict a buffer that is not in use
-        if (auto* victim = m_lru_oldest) {
+        if (auto* victim = find_eviction_victim()) {
             if (auto transfer = manager.evict_buffer(m_memory_id, victim)) {
                 m_active_eviction = std::move(*transfer);
+                m_active_eviction->waiting_resources |= 1 << m_memory_id;
+            } else {
+                spdlog::debug(
+                    "evicted buffer from memory: buffer={} memory={}",
+                    victim->id,
+                    m_memory_id);
             }
 
             continue;
@@ -857,12 +936,53 @@ bool MemoryManager::Resource::try_allocate(AllocationGrant& link, MemoryManager&
     }
 }
 
+MemoryManager::Buffer* MemoryManager::Resource::find_eviction_victim() const {
+    auto memory_id = m_memory_id;
+
+    if (m_lru_oldest == nullptr) {
+        return nullptr;
+    }
+
+    // Find which buffer to evict. We use the follow heuristics:
+    // 1. First, find a buffer that is invalid. For these, we do not need to perform a transfer
+    // 2. Otherwise, find a buffer that has no active requests.
+    // 3. Otherwise, find a buffer that is large. We want to keep small buffers in memory
+    // 4. Otherwise, just return the oldest buffer.
+    for (auto* it = m_lru_oldest; it != nullptr; it = it->lru_links[memory_id].next) {
+        if (it->entries[memory_id].status != BufferEntry::Status::Valid) {
+            return it;
+        }
+    }
+
+    for (auto* it = m_lru_oldest; it != nullptr; it = it->lru_links[memory_id].next) {
+        if (it->active_requests == 0) {
+            return it;
+        }
+    }
+
+    for (auto* it = m_lru_oldest; it != nullptr; it = it->lru_links[memory_id].next) {
+        if (it->layout.num_bytes > 1024 * 1024) {
+            return it;
+        }
+    }
+
+    return m_lru_oldest;
+}
+
 bool MemoryManager::Resource::is_out_of_memory(AllocationGrant& link) const {
     for (auto* item = m_allocated.front(); item != nullptr; item = item->next.get()) {
         if (item->parent->parent.get() != link.parent->parent.get()) {
             return false;
         }
     }
+
+    auto buffer = link.parent->buffer;
+    spdlog::warn(
+        "failed to grant memory allocation to request, out of memory for"
+        "device {} while allocating buffer {} of {} bytes",
+        m_memory_id,
+        buffer->id,
+        buffer->layout.num_bytes);
 
     return true;
 }
@@ -878,14 +998,12 @@ void MemoryManager::Resource::decrement_buffer_users(Buffer* buffer, MemoryManag
 }
 
 void MemoryManager::Resource::add_buffer_to_lru(Buffer* buffer) {
-    auto& links = buffer->lru_links[m_memory_id];
-
     if (m_lru_oldest == nullptr) {
         m_lru_oldest = buffer;
         m_lru_newest = buffer;
     } else {
         auto* last = m_lru_newest;
-        links.prev = last;
+        buffer->lru_links[m_memory_id].prev = last;
         last->lru_links[m_memory_id].next = buffer;
         m_lru_newest = buffer;
     }
@@ -902,7 +1020,6 @@ void MemoryManager::Resource::increment_buffer_users(Buffer* buffer) {
 
 void MemoryManager::Resource::remove_buffer_from_lru(Buffer* buffer) {
     auto& links = buffer->lru_links[m_memory_id];
-
     auto* prev = std::exchange(links.prev, nullptr);
     auto* next = std::exchange(links.next, nullptr);
 
@@ -946,7 +1063,7 @@ bool MemoryManager::Buffer::try_lock(MemoryId memory_id, AccessMode mode) {
                 return true;
             }
             break;
-        case AccessMode::Atomic:
+        case AccessMode::Write:
             if (m_num_readers == 0 && (m_num_writers == 0 || m_writing_memory == memory_id)) {
                 m_writing_memory = memory_id;
                 m_num_writers++;
@@ -979,7 +1096,7 @@ void MemoryManager::Buffer::unlock(BufferLockGrant& link) {
             m_num_readers--;
             m_num_writers--;
             break;
-        case AccessMode::Atomic:
+        case AccessMode::Write:
             m_num_writers--;
             break;
     }
