@@ -100,6 +100,7 @@ bool Worker::make_progress_impl() {
             continue;
         }
 
+        // Next, move from the shared poll queue to the local poll queue
         m_local_poll_queue.push_all(m_shared_poll_queue->pop_all_jobs());
         if (!m_local_poll_queue.is_empty()) {
             progressed = true;

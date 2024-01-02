@@ -24,23 +24,25 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
     struct Operation;
     struct Resource;
     struct Buffer;
+    struct Transaction;
 
     MemoryManager(
         std::unique_ptr<Memory> memory,
         std::optional<MemoryId> storage_id = std::nullopt);
     ~MemoryManager();
 
-    BufferId create_buffer(const BlockLayout&);
+    BufferId create_buffer(const BlockLayout&, std::vector<uint8_t> fill_pattern = {});
     void delete_buffer(BufferId buffer_id);
 
     void increment_buffer_refcount(BufferId buffer_id, size_t n = 1);
     void decrement_buffer_refcount(BufferId buffer_id, size_t n = 1);
 
+    std::shared_ptr<Transaction> create_transaction(std::shared_ptr<const Waker> waker) const;
     std::shared_ptr<Request> create_request(
         BufferId buffer_id,
         MemoryId memory_id,
         AccessMode mode,
-        std::shared_ptr<const Waker> waker);
+        std::shared_ptr<Transaction> parent);
     const MemoryAllocation* view_buffer(const std::shared_ptr<Request>&);
     void delete_request(const std::shared_ptr<Request>&);
 
@@ -56,7 +58,7 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
         return poll_requests(&*requests.begin(), &*requests.end());
     }
 
-    void complete_operation(Operation& transfer);
+    void complete_operation(Operation& op);
 
   private:
     void delete_buffer_when_idle(Buffer* buffer);
@@ -78,6 +80,10 @@ class MemoryManager: public std::enable_shared_from_this<MemoryManager> {
         bool exclusive);
 
     std::shared_ptr<Operation> initiate_transfer(Buffer* buffer, MemoryId src_id, MemoryId dst_id);
+    std::shared_ptr<Operation> initiate_fill(
+        Buffer* buffer,
+        MemoryId memory_id,
+        const std::vector<uint8_t>& fill_pattern);
 
     std::mutex m_mutex;
     std::array<std::unique_ptr<Resource>, MAX_DEVICES> m_resources;

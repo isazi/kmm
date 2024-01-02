@@ -16,11 +16,11 @@ void BlockManager::insert_block(
         });
 }
 
-void BlockManager::poison_block(BlockId id, TaskError error) {
+void BlockManager::poison_block(BlockId id, ErrorPtr error) {
     insert_entry(id, std::move(error));
 }
 
-void BlockManager::insert_entry(BlockId id, std::variant<BlockMetadata, TaskError> entry) {
+void BlockManager::insert_entry(BlockId id, Result<BlockMetadata> entry) {
     auto [_, success] = m_entries.insert({id, std::move(entry)});
 
     if (!success) {
@@ -38,7 +38,7 @@ std::optional<BufferId> BlockManager::delete_block(BlockId id) {
     }
 
     std::optional<BufferId> result = std::nullopt;
-    if (auto* entry = std::get_if<BlockMetadata>(&it->second)) {
+    if (auto* entry = it->second.value_if_present()) {
         result = entry->buffer_id;
     }
 
@@ -50,11 +50,7 @@ const BlockMetadata& BlockManager::get_block(BlockId id) const {
     auto it = m_entries.find(id);
 
     if (it != m_entries.end()) {
-        if (const auto* entry = std::get_if<BlockMetadata>(&it->second)) {
-            return *entry;
-        } else if (const auto* error = std::get_if<TaskError>(&it->second)) {
-            throw std::runtime_error(error->get());
-        }
+        return it->second.value();
     }
 
     throw std::runtime_error(fmt::format("unknown block: {}", id));
@@ -64,7 +60,7 @@ std::optional<BufferId> BlockManager::get_block_buffer(BlockId id) const {
     auto it = m_entries.find(id);
 
     if (it != m_entries.end()) {
-        if (const auto* entry = std::get_if<BlockMetadata>(&it->second)) {
+        if (const auto* entry = it->second.value_if_present()) {
             return entry->buffer_id;
         }
     }

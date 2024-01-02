@@ -1,105 +1,135 @@
 #include <gtest/gtest.h>
 
-#include "kmm/memory_manager.hpp"
+#include "kmm/worker/memory_manager.hpp"
 
-class MockWaker: public kmm::Waker {
-    void trigger_wakeup() const override {}
+using namespace kmm;
+
+class MockWaker: public Waker {
+    void trigger_wakeup(bool allow_progress) const override {}
 };
 
-class MockAllocation: public kmm::MemoryAllocation {
+class MockAllocation: public MemoryAllocation {
   public:
-    MockAllocation(int id, kmm::DeviceId device_id, size_t num_bytes) :
+    MockAllocation(int id, MemoryId memory_id, size_t num_bytes) :
         id(id),
         num_bytes(num_bytes),
-        device_id(device_id) {}
+        memory_id(memory_id) {}
 
     int id;
     size_t num_bytes;
-    kmm::DeviceId device_id;
+    MemoryId memory_id;
 };
 
-class MockMemory: public kmm::Memory {
+class MemoryState {
   public:
-    std::optional<std::unique_ptr<kmm::MemoryAllocation>> allocate(
-        kmm::DeviceId device_id,
-        size_t num_bytes) {
-        int id = next_id++;
+    void complete_next_transfer(MemoryId src_device, MemoryId dst_device) {
+        auto [src_id, dst_id, callback] = std::move(transfers.at(0));
 
-        if (used[device_id] + num_bytes > 100) {
+        ASSERT_EQ(allocations.at(src_id), src_device);
+        ASSERT_EQ(allocations.at(dst_id), dst_device);
+
+        transfers.pop_front();
+        callback.complete(Result<void>());
+    }
+
+    std::deque<std::tuple<int, int, MemoryCompletion>> transfers;
+    std::unordered_map<int, MemoryId> allocations;
+    std::unordered_map<MemoryId, size_t> used;
+    int next_id = 1;
+};
+
+class MockMemory: public Memory {
+  public:
+    static constexpr size_t HOST_CAPACITY = 1000;
+    static constexpr size_t DEVICE_CAPACITY = 100;
+
+    explicit MockMemory(std::shared_ptr<MemoryState> state) : state(state) {}
+
+    std::optional<std::unique_ptr<MemoryAllocation>> allocate(
+        MemoryId memory_id,
+        size_t num_bytes) {
+        size_t capacity = memory_id == MemoryManager::HOST_MEMORY ? HOST_CAPACITY : DEVICE_CAPACITY;
+        int id = state->next_id++;
+
+        if (state->used[memory_id] + num_bytes > capacity) {
             return std::nullopt;
         }
 
-        allocations.insert({id, device_id});
-        used[device_id] += num_bytes;
-        return std::make_unique<MockAllocation>(id++, device_id, num_bytes);
+        state->allocations.insert({id, memory_id});
+        state->used[memory_id] += num_bytes;
+        return std::make_unique<MockAllocation>(id++, memory_id, num_bytes);
     }
 
-    void deallocate(kmm::DeviceId device_id, std::unique_ptr<kmm::MemoryAllocation> allocation)
-        override {
+    void deallocate(MemoryId memory_id, std::unique_ptr<MemoryAllocation> allocation) override {
         auto alloc = dynamic_cast<const MockAllocation&>(*allocation);
-        ASSERT_EQ(device_id, allocations.at(alloc.id));
+        ASSERT_EQ(memory_id, state->allocations.at(alloc.id));
 
-        for (const auto& [a, b, _] : transfers) {
+        for (const auto& [a, b, _] : state->transfers) {
             ASSERT_NE(a, alloc.id);
             ASSERT_NE(b, alloc.id);
         }
 
-        used[device_id] -= alloc.num_bytes;
-        allocations.erase(alloc.id);
+        state->used[memory_id] -= alloc.num_bytes;
+        state->allocations.erase(alloc.id);
     }
 
     void copy_async(
-        kmm::DeviceId src_id,
-        const kmm::MemoryAllocation* src_alloc,
+        MemoryId src_id,
+        const MemoryAllocation* src_alloc,
         size_t src_offset,
-        kmm::DeviceId dst_id,
-        const kmm::MemoryAllocation* dst_alloc,
+        MemoryId dst_id,
+        const MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        std::unique_ptr<kmm::TransferCompletion> completion) override {
+        MemoryCompletion completion) override {
         auto src = dynamic_cast<const MockAllocation&>(*src_alloc);
-        ASSERT_EQ(src.device_id, allocations.at(src.id));
+        ASSERT_EQ(src.memory_id, state->allocations.at(src.id));
         ASSERT_EQ(src.num_bytes, num_bytes);
         ASSERT_EQ(src_offset, 0);
 
         auto dst = dynamic_cast<const MockAllocation&>(*dst_alloc);
-        ASSERT_EQ(dst.device_id, allocations.at(dst.id));
+        ASSERT_EQ(dst.memory_id, state->allocations.at(dst.id));
         ASSERT_EQ(dst.num_bytes, num_bytes);
         ASSERT_EQ(dst_offset, 0);
 
-        transfers.emplace_back(src.id, dst.id, std::move(completion));
+        state->transfers.emplace_back(src.id, dst.id, std::move(completion));
     }
 
-    bool is_copy_possible(kmm::DeviceId src_id, kmm::DeviceId dst_id) override {
+    void fill_async(
+        MemoryId dst_id,
+        const MemoryAllocation* dst_alloc,
+        size_t dst_offset,
+        size_t num_bytes,
+        std::vector<uint8_t> fill_bytes,
+        MemoryCompletion completion) {
+        auto dst = dynamic_cast<const MockAllocation&>(*dst_alloc);
+        ASSERT_EQ(dst.memory_id, state->allocations.at(dst.id));
+        ASSERT_EQ(dst.num_bytes, num_bytes);
+        ASSERT_EQ(dst_offset, 0);
+
+        state->transfers.emplace_back(dst.id, dst.id, std::move(completion));
+    }
+
+    bool is_copy_possible(MemoryId src_id, MemoryId dst_id) override {
         return true;
     }
 
-    void complete_next_transfer(kmm::DeviceId src_device, kmm::DeviceId dst_device) {
-        auto& [src_id, dst_id, callback] = transfers.at(0);
-
-        ASSERT_EQ(allocations.at(src_id), src_device);
-        ASSERT_EQ(allocations.at(dst_id), dst_device);
-        ASSERT_TRUE(callback);
-
-        callback->mark_job_complete();
-        transfers.pop_front();
-    }
-
-    std::deque<std::tuple<int, int, std::unique_ptr<kmm::TransferCompletion>>> transfers;
-    std::unordered_map<int, kmm::DeviceId> allocations;
-    std::unordered_map<kmm::DeviceId, size_t> used;
-    int next_id = 1;
+    std::shared_ptr<MemoryState> state;
 };
 
 class MemoryManagerTest: public testing::Test {
   protected:
     void SetUp() override {
-        memory = std::make_shared<MockMemory>();
-        manager = std::make_shared<kmm::MemoryManager>(memory);
+        memory = std::make_shared<MemoryState>();
+        manager = std::make_shared<MemoryManager>(std::make_unique<MockMemory>(memory));
     }
 
-    kmm::BlockLayout build_layout(size_t num_bytes = 1) const {
+    BlockLayout make_layout(size_t num_bytes = 1) const {
         return {.num_bytes = num_bytes, .alignment = 1};
+    }
+
+    std::shared_ptr<MemoryManager::Transaction> make_transaction() const {
+        return manager->create_transaction(std::make_shared<MockWaker>());
     }
 
     void TearDown() override {
@@ -107,79 +137,163 @@ class MemoryManagerTest: public testing::Test {
         ASSERT_EQ(memory->transfers.size(), 0);
     }
 
-    std::shared_ptr<MockMemory> memory;
-    std::shared_ptr<kmm::MemoryManager> manager;
+    std::shared_ptr<MemoryState> memory;
+    std::shared_ptr<MemoryManager> manager;
 };
 
 TEST_F(MemoryManagerTest, basic) {
-    auto buffer_id = kmm::BufferId(42);
-    auto layout = build_layout();
+    auto buffer_id = manager->create_buffer(make_layout(50));
+    auto transaction = make_transaction();
+    auto req = manager->create_request(buffer_id, MemoryId(0), AccessMode::Read, transaction);
 
-    auto waker = std::make_shared<MockWaker>();
+    ASSERT_EQ(manager->poll_request(req), PollResult::Ready);
+    manager->view_buffer(req);
+    manager->delete_request(req);
+    manager->delete_buffer(buffer_id);
+}
 
-    manager->create_buffer(buffer_id, layout);
+/**
+ * Create two requests and check if they are granted simultaneously are not. This is only
+ * allowed for `Atomic` and `Read` requests.
+ */
+TEST_F(MemoryManagerTest, check_access) {
+    std::tuple<AccessMode, AccessMode> combinations[] = {
+        {AccessMode::Read, AccessMode::Read},
+        {AccessMode::Read, AccessMode::ReadWrite},
+        {AccessMode::Read, AccessMode::Atomic},
+        {AccessMode::ReadWrite, AccessMode::Read},
+        {AccessMode::ReadWrite, AccessMode::ReadWrite},
+        {AccessMode::ReadWrite, AccessMode::Atomic},
+        {AccessMode::Atomic, AccessMode::Read},
+        {AccessMode::Atomic, AccessMode::ReadWrite},
+        {AccessMode::Atomic, AccessMode::Atomic},
+    };
 
-    auto request = manager->create_request(buffer_id, kmm::DeviceId(2), false, waker);
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Ready);
-    manager->view_buffer(request);
-    manager->delete_request(request);
+    for (auto [access_a, access_b] : combinations) {
+        bool allow_concurrent = (access_a == AccessMode::Read && access_b == AccessMode::Read)
+            || (access_a == AccessMode::Atomic && access_b == AccessMode::Atomic);
+
+        auto buffer_id = manager->create_buffer(make_layout(50));
+        auto transaction = make_transaction();
+
+        auto req_a = manager->create_request(buffer_id, MemoryId(0), access_a, transaction);
+        ASSERT_EQ(manager->poll_request(req_a), PollResult::Ready);
+
+        auto req_b = manager->create_request(buffer_id, MemoryId(0), access_b, transaction);
+        if (allow_concurrent) {
+            ASSERT_EQ(manager->poll_request(req_b), PollResult::Ready);
+        } else {
+            ASSERT_EQ(manager->poll_request(req_b), PollResult::Pending);
+        }
+
+        manager->view_buffer(req_a);
+        manager->delete_request(req_a);
+
+        ASSERT_EQ(manager->poll_request(req_b), PollResult::Ready);
+        manager->view_buffer(req_b);
+        manager->delete_request(req_b);
+
+        manager->delete_buffer(buffer_id);
+    }
+}
+
+/**
+ * Write on memory 0 and then read the result on memory 1. There should be a transfer inbetween.
+ * Repeat this 5 times to ensure that the process is repeatable.
+ */
+TEST_F(MemoryManagerTest, write_transfer_read) {
+    auto buffer_id = manager->create_buffer(make_layout(50));
+    auto transaction = make_transaction();
+
+    for (size_t repeat = 0; repeat < 5; repeat++) {
+        auto req_write =
+            manager->create_request(buffer_id, MemoryId(0), AccessMode::ReadWrite, transaction);
+        ASSERT_EQ(manager->poll_request(req_write), PollResult::Ready);
+
+        auto req_read =
+            manager->create_request(buffer_id, MemoryId(1), AccessMode::Read, transaction);
+        ASSERT_EQ(manager->poll_request(req_read), PollResult::Pending);
+
+        ASSERT_EQ(manager->poll_request(req_write), PollResult::Ready);
+        manager->view_buffer(req_write);
+        manager->delete_request(req_write);
+
+        ASSERT_EQ(manager->poll_request(req_read), PollResult::Pending);
+        memory->complete_next_transfer(MemoryId(0), MemoryId(1));
+
+        ASSERT_EQ(manager->poll_request(req_read), PollResult::Ready);
+        manager->view_buffer(req_read);
+        manager->delete_request(req_read);
+    }
 
     manager->delete_buffer(buffer_id);
 }
 
-TEST_F(MemoryManagerTest, write_then_read) {
-    auto buffer_id = kmm::BufferId(42);
-    auto layout = build_layout();
+/**
+ * Create two requests that together exceed the memory capacity of the device. The first
+ * request should be first granted and the second request should only be granted after the first
+ * one finishes.
+ */
+TEST_F(MemoryManagerTest, cache_eviction) {
+    auto buffer_a = manager->create_buffer(make_layout(51));
+    auto buffer_b = manager->create_buffer(make_layout(52));
 
-    auto waker = std::make_shared<MockWaker>();
+    auto req_a =
+        manager->create_request(buffer_a, MemoryId(1), AccessMode::Read, make_transaction());
+    ASSERT_EQ(manager->poll_request(req_a), PollResult::Ready);
 
-    manager->create_buffer(buffer_id, layout);
+    auto req_b =
+        manager->create_request(buffer_b, MemoryId(1), AccessMode::Read, make_transaction());
+    ASSERT_EQ(manager->poll_request(req_b), PollResult::Pending);
 
-    auto request = manager->create_request(buffer_id, kmm::DeviceId(2), true, waker);
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Ready);
-    manager->view_buffer(request);
-    manager->delete_request(request);
+    ASSERT_EQ(manager->poll_request(req_a), PollResult::Ready);
+    manager->view_buffer(req_a);
+    manager->delete_request(req_a);
 
-    request = manager->create_request(buffer_id, kmm::DeviceId(1), false, waker);
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Pending);
-    memory->complete_next_transfer(kmm::DeviceId(2), kmm::DeviceId(1));
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Ready);
-    manager->view_buffer(request);
-    manager->delete_request(request);
+    ASSERT_EQ(manager->poll_request(req_b), PollResult::Pending);
+    memory->complete_next_transfer(MemoryId(1), MemoryId(0));
 
-    request = manager->create_request(buffer_id, kmm::DeviceId(1), true, waker);
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Ready);
-    manager->view_buffer(request);
-    manager->delete_request(request);
+    ASSERT_EQ(manager->poll_request(req_b), PollResult::Ready);
+    manager->view_buffer(req_b);
+    manager->delete_request(req_b);
+
+    manager->delete_buffer(buffer_a);
+    manager->delete_buffer(buffer_b);
 }
 
-TEST_F(MemoryManagerTest, write_read_write_read) {
-    auto buffer_id = kmm::BufferId(42);
-    auto layout = build_layout();
+/**
+ * Create a transaction where the total set of requested buffers exceeds memory capacity. This
+ * cannot be granted, but only when all previous requests have finished.
+ */
+TEST_F(MemoryManagerTest, out_of_memory) {
+    auto buffer_a = manager->create_buffer(make_layout(51));
+    auto buffer_b = manager->create_buffer(make_layout(52));
 
-    auto waker = std::make_shared<MockWaker>();
+    auto req_x =
+        manager->create_request(buffer_b, MemoryId(1), AccessMode::Read, make_transaction());
+    ASSERT_EQ(manager->poll_request(req_x), PollResult::Ready);
 
-    manager->create_buffer(buffer_id, layout);
+    auto tran = make_transaction();
+    auto req_a = manager->create_request(buffer_a, MemoryId(1), AccessMode::Read, tran);
+    auto req_b = manager->create_request(buffer_b, MemoryId(1), AccessMode::Read, tran);
+    ASSERT_EQ(manager->poll_request(req_a), PollResult::Pending);
+    ASSERT_EQ(manager->poll_request(req_b), PollResult::Pending);
 
-    auto request = manager->create_request(buffer_id, kmm::DeviceId(2), true, waker);
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Ready);
-    manager->delete_request(request);
+    ASSERT_EQ(manager->poll_request(req_x), PollResult::Ready);
+    manager->view_buffer(req_x);
+    manager->delete_request(req_x);
 
-    request = manager->create_request(buffer_id, kmm::DeviceId(1), false, waker);
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Pending);
-    memory->complete_next_transfer(kmm::DeviceId(2), kmm::DeviceId(1));
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Ready);
-    manager->delete_request(request);
+    ASSERT_EQ(manager->poll_request(req_a), PollResult::Pending);
+    ASSERT_EQ(manager->poll_request(req_b), PollResult::Pending);
+    memory->complete_next_transfer(MemoryId(1), MemoryId(0));
 
-    request = manager->create_request(buffer_id, kmm::DeviceId(1), true, waker);
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Ready);
-    manager->delete_request(request);
+    ASSERT_EQ(manager->poll_request(req_a), PollResult::Ready);
+    ASSERT_EQ(manager->poll_request(req_b), PollResult::Ready);
+    manager->view_buffer(req_a);
+    //    manager->view_buffer(req_b);
+    manager->delete_request(req_a);
+    manager->delete_request(req_b);
 
-    request = manager->create_request(buffer_id, kmm::DeviceId(2), false, waker);
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Pending);
-    memory->complete_next_transfer(kmm::DeviceId(1), kmm::DeviceId(2));
-    ASSERT_EQ(manager->poll_request(request), kmm::PollResult::Ready);
-    manager->delete_request(request);
-
-    manager->delete_buffer(buffer_id);
+    manager->delete_buffer(buffer_a);
+    manager->delete_buffer(buffer_b);
 }

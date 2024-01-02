@@ -29,13 +29,8 @@ class TaskImpl: public Task {
   public:
     TaskImpl(Fun fun, Args... args) : m_fun(std::move(fun)), m_args(std::move(args)...) {}
 
-    TaskResult execute(ExecutorContext& executor, TaskContext& context) override {
-        try {
-            execute_impl(executor, context, std::index_sequence_for<Args...>());
-            return {};
-        } catch (const std::exception& e) {
-            return TaskError(e);
-        }
+    void execute(ExecutorContext& executor, TaskContext& context) override {
+        return execute_impl(executor, context, std::index_sequence_for<Args...>());
     }
 
   private:

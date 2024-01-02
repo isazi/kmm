@@ -6,6 +6,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "kmm/result.hpp"
 #include "kmm/types.hpp"
 
 namespace kmm {
@@ -18,19 +19,21 @@ class MemoryAllocation {
 class IMemoryCompletion {
   public:
     virtual ~IMemoryCompletion() = default;
-    virtual void complete() = 0;
+    virtual void complete(Result<void>) = 0;
 };
 
 class MemoryCompletion {
   public:
-    MemoryCompletion(const MemoryCompletion&) = delete;
-    MemoryCompletion& operator=(const MemoryCompletion&) = delete;
+    explicit MemoryCompletion(std::shared_ptr<IMemoryCompletion> c);
+    ~MemoryCompletion();
+
     MemoryCompletion(MemoryCompletion&&) noexcept = default;
     MemoryCompletion& operator=(MemoryCompletion&&) noexcept = default;
 
-    explicit MemoryCompletion(std::shared_ptr<IMemoryCompletion> c);
-    ~MemoryCompletion();
-    void complete();
+    MemoryCompletion(const MemoryCompletion&) = delete;
+    MemoryCompletion& operator=(const MemoryCompletion&) = delete;
+
+    void complete(Result<void> = {});
 
   public:
     std::shared_ptr<IMemoryCompletion> m_completion;

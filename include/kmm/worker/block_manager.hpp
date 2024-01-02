@@ -2,6 +2,7 @@
 
 #include "kmm/block.hpp"
 #include "kmm/executor.hpp"
+#include "kmm/result.hpp"
 #include "kmm/types.hpp"
 
 namespace kmm {
@@ -9,7 +10,7 @@ namespace kmm {
 struct BlockMetadata {
     std::shared_ptr<BlockHeader> header;
     std::optional<BufferId> buffer_id;
-    MemoryId home_memory;
+    MemoryId home_memory = MemoryId::invalid();
 };
 
 class BlockManager {
@@ -27,7 +28,7 @@ class BlockManager {
     /**
      * Mark a block as poisoned.
      */
-    void poison_block(BlockId id, TaskError error);
+    void poison_block(BlockId id, ErrorPtr error);
 
     /**
      * Delete the given block. Returns the buffer associated with that block since the buffer
@@ -47,9 +48,9 @@ class BlockManager {
     std::optional<BufferId> get_block_buffer(BlockId) const;
 
   private:
-    void insert_entry(BlockId, std::variant<BlockMetadata, TaskError>);
+    void insert_entry(BlockId, Result<BlockMetadata>);
 
-    std::unordered_map<BlockId, std::variant<BlockMetadata, TaskError>> m_entries;
+    std::unordered_map<BlockId, Result<BlockMetadata>> m_entries;
 };
 
 }  // namespace kmm

@@ -74,31 +74,36 @@ ParallelExecutor::~ParallelExecutor() = default;
 
 class ExecutionJob: public ParallelExecutor::Job {
   public:
-    ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context) :
+    ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context, TaskCompletion&& completion) :
         m_task(std::move(task)),
-        m_context(std::move(context)) {}
+        m_context(std::move(context)),
+        m_completion(std::move(completion)) {}
 
     void execute(ParallelExecutorContext& executor) override {
-        auto completion = std::move(m_context.completion);
-
         try {
-            completion.complete(m_task->execute(executor, m_context));
-        } catch (const std::exception& e) {
-            completion.complete_err(e.what());
+            m_task->execute(executor, m_context);
+            m_completion.complete();
+        } catch (...) {
+            m_completion.complete(ErrorPtr::from_current_exception());
         }
     }
 
   private:
     std::shared_ptr<Task> m_task;
     TaskContext m_context;
+    TaskCompletion m_completion;
 };
 
 void ParallelExecutor::submit_job(std::unique_ptr<Job> job) {
     m_queue->push(std::move(job));
 }
 
-void ParallelExecutor::submit(std::shared_ptr<Task> task, TaskContext context) {
-    m_queue->push(std::make_unique<ExecutionJob>(std::move(task), std::move(context)));
+void ParallelExecutor::submit(
+    std::shared_ptr<Task> task,
+    TaskContext context,
+    TaskCompletion completion) {
+    m_queue->push(
+        std::make_unique<ExecutionJob>(std::move(task), std::move(context), std::move(completion)));
 }
 
 class CopyJob: public ParallelExecutor::Job {
@@ -111,7 +116,7 @@ class CopyJob: public ParallelExecutor::Job {
 
     void execute(ParallelExecutorContext&) override {
         std::memcpy(dst_ptr, src_ptr, nbytes);
-        completion.complete();
+        completion.complete(Result<void>());
     }
 
   private:
@@ -152,7 +157,7 @@ class FillJob: public ParallelExecutor::Job {
             fill_impl(k);
         }
 
-        completion.complete();
+        completion.complete(Result<void>());
     }
 
     template<typename K>

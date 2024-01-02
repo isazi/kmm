@@ -90,6 +90,7 @@ endif()
 add_executable(
   kmmTestCxx
   test/test_memory_manager.cpp
+  test/test_result.cpp
 )
 target_include_directories(
     kmmTestCxx

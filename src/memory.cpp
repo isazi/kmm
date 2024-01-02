@@ -14,10 +14,10 @@ MemoryCompletion::~MemoryCompletion() {
     }
 }
 
-void MemoryCompletion::complete() {
+void MemoryCompletion::complete(Result<void> result) {
     KMM_ASSERT(m_completion != nullptr);
     auto completion = std::exchange(m_completion, nullptr);
-    m_completion->complete();
+    completion->complete(std::move(result));
 }
 
 }  // namespace kmm

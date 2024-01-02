@@ -37,8 +37,8 @@ class ExecuteJob: public Job {
     std::vector<std::optional<BufferId>> m_output_buffers;
     std::vector<MemoryRequest> m_memory_requests;
 
-    struct Result;
-    std::shared_ptr<Result> m_result = nullptr;
+    struct TaskResult;
+    std::shared_ptr<TaskResult> m_result = nullptr;
 };
 
 class DeleteJob: public Job {

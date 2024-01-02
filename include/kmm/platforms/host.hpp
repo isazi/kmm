@@ -22,7 +22,7 @@ class ParallelExecutor: public Executor {
 
     ParallelExecutor();
     ~ParallelExecutor() override;
-    void submit(std::shared_ptr<Task>, TaskContext) override;
+    void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
     void submit_job(std::unique_ptr<Job> job);
 
   private:
@@ -72,8 +72,8 @@ class HostMemory: public Memory {
 
     void fill_async(
         MemoryId dst_id,
-        const MemoryAllocation* src_alloc,
-        size_t src_offset,
+        const MemoryAllocation* dst_alloc,
+        size_t dst_offset,
         size_t num_bytes,
         std::vector<uint8_t> fill_bytes,
         MemoryCompletion completion) override;

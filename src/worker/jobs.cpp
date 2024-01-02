@@ -3,18 +3,18 @@
 
 namespace kmm {
 
-struct ExecuteJob::Result: ITaskCompletion {
-    Result(std::shared_ptr<const Waker> job) : m_job(std::move(job)) {}
-    Result(TaskResult result) : m_inner(std::move(result)) {}
+struct ExecuteJob::TaskResult: ITaskCompletion {
+    TaskResult(std::shared_ptr<const Waker> job) : m_job(std::move(job)) {}
+    TaskResult(Result<void> result) : m_inner(std::move(result)) {}
 
-    void complete_task(TaskResult result) final {
+    void complete_task(Result<void> result) final {
         if (auto job = std::exchange(this->m_job, nullptr)) {
             m_inner = std::move(result);
             job->trigger_wakeup(true);
         }
     }
 
-    std::optional<TaskResult> take_result() {
+    std::optional<Result<void>> take_result() {
         if (!m_inner) {
             return std::nullopt;
         }
@@ -25,12 +25,13 @@ struct ExecuteJob::Result: ITaskCompletion {
 
   private:
     std::shared_ptr<const Waker> m_job;
-    std::optional<TaskResult> m_inner;
+    std::optional<Result<void>> m_inner;
 };
 
 PollResult ExecuteJob::poll(WorkerState& worker) {
     if (m_status == Status::Created) {
         auto requests = std::vector<MemoryRequest>();
+        auto transaction = worker.memory_manager->create_transaction(shared_from_this());
 
         for (const auto& arg : m_inputs) {
             auto buffer_id_opt = worker.block_manager.get_block_buffer(arg.block_id);
@@ -40,7 +41,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                     *buffer_id_opt,
                     arg.memory_id,
                     AccessMode::Read,
-                    shared_from_this()));
+                    transaction));
             } else {
                 requests.emplace_back(nullptr);
             }
@@ -57,7 +58,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                     buffer_id,
                     arg.memory_id,
                     AccessMode::ReadWrite,
-                    shared_from_this()));
+                    transaction));
             } else {
                 m_output_buffers.emplace_back(std::nullopt);
                 requests.emplace_back(nullptr);
@@ -74,8 +75,8 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
         }
 
         try {
-            auto result = std::make_shared<Result>(shared_from_this());
-            auto context = TaskContext(TaskCompletion(result));
+            auto result = std::make_shared<TaskResult>(shared_from_this());
+            auto context = TaskContext();
 
             unsigned long index = 0;
 
@@ -104,10 +105,11 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                 });
             }
 
+            worker.executors.at(m_device_id)
+                ->submit(m_task, std::move(context), TaskCompletion(result));
             m_result = std::move(result);
-            worker.executors.at(m_device_id)->submit(m_task, std::move(context));
-        } catch (const std::exception& e) {
-            m_result = std::make_shared<Result>(TaskError(e));
+        } catch (...) {
+            m_result = std::make_shared<TaskResult>(ErrorPtr::from_current_exception());
         }
 
         m_status = Status::Running;
@@ -129,7 +131,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
         m_memory_requests.clear();
 
         unsigned long num_outputs = m_outputs.size();
-        const auto* error = std::get_if<TaskError>(&*result);
+        const auto* error = result->error_if_present();
 
         for (unsigned long i = 0; i < num_outputs; i++) {
             auto& output = m_outputs[i];
@@ -181,11 +183,12 @@ PollResult PrefetchJob::poll(WorkerState& state) {
             return PollResult::Ready;
         }
 
+        auto transaction = state.memory_manager->create_transaction(shared_from_this());
         m_memory_request = state.memory_manager->create_request(  //
             *buffer_id,
             m_memory_id,
             AccessMode::Read,
-            shared_from_this());
+            transaction);
 
         m_status = Status::Active;
     }

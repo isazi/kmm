@@ -1,3 +1,4 @@
+#include "kmm/result.hpp"
 #include "kmm/utils.hpp"
 #include "kmm/worker/memory_manager.hpp"
 
@@ -59,11 +60,11 @@ struct IntrusiveQueue {
     Item* m_tail = nullptr;
 };
 
-struct AllocationLink {
-    AllocationLink(const MemoryManager::Request* parent) : parent(parent) {}
+struct AllocationGrant {
+    AllocationGrant(MemoryManager::Request* parent) : parent(parent) {}
 
-    bool is_ready() const {
-        return status != Status::Queued;
+    bool is_pending() const {
+        return status == Status::Queued;
     }
 
     bool is_error() const {
@@ -75,39 +76,35 @@ struct AllocationLink {
         Queued,
         Acquired,
         Error,
-    };
-
-    Status status = Status::Free;
-    const MemoryManager::Request* parent;
-
-    std::shared_ptr<AllocationLink> next = nullptr;
-    AllocationLink* prev = nullptr;
+    } status = Status::Free;
+    MemoryManager::Request* parent;
+    std::shared_ptr<AllocationGrant> next = nullptr;
+    AllocationGrant* prev = nullptr;
 };
 
 struct MemoryManager::Resource {
-    Resource(MemoryId memory_id) : memory_id(memory_id) {}
+    Resource(MemoryId memory_id) : m_memory_id(memory_id) {}
+
+    bool submit_allocate(std::shared_ptr<AllocationGrant> link, MemoryManager& manager);
+    void deallocate(AllocationGrant& link, MemoryManager& manager);
+    void make_progress(MemoryManager& manager);
+    bool try_allocate(AllocationGrant& link, MemoryManager& manager);
+    bool is_out_of_memory(AllocationGrant& link) const;
 
     void decrement_buffer_users(Buffer* buffer, MemoryManager& manager);
     void add_buffer_to_lru(Buffer* buffer);
-
     void increment_buffer_users(Buffer* buffer);
     void remove_buffer_from_lru(Buffer* buffer);
 
-    bool try_allocate(AllocationLink& link, MemoryManager& manager);
-    bool submit_allocate(std::shared_ptr<AllocationLink> link, MemoryManager& manager);
-    void deallocate(AllocationLink& link, MemoryManager& manager);
-    void make_progress(MemoryManager& manager);
-    bool is_out_of_memory(AllocationLink& link) const;
+  private:
+    MemoryId m_memory_id;
 
-    //  private:
-    MemoryId memory_id;
+    std::shared_ptr<Operation> m_active_eviction = nullptr;
+    IntrusiveQueue<AllocationGrant> m_queue;
+    IntrusiveQueue<AllocationGrant> m_allocated;
 
-    std::shared_ptr<Operation> active_operation = nullptr;
-    IntrusiveQueue<AllocationLink> queue;
-    IntrusiveQueue<AllocationLink> allocated;
-
-    Buffer* lru_oldest = nullptr;
-    Buffer* lru_newest = nullptr;
+    Buffer* m_lru_oldest = nullptr;
+    Buffer* m_lru_newest = nullptr;
 };
 
 struct BufferEntry {
@@ -120,7 +117,7 @@ struct BufferEntry {
 
     Status status = Status::Unallocated;
     std::unique_ptr<MemoryAllocation> allocation = nullptr;
-    MemoryManager::Operation* incoming_transfer = nullptr;
+    MemoryManager::Operation* incoming_operation = nullptr;
 };
 
 struct BufferLRULink {
@@ -129,43 +126,48 @@ struct BufferLRULink {
     size_t num_users = 0;
 };
 
-struct BufferLockLink {
-    BufferLockLink(const MemoryManager::Request* parent) : parent(parent) {}
+struct BufferLockGrant {
+    BufferLockGrant(const MemoryManager::Request* parent) : parent(parent) {}
 
-    bool is_ready() const {
-        return status == Status::Acquired;
+    bool is_pending() const {
+        return status != Status::Acquired;
     }
 
     enum struct Status {
         Free,
         Queued,
         Acquired,
-    };
-    Status status = Status::Free;
-
+    } status = Status::Free;
     const MemoryManager::Request* parent;
-    std::shared_ptr<BufferLockLink> next = nullptr;
-    BufferLockLink* prev = nullptr;
+    std::shared_ptr<BufferLockGrant> next = nullptr;
+    BufferLockGrant* prev = nullptr;
 };
 
 struct MemoryManager::Buffer {
-    Buffer(BufferId id, BlockLayout layout) : id(id), layout(layout) {}
+    friend MemoryManager;
 
-    void submit_lock(std::shared_ptr<BufferLockLink> link);
+    Buffer(BufferId id, BlockLayout layout, std::vector<uint8_t> fill_pattern) :
+        id(id),
+        layout(layout),
+        fill_pattern(std::move(fill_pattern)) {}
+
+    void submit_lock(std::shared_ptr<BufferLockGrant> link);
     bool try_lock(MemoryId memory_id, AccessMode mode);
-    void unlock(BufferLockLink& link);
+    void unlock(BufferLockGrant& link);
 
     BufferId id;
     BlockLayout layout;
     BufferEntry entries[MAX_DEVICES];
     BufferLRULink lru_links[MAX_DEVICES];
+    std::vector<uint8_t> fill_pattern;
     size_t active_requests = 0;
     size_t refcount = 1;
 
-    uint64_t num_readers = 0;
-    uint64_t num_writers = 0;
-    MemoryId writing_memory = MemoryId::invalid();
-    IntrusiveQueue<BufferLockLink> lock_queue;
+  private:
+    uint64_t m_num_readers = 0;
+    uint64_t m_num_writers = 0;
+    MemoryId m_writing_memory = MemoryId::invalid();
+    IntrusiveQueue<BufferLockGrant> m_lock_queue;
 };
 
 struct MemoryManager::Operation: IMemoryCompletion, std::enable_shared_from_this<Operation> {
@@ -174,46 +176,57 @@ struct MemoryManager::Operation: IMemoryCompletion, std::enable_shared_from_this
         src_id(src_id),
         dst_id(dst_id) {}
 
-    bool initialize(MemoryManager& manager) {
+    void initialize(MemoryManager& manager) const {
         std::unique_lock guard {m_mutex};
-        if (m_completed) {
-            return false;
+        if (!m_completed) {
+            m_manager = manager.shared_from_this();
         }
-
-        m_manager = manager.shared_from_this();
-        return true;
     }
 
-    bool is_completed() {
+    bool is_running() const {
         std::unique_lock guard {m_mutex};
-        return m_completed;
+        return !m_completed;
     }
 
-    void complete() final {
+    Result<void> result() const {
+        std::unique_lock guard {m_mutex};
+        return m_result;
+    }
+
+    void complete(Result<void> result) final {
         std::unique_lock guard {m_mutex};
         if (m_completed) {
             return;
         }
 
         m_completed = true;
+        m_result = std::move(result);
         auto manager = std::exchange(m_manager, nullptr);
+
         guard.unlock();
 
         if (manager) {
-            m_manager->complete_operation(*this);
+            manager->complete_operation(*this);
         }
     }
 
-    Buffer* buffer;
-    MemoryId src_id;
-    MemoryId dst_id;
+    Buffer* const buffer;
+    MemoryId const src_id;
+    MemoryId const dst_id;
     std::vector<std::shared_ptr<Request>> waiting_requests;
     uint64_t waiting_resources;
 
   private:
-    std::mutex m_mutex;
-    bool m_completed = false;
-    std::shared_ptr<MemoryManager> m_manager;
+    mutable std::mutex m_mutex;
+    mutable bool m_completed = false;
+    mutable Result<void> m_result;
+    mutable std::shared_ptr<MemoryManager> m_manager;
+};
+
+struct MemoryManager::Transaction {
+    explicit Transaction(std::shared_ptr<const Waker> waker) : waker(std::move(waker)) {}
+
+    std::shared_ptr<const Waker> waker;
 };
 
 struct MemoryManager::Request {
@@ -221,11 +234,11 @@ struct MemoryManager::Request {
         Buffer* buffer,
         MemoryId memory_id,
         AccessMode mode,
-        std::shared_ptr<const Waker> waker) :
+        std::shared_ptr<Transaction> parent) :
         buffer(buffer),
         memory_id(memory_id),
         mode(mode),
-        waker(std::move(waker)),
+        parent(std::move(parent)),
         host_allocation(this),
         device_allocation(this),
         buffer_lock(this) {}
@@ -243,25 +256,37 @@ struct MemoryManager::Request {
     Buffer* buffer;
     MemoryId memory_id;
     AccessMode mode;
-    std::shared_ptr<const Waker> waker;
+    ErrorPtr error;
+    std::shared_ptr<Transaction> parent;
 
-    AllocationLink host_allocation;
-    AllocationLink device_allocation;
-    BufferLockLink buffer_lock;
-    std::shared_ptr<Operation> ongoing_transfer = nullptr;
+    AllocationGrant host_allocation;
+    AllocationGrant device_allocation;
+    BufferLockGrant buffer_lock;
+    std::shared_ptr<Operation> ongoing_operation = nullptr;
 };
 
 MemoryManager::MemoryManager(std::unique_ptr<Memory> memory, std::optional<MemoryId> storage_id) :
     m_memory(std::move(memory)),
-    m_storage_id(storage_id) {}
+    m_storage_id(storage_id) {
+    for (uint8_t i = 0; i < MAX_DEVICES; i++) {
+        m_resources[i] = std::make_unique<Resource>(MemoryId(i));
+    }
+}
 
 MemoryManager::~MemoryManager() = default;
 
-BufferId MemoryManager::create_buffer(const BlockLayout& layout) {
+std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
+    std::shared_ptr<const Waker> waker) const {
+    return std::make_shared<Transaction>(waker);
+}
+
+BufferId MemoryManager::create_buffer(
+    const BlockLayout& layout,
+    std::vector<uint8_t> fill_pattern) {
     std::lock_guard guard {m_mutex};
     size_t nbytes = layout.num_bytes;
     BufferId id = BufferId(m_next_buffer_id++, nbytes);
-    m_buffers.insert({id, std::make_unique<Buffer>(id, layout)});
+    m_buffers.insert({id, std::make_unique<Buffer>(id, layout, std::move(fill_pattern))});
     return id;
 }
 
@@ -290,12 +315,12 @@ void MemoryManager::decrement_buffer_refcount(BufferId buffer_id, size_t n) {
 }
 
 void MemoryManager::delete_buffer_when_idle(Buffer* buffer) {
-    if (buffer->refcount == 0 || buffer->active_requests > 0) {
+    if (buffer->refcount > 0 || buffer->active_requests > 0) {
         return;
     }
 
-    KMM_ASSERT(buffer->num_writers == 0);
-    KMM_ASSERT(buffer->num_readers == 0);
+    KMM_ASSERT(buffer->m_num_writers == 0);
+    KMM_ASSERT(buffer->m_num_readers == 0);
 
     for (uint8_t i = 0; i < MAX_DEVICES; i++) {
         KMM_ASSERT(buffer->lru_links[i].num_users == 0);
@@ -323,20 +348,20 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     BufferId buffer_id,
     MemoryId memory_id,
     AccessMode mode,
-    std::shared_ptr<const Waker> waker) {
+    std::shared_ptr<Transaction> parent) {
     std::lock_guard guard {m_mutex};
     KMM_ASSERT(memory_id < MAX_DEVICES);
 
     auto* buffer = m_buffers.at(buffer_id).get();
     buffer->active_requests += 1;
 
-    return std::make_shared<Request>(buffer, memory_id, mode, std::move(waker));
+    return std::make_shared<Request>(buffer, memory_id, mode, std::move(parent));
 }
 
 const MemoryAllocation* MemoryManager::view_buffer(const std::shared_ptr<Request>& req) {
     std::lock_guard guard {m_mutex};
     if (req->status == Request::Status::Error) {
-        KMM_TODO();  // throw an exception?
+        req->error.rethrow();
     }
 
     KMM_ASSERT(req->status == Request::Status::Ready);
@@ -364,23 +389,27 @@ void MemoryManager::delete_request(const std::shared_ptr<Request>& req) {
     delete_buffer_when_idle(buffer);
 }
 
-void MemoryManager::complete_operation(Operation& transfer) {
+void MemoryManager::complete_operation(Operation& op) {
     std::lock_guard guard {m_mutex};
-    auto* buffer = transfer.buffer;
-    auto& dst_entry = buffer->entries[transfer.dst_id];
 
-    KMM_ASSERT(dst_entry.incoming_transfer == &transfer);
-    dst_entry.incoming_transfer = nullptr;
-    dst_entry.status = BufferEntry::Status::Valid;
+    auto* buffer = op.buffer;
+    auto& dst_entry = buffer->entries[op.dst_id];
 
-    for (auto& request : transfer.waiting_requests) {
+    KMM_ASSERT(dst_entry.incoming_operation == &op);
+    dst_entry.incoming_operation = nullptr;
+
+    if (op.result()) {
+        dst_entry.status = BufferEntry::Status::Valid;
+    }
+
+    for (auto& request : op.waiting_requests) {
         if (poll_request_impl(request) == PollResult::Ready) {
-            request->waker->trigger_wakeup();
+            request->parent->waker->trigger_wakeup();
         }
     }
 
     for (uint8_t i = 0; i < MAX_DEVICES; i++) {
-        if ((transfer.waiting_resources & (1 << i)) != 0) {
+        if ((op.waiting_resources & (1 << i)) != 0) {
             m_resources[i]->make_progress(*this);
         }
     }
@@ -410,20 +439,21 @@ PollResult MemoryManager::poll_request_impl(const std::shared_ptr<Request>& requ
 
         if (status == Request::Status::Init) {
             request->buffer->submit_lock(
-                std::shared_ptr<BufferLockLink> {request, &request->buffer_lock});
+                std::shared_ptr<BufferLockGrant> {request, &request->buffer_lock});
 
             m_resources[HOST_MEMORY]->submit_allocate(
-                std::shared_ptr<AllocationLink> {request, &request->host_allocation},
+                std::shared_ptr<AllocationGrant> {request, &request->host_allocation},
                 *this);
 
             m_resources[request->memory_id]->submit_allocate(
-                std::shared_ptr<AllocationLink> {request, &request->device_allocation},
+                std::shared_ptr<AllocationGrant> {request, &request->device_allocation},
                 *this);
 
             request->status = Request::Status::WaitingForAccess;
         } else if (status == Request::Status::WaitingForAccess) {
-            if (!request->buffer_lock.is_ready() || !request->host_allocation.is_ready()
-                || !request->device_allocation.is_ready()) {
+            if (request->buffer_lock.is_pending() ||  //
+                request->host_allocation.is_pending() ||  //
+                request->device_allocation.is_pending()) {
                 return PollResult::Pending;
             }
 
@@ -434,55 +464,39 @@ PollResult MemoryManager::poll_request_impl(const std::shared_ptr<Request>& requ
 
             request->status = Request::Status::WaitingForData;
         } else if (status == Request::Status::WaitingForData) {
-            if (request->ongoing_transfer) {
-                if (!request->ongoing_transfer->is_completed()) {
+            if (request->ongoing_operation) {
+                if (request->ongoing_operation->is_running()) {
                     return PollResult::Pending;
                 }
 
-                request->ongoing_transfer = nullptr;
+                auto ongoing_operation = std::exchange(request->ongoing_operation, nullptr);
+
+                if (const auto* error = ongoing_operation->result().error_if_present()) {
+                    request->error = *error;
+                    request->status = Request::Status::Error;
+                    request->ongoing_operation = nullptr;
+                    continue;
+                }
             }
 
             auto memory_id = request->memory_id;
-            auto exclusive = request->mode == AccessMode::Read;
+            auto exclusive = request->mode != AccessMode::Read;
 
             if (auto transfer = poll_buffer_data(memory_id, request->buffer, exclusive)) {
-                request->ongoing_transfer = std::move(*transfer);
-                request->ongoing_transfer->waiting_requests.push_back(request);
+                request->ongoing_operation = std::move(*transfer);
+                request->ongoing_operation->waiting_requests.push_back(request);
                 continue;
             }
 
             request->status = Request::Status::Ready;
-        } else if (status == Request::Status::Ready || status == Request::Status::Error) {
+        } else if (
+            status == Request::Status::Ready ||  //
+            status == Request::Status::Error ||  //
+            status == Request::Status::Terminated) {
             return PollResult::Ready;
         } else {
             KMM_PANIC("invalid request status");
         }
-    }
-}
-
-bool MemoryManager::Resource::submit_allocate(
-    std::shared_ptr<AllocationLink> link,
-    MemoryManager& manager) {
-    KMM_ASSERT(link->status == AllocationLink::Status::Free);
-    link->status = AllocationLink::Status::Queued;
-
-    if (queue.is_empty() && try_allocate(*link, manager)) {
-        allocated.push_back(std::move(link));
-    } else {
-        queue.push_back(std::move(link));
-    }
-
-    return false;
-}
-
-void MemoryManager::Resource::make_progress(MemoryManager& manager) {
-    while (auto* head = queue.front()) {
-        if (!try_allocate(*head, manager)) {
-            break;
-        }
-
-        allocated.push_back(queue.pop_front());
-        head->parent->waker->trigger_wakeup();
     }
 }
 
@@ -505,79 +519,6 @@ bool MemoryManager::try_allocate_buffer(Buffer* buffer, MemoryId memory_id) {
     return false;
 }
 
-bool MemoryManager::Resource::try_allocate(AllocationLink& link, MemoryManager& manager) {
-    while (true) {
-        auto* buffer = link.parent->buffer;
-
-        if (manager.try_allocate_buffer(buffer, memory_id)) {
-            link.status = AllocationLink::Status::Acquired;
-            increment_buffer_users(buffer);
-            return true;
-        }
-
-        if (active_operation) {
-            if (!active_operation->is_completed()) {
-                active_operation->waiting_resources |= 1 << memory_id;
-                return false;
-            }
-
-            // TODO: check result of operation
-            /*
-            if (!active_operation.is_ok()) {
-                link.status = AllocationLink::Status::Error;
-                return true;
-            }
-            */
-
-            active_operation = nullptr;
-        }
-
-        if (auto* victim = lru_oldest) {
-            if (auto transfer = manager.evict_buffer(memory_id, victim)) {
-                active_operation = std::move(*transfer);
-            }
-
-            continue;
-        }
-
-        if (is_out_of_memory(link)) {
-            // TODO: Indicate what the error is
-            link.status = AllocationLink::Status::Error;
-            return true;
-        }
-
-        return false;
-    }
-}
-
-bool MemoryManager::Resource::is_out_of_memory(AllocationLink& link) const {
-    for (auto* item = allocated.front(); item != nullptr; item = item->next.get()) {
-        if (item->parent->waker != link.parent->waker) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-void MemoryManager::Resource::deallocate(AllocationLink& link, MemoryManager& manager) {
-    switch (link.status) {
-        case AllocationLink::Status::Free:
-        case AllocationLink::Status::Error:
-            // nothing
-            break;
-        case AllocationLink::Status::Queued:
-            queue.pop(link);
-            break;
-        case AllocationLink::Status::Acquired:
-            allocated.pop(link);
-            decrement_buffer_users(link.parent->buffer, manager);
-            break;
-    }
-
-    link.status = AllocationLink::Status::Free;
-}
-
 std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_buffer(
     MemoryId memory_id,
     Buffer* buffer) {
@@ -598,7 +539,9 @@ std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_bu
 
 std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_storage_buffer(
     Buffer* buffer) {
-    KMM_PANIC("cannot evict buffers from storage");
+    auto op = std::make_shared<Operation>(buffer, MemoryId::invalid());
+    op->complete(ErrorPtr("cannot evict buffers from storage"));
+    return op;
 }
 
 std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_host_buffer(
@@ -614,12 +557,12 @@ std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_ho
         auto& peer_entry = buffer->entries[i];
 
         if (peer_entry.status == BufferEntry::Status::IncomingTransfer) {
-            auto src_id = peer_entry.incoming_transfer->src_id;
+            auto src_id = peer_entry.incoming_operation->src_id;
             auto dst_id = MemoryId(i);
 
             if (src_id == HOST_MEMORY || src_id == storage_id ||  //
                 dst_id == HOST_MEMORY || dst_id == storage_id) {
-                return peer_entry.incoming_transfer->shared_from_this();
+                return peer_entry.incoming_operation->shared_from_this();
             }
         }
 
@@ -659,21 +602,20 @@ std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_de
     auto& entry = buffer->entries[memory_id];
 
     if (entry.status == BufferEntry::Status::IncomingTransfer) {
-        return entry.incoming_transfer->shared_from_this();
+        return entry.incoming_operation->shared_from_this();
     }
 
     size_t valid_count = 0;
 
     for (auto& peer_entry : buffer->entries) {
         if (peer_entry.status == BufferEntry::Status::IncomingTransfer) {
-            if (peer_entry.incoming_transfer->src_id == memory_id) {
-                return peer_entry.incoming_transfer->shared_from_this();
+            if (peer_entry.incoming_operation->src_id == memory_id) {
+                return peer_entry.incoming_operation->shared_from_this();
             }
         }
 
         if (peer_entry.status == BufferEntry::Status::Valid) {
             valid_count++;
-            ;
         }
     }
 
@@ -690,58 +632,6 @@ std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::evict_de
     return std::nullopt;
 }
 
-void MemoryManager::Resource::increment_buffer_users(Buffer* buffer) {
-    auto& links = buffer->lru_links[memory_id];
-    if (links.num_users == 0) {
-        remove_buffer_from_lru(buffer);
-    }
-
-    links.num_users++;
-}
-
-void MemoryManager::Resource::decrement_buffer_users(Buffer* buffer, MemoryManager& manager) {
-    auto& links = buffer->lru_links[memory_id];
-    links.num_users--;
-
-    if (links.num_users == 0) {
-        add_buffer_to_lru(buffer);
-        make_progress(manager);
-    }
-}
-
-void MemoryManager::Resource::remove_buffer_from_lru(Buffer* buffer) {
-    auto& links = buffer->lru_links[memory_id];
-
-    auto* prev = std::exchange(links.prev, nullptr);
-    auto* next = std::exchange(links.next, nullptr);
-
-    if (next != nullptr) {
-        next->lru_links[memory_id].prev = prev;
-    } else {
-        lru_newest = prev;
-    }
-
-    if (prev != nullptr) {
-        prev->lru_links[memory_id].next = next;
-    } else {
-        lru_oldest = next;
-    }
-}
-
-void MemoryManager::Resource::add_buffer_to_lru(Buffer* buffer) {
-    auto& links = buffer->lru_links[memory_id];
-
-    if (lru_oldest == nullptr) {
-        lru_oldest = buffer;
-        lru_newest = buffer;
-    } else {
-        auto* last = lru_newest;
-        links.prev = last;
-        last->lru_links[memory_id].next = buffer;
-        lru_newest = buffer;
-    }
-}
-
 std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::poll_buffer_data(
     MemoryId memory_id,
     Buffer* buffer,
@@ -750,14 +640,14 @@ std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::poll_buf
     KMM_ASSERT(entry.status != BufferEntry::Status::Unallocated);
 
     if (entry.status == BufferEntry::Status::IncomingTransfer) {
-        return entry.incoming_transfer->shared_from_this();
+        return entry.incoming_operation->shared_from_this();
     }
 
     if (entry.status == BufferEntry::Status::Invalid) {
         if (memory_id != HOST_MEMORY) {
             auto& host_entry = buffer->entries[HOST_MEMORY];
             if (host_entry.status == BufferEntry::Status::IncomingTransfer) {
-                return host_entry.incoming_transfer->shared_from_this();
+                return host_entry.incoming_operation->shared_from_this();
             }
 
             if (host_entry.status == BufferEntry::Status::Valid) {
@@ -778,19 +668,22 @@ std::optional<std::shared_ptr<MemoryManager::Operation>> MemoryManager::poll_buf
             }
         }
 
-        // TODO: Clear memory if requested
+        if (!buffer->fill_pattern.empty()) {
+            return initiate_fill(buffer, memory_id, buffer->fill_pattern);
+        }
+
         entry.status = BufferEntry::Status::Valid;
     }
 
     if (exclusive) {
         for (uint8_t i = 0; i < MAX_DEVICES; i++) {
-            if (i != memory_id) {
+            if (i == memory_id) {
                 continue;
             }
 
             auto& peer_entry = buffer->entries[i];
             if (peer_entry.status == BufferEntry::Status::IncomingTransfer) {
-                return peer_entry.incoming_transfer->shared_from_this();
+                return peer_entry.incoming_operation->shared_from_this();
             }
 
             if (peer_entry.status == BufferEntry::Status::Valid) {
@@ -813,8 +706,9 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_transfer(
     KMM_ASSERT(dst_entry.status == BufferEntry::Status::Invalid);
     KMM_ASSERT(src_entry.allocation != nullptr);
     KMM_ASSERT(dst_entry.allocation != nullptr);
+    KMM_ASSERT(dst_entry.incoming_operation == nullptr);
 
-    auto transfer = std::make_shared<Operation>(buffer, dst_id, src_id);
+    auto op = std::make_shared<Operation>(buffer, dst_id, src_id);
 
     m_memory->copy_async(
         src_id,
@@ -824,48 +718,238 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_transfer(
         dst_entry.allocation.get(),
         0,
         buffer->layout.num_bytes,
-        MemoryCompletion(transfer));
+        MemoryCompletion(op));
 
-    if (!transfer->initialize(*this)) {
-        KMM_TODO();  // What if the transfer completes immediately?
+    op->initialize(*this);
+
+    if (op->is_running()) {
+        dst_entry.status = BufferEntry::Status::IncomingTransfer;
+        dst_entry.incoming_operation = op.get();
+    } else if (op->result()) {
+        dst_entry.status = BufferEntry::Status::Valid;
     }
 
-    dst_entry.status = BufferEntry::Status::IncomingTransfer;
-    dst_entry.incoming_transfer = transfer.get();
-    return transfer;
+    return op;
 }
 
-void MemoryManager::Buffer::submit_lock(std::shared_ptr<BufferLockLink> link) {
-    KMM_ASSERT(link->status == BufferLockLink::Status::Free);
+std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_fill(
+    Buffer* buffer,
+    MemoryId memory_id,
+    const std::vector<uint8_t>& fill_pattern) {
+    auto& entry = buffer->entries[memory_id];
 
-    if (lock_queue.is_empty() && try_lock(link->parent->memory_id, link->parent->mode)) {
-        link->status = BufferLockLink::Status::Acquired;
+    KMM_ASSERT(entry.status == BufferEntry::Status::Invalid);
+    KMM_ASSERT(entry.allocation != nullptr);
+    KMM_ASSERT(entry.incoming_operation == nullptr);
+
+    auto op = std::make_shared<Operation>(buffer, memory_id);
+
+    m_memory->fill_async(
+        memory_id,
+        entry.allocation.get(),
+        0,
+        buffer->layout.num_bytes,
+        fill_pattern,
+        MemoryCompletion(op));
+    op->initialize(*this);
+
+    if (op->is_running()) {
+        entry.status = BufferEntry::Status::IncomingTransfer;
+        entry.incoming_operation = op.get();
+    } else if (op->result()) {
+        entry.status = BufferEntry::Status::Valid;
+    }
+
+    return op;
+}
+
+bool MemoryManager::Resource::submit_allocate(
+    std::shared_ptr<AllocationGrant> link,
+    MemoryManager& manager) {
+    KMM_ASSERT(link->status == AllocationGrant::Status::Free);
+    link->status = AllocationGrant::Status::Queued;
+
+    if (m_queue.is_empty() && try_allocate(*link, manager)) {
+        m_allocated.push_back(std::move(link));
     } else {
-        link->status = BufferLockLink::Status::Queued;
-        lock_queue.push_back(std::move(link));
+        m_queue.push_back(std::move(link));
+    }
+
+    return false;
+}
+
+void MemoryManager::Resource::deallocate(AllocationGrant& link, MemoryManager& manager) {
+    switch (link.status) {
+        case AllocationGrant::Status::Free:
+        case AllocationGrant::Status::Error:
+            // nothing
+            break;
+        case AllocationGrant::Status::Queued:
+            m_queue.pop(link);
+            break;
+        case AllocationGrant::Status::Acquired:
+            m_allocated.pop(link);
+            decrement_buffer_users(link.parent->buffer, manager);
+            break;
+    }
+
+    link.status = AllocationGrant::Status::Free;
+}
+
+void MemoryManager::Resource::make_progress(MemoryManager& manager) {
+    while (auto* head = m_queue.front()) {
+        if (!try_allocate(*head, manager)) {
+            break;
+        }
+
+        m_allocated.push_back(m_queue.pop_front());
+        head->parent->parent->waker->trigger_wakeup();
+    }
+}
+
+bool MemoryManager::Resource::try_allocate(AllocationGrant& link, MemoryManager& manager) {
+    while (true) {
+        auto* buffer = link.parent->buffer;
+
+        // First, try to allocate the buffer
+        if (manager.try_allocate_buffer(buffer, m_memory_id)) {
+            link.status = AllocationGrant::Status::Acquired;
+            increment_buffer_users(buffer);
+            return true;
+        }
+
+        // Second, if there is an eviction ongoing, wait until it completes.
+        if (m_active_eviction) {
+            if (m_active_eviction->is_running()) {
+                m_active_eviction->waiting_resources |= 1 << m_memory_id;
+                return false;
+            }
+
+            if (const auto* error = m_active_eviction->result().error_if_present()) {
+                link.status = AllocationGrant::Status::Error;
+                link.parent->error = *error;
+                return true;
+            }
+
+            m_active_eviction = nullptr;
+        }
+
+        // Third, check if we can evict a buffer that is not in use
+        if (auto* victim = m_lru_oldest) {
+            if (auto transfer = manager.evict_buffer(m_memory_id, victim)) {
+                m_active_eviction = std::move(*transfer);
+            }
+
+            continue;
+        }
+
+        // Fourth, check if we are out of memory
+        if (is_out_of_memory(link)) {
+            link.status = AllocationGrant::Status::Error;
+            link.parent->error = ErrorPtr(fmt::format(
+                "cannot allocate {} bytes in memory {}, out of memory",
+                buffer->layout.num_bytes,
+                m_memory_id.get()));
+            return true;
+        }
+
+        return false;
+    }
+}
+
+bool MemoryManager::Resource::is_out_of_memory(AllocationGrant& link) const {
+    for (auto* item = m_allocated.front(); item != nullptr; item = item->next.get()) {
+        if (item->parent->parent.get() != link.parent->parent.get()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void MemoryManager::Resource::decrement_buffer_users(Buffer* buffer, MemoryManager& manager) {
+    auto& links = buffer->lru_links[m_memory_id];
+    links.num_users--;
+
+    if (links.num_users == 0) {
+        add_buffer_to_lru(buffer);
+        make_progress(manager);
+    }
+}
+
+void MemoryManager::Resource::add_buffer_to_lru(Buffer* buffer) {
+    auto& links = buffer->lru_links[m_memory_id];
+
+    if (m_lru_oldest == nullptr) {
+        m_lru_oldest = buffer;
+        m_lru_newest = buffer;
+    } else {
+        auto* last = m_lru_newest;
+        links.prev = last;
+        last->lru_links[m_memory_id].next = buffer;
+        m_lru_newest = buffer;
+    }
+}
+
+void MemoryManager::Resource::increment_buffer_users(Buffer* buffer) {
+    auto& links = buffer->lru_links[m_memory_id];
+    if (links.num_users == 0) {
+        remove_buffer_from_lru(buffer);
+    }
+
+    links.num_users++;
+}
+
+void MemoryManager::Resource::remove_buffer_from_lru(Buffer* buffer) {
+    auto& links = buffer->lru_links[m_memory_id];
+
+    auto* prev = std::exchange(links.prev, nullptr);
+    auto* next = std::exchange(links.next, nullptr);
+
+    if (next != nullptr) {
+        next->lru_links[m_memory_id].prev = prev;
+    } else {
+        m_lru_newest = prev;
+    }
+
+    if (prev != nullptr) {
+        prev->lru_links[m_memory_id].next = next;
+    } else {
+        m_lru_oldest = next;
+    }
+}
+
+void MemoryManager::Buffer::submit_lock(std::shared_ptr<BufferLockGrant> link) {
+    KMM_ASSERT(link->status == BufferLockGrant::Status::Free);
+
+    if (m_lock_queue.is_empty() && try_lock(link->parent->memory_id, link->parent->mode)) {
+        link->status = BufferLockGrant::Status::Acquired;
+    } else {
+        link->status = BufferLockGrant::Status::Queued;
+        m_lock_queue.push_back(std::move(link));
     }
 }
 
 bool MemoryManager::Buffer::try_lock(MemoryId memory_id, AccessMode mode) {
     switch (mode) {
         case AccessMode::Read:
-            if (num_writers == 0) {
-                num_readers++;
+            if (m_num_writers == 0) {
+                m_num_readers++;
                 return true;
             }
             break;
         case AccessMode::ReadWrite:
-            if (num_readers == 0 && num_writers == 0) {
-                writing_memory = memory_id;
-                num_readers++;
-                num_writers++;
+            if (m_num_readers == 0 && m_num_writers == 0) {
+                m_writing_memory = memory_id;
+                m_num_readers++;
+                m_num_writers++;
                 return true;
             }
             break;
         case AccessMode::Atomic:
-            if (num_readers == 0 && (num_writers == 0 || writing_memory == memory_id)) {
-                writing_memory = memory_id;
-                num_writers++;
+            if (m_num_readers == 0 && (m_num_writers == 0 || m_writing_memory == memory_id)) {
+                m_writing_memory = memory_id;
+                m_num_writers++;
                 return true;
             }
             break;
@@ -874,42 +958,42 @@ bool MemoryManager::Buffer::try_lock(MemoryId memory_id, AccessMode mode) {
     return false;
 }
 
-void MemoryManager::Buffer::unlock(BufferLockLink& link) {
+void MemoryManager::Buffer::unlock(BufferLockGrant& link) {
     switch (link.status) {
-        case BufferLockLink::Status::Free:
+        case BufferLockGrant::Status::Free:
             return;
-        case BufferLockLink::Status::Queued:
-            lock_queue.pop(link);
+        case BufferLockGrant::Status::Queued:
+            m_lock_queue.pop(link);
             return;
-        case BufferLockLink::Status::Acquired:
+        case BufferLockGrant::Status::Acquired:
             break;
     }
 
-    link.status = BufferLockLink::Status::Free;
+    link.status = BufferLockGrant::Status::Free;
 
     switch (link.parent->mode) {
         case AccessMode::Read:
-            num_readers--;
+            m_num_readers--;
             break;
         case AccessMode::ReadWrite:
-            num_readers--;
-            num_writers--;
+            m_num_readers--;
+            m_num_writers--;
             break;
         case AccessMode::Atomic:
-            num_writers--;
+            m_num_writers--;
             break;
     }
 
-    while (!lock_queue.is_empty()) {
-        auto* head = lock_queue.front();
+    while (!m_lock_queue.is_empty()) {
+        auto* head = m_lock_queue.front();
 
         if (!try_lock(head->parent->memory_id, head->parent->mode)) {
             break;
         }
 
-        head->status = BufferLockLink::Status::Acquired;
-        head->parent->waker->trigger_wakeup();
-        lock_queue.pop_front();
+        head->status = BufferLockGrant::Status::Acquired;
+        head->parent->parent->waker->trigger_wakeup();
+        m_lock_queue.pop_front();
     }
 }
 
