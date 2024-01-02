@@ -25,8 +25,8 @@ EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements re
     auto num_outputs = reqs.outputs.size();
 
     for (auto& input : reqs.inputs) {
-        spdlog::info("input={}", input.block_id);
         auto& accesses = m_block_accesses.at(input.block_id);
+        deps.extend(accesses);
         accesses.push_back(event_id);
     }
 
