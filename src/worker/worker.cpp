@@ -5,7 +5,7 @@
 #include "fmt/ranges.h"
 #include "spdlog/spdlog.h"
 
-#include "kmm/utils.hpp"
+#include "kmm/panic.hpp"
 #include "kmm/worker/jobs.hpp"
 #include "kmm/worker/memory_manager.hpp"
 #include "kmm/worker/worker.hpp"

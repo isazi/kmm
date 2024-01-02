@@ -11,7 +11,7 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/executor.hpp"
-#include "kmm/utils.hpp"
+#include "kmm/panic.hpp"
 #include "kmm/worker/command.hpp"
 #include "kmm/worker/memory_manager.hpp"
 

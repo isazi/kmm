@@ -6,6 +6,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "kmm/completion.hpp"
 #include "kmm/result.hpp"
 #include "kmm/types.hpp"
 
@@ -16,29 +17,6 @@ class MemoryAllocation {
     virtual ~MemoryAllocation() = default;
 };
 
-class IMemoryCompletion {
-  public:
-    virtual ~IMemoryCompletion() = default;
-    virtual void complete(Result<void>) = 0;
-};
-
-class MemoryCompletion {
-  public:
-    explicit MemoryCompletion(std::shared_ptr<IMemoryCompletion> c);
-    ~MemoryCompletion();
-
-    MemoryCompletion(MemoryCompletion&&) noexcept = default;
-    MemoryCompletion& operator=(MemoryCompletion&&) noexcept = default;
-
-    MemoryCompletion(const MemoryCompletion&) = delete;
-    MemoryCompletion& operator=(const MemoryCompletion&) = delete;
-
-    void complete(Result<void> = {});
-
-  public:
-    std::shared_ptr<IMemoryCompletion> m_completion;
-};
-
 class Memory {
   public:
     virtual ~Memory() = default;
@@ -47,8 +25,7 @@ class Memory {
      * @brief Allocates memory of a specified size.
      * @param id The identifier for the memory.
      * @param num_bytes The number of bytes to allocate.
-     * @return An optional unique pointer to a MemoryAllocation object on success,
-     *         or an empty optional if allocation fails.
+     * @return An `MemoryAllocation` object on success, or an empty optional if allocation fails.
      */
     virtual std::optional<std::unique_ptr<MemoryAllocation>> allocate(
         MemoryId id,
@@ -73,7 +50,7 @@ class Memory {
         const MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        MemoryCompletion completion) = 0;
+        Completion completion) = 0;
 
     /**
      * @brief Checks if a copy operation is possible between the given source and destination.
@@ -93,7 +70,7 @@ class Memory {
         size_t dst_offset,
         size_t num_bytes,
         std::vector<uint8_t> fill_bytes,
-        MemoryCompletion completion) = 0;
+        Completion completion) = 0;
 };
 
 }  // namespace kmm

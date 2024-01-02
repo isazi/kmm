@@ -1,4 +1,4 @@
-#include "kmm/platforms/host.hpp"
+#include "kmm/host/host.hpp"
 #include "kmm/runtime.hpp"
 
 namespace kmm {
@@ -6,9 +6,16 @@ namespace kmm {
 template<typename T, size_t N = 1>
 class Array {
   public:
-    Array(std::array<index_t, N> sizes = {}, std::shared_ptr<Buffer> buffer = nullptr) :
+    Array(std::array<index_t, N> sizes = {}, std::shared_ptr<Block> buffer = nullptr) :
         m_sizes(sizes),
         m_buffer(std::move(buffer)) {}
+
+    template<
+        typename... Sizes,
+        std::enable_if_t<
+            sizeof...(Sizes) == N && (std::is_convertible_v<Sizes, index_t> && ...),
+            int> = 0>
+    Array(Sizes... sizes) : m_sizes {sizes...} {}
 
     size_t rank() const {
         return N;
@@ -30,25 +37,37 @@ class Array {
         return size() == 0;
     }
 
-    std::shared_ptr<Buffer> buffer() const {
+    bool has_buffer() const {
+        return bool(m_buffer);
+    }
+
+    std::shared_ptr<Block> block() const {
         KMM_ASSERT(m_buffer != nullptr);
         return m_buffer;
     }
 
     BlockId id() const {
-        return buffer()->id();
+        return block()->id();
     }
 
     Runtime runtime() const {
-        return buffer()->runtime();
+        return block()->runtime();
     }
 
     ArrayHeader header() const {
         return ArrayHeader::for_type<T>(size());
     }
 
+    EventId prefetch(MemoryId memory_id, EventList dependencies = {}) const {
+        if (m_buffer) {
+            return m_buffer->prefetch(memory_id, std::move(dependencies));
+        } else {
+            return EventId::invalid();
+        }
+    }
+
   private:
-    std::shared_ptr<Buffer> m_buffer;
+    std::shared_ptr<Block> m_buffer;
     std::array<index_t, N> m_sizes;
 };
 
@@ -96,7 +115,7 @@ struct TaskArgumentSerializer<Space, Write<Array<T, N>>> {
     void update(RuntimeImpl& rt, EventId event_id) {
         if (m_target) {
             auto block_id = BlockId(event_id, m_output_index);
-            auto buffer = std::make_shared<Buffer>(rt.shared_from_this(), block_id);
+            auto buffer = std::make_shared<Block>(rt.shared_from_this(), block_id);
             *m_target = Array<T, N>(m_target->sizes(), buffer);
         }
     }

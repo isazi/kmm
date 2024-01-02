@@ -32,7 +32,7 @@ class MemoryState {
         callback.complete(Result<void>());
     }
 
-    std::deque<std::tuple<int, int, MemoryCompletion>> transfers;
+    std::deque<std::tuple<int, int, Completion>> transfers;
     std::unordered_map<int, MemoryId> allocations;
     std::unordered_map<MemoryId, size_t> used;
     int next_id = 1;
@@ -81,7 +81,7 @@ class MockMemory: public Memory {
         const MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        MemoryCompletion completion) override {
+        Completion completion) override {
         auto src = dynamic_cast<const MockAllocation&>(*src_alloc);
         ASSERT_EQ(src.memory_id, state->allocations.at(src.id));
         ASSERT_EQ(src.num_bytes, num_bytes);
@@ -101,7 +101,7 @@ class MockMemory: public Memory {
         size_t dst_offset,
         size_t num_bytes,
         std::vector<uint8_t> fill_bytes,
-        MemoryCompletion completion) {
+        Completion completion) {
         auto dst = dynamic_cast<const MockAllocation&>(*dst_alloc);
         ASSERT_EQ(dst.memory_id, state->allocations.at(dst.id));
         ASSERT_EQ(dst.num_bytes, num_bytes);

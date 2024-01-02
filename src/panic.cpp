@@ -1,6 +1,6 @@
 #include <cstdio>
 
-#include "kmm/utils.hpp"
+#include "kmm/panic.hpp"
 
 namespace kmm {
 __attribute__((noinline)) void panic(const char* filename, int line, const char* expression) {

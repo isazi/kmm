@@ -1,7 +1,7 @@
 #include "spdlog/spdlog.h"
 
+#include "kmm/panic.hpp"
 #include "kmm/result.hpp"
-#include "kmm/utils.hpp"
 #include "kmm/worker/memory_manager.hpp"
 
 namespace kmm {
@@ -191,7 +191,7 @@ struct MemoryManager::Operation: std::enable_shared_from_this<Operation> {
     mutable Result<void> m_result;
 };
 
-struct MemoryManager::TransferOperation: IMemoryCompletion, Operation {
+struct MemoryManager::TransferOperation: CompletionHandler, Operation {
     TransferOperation(Buffer* buffer, MemoryId dst_id, MemoryId src_id = MemoryId::invalid()) :
         buffer(buffer),
         src_id(src_id),
@@ -780,7 +780,7 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_transfer(
         dst_entry.allocation.get(),
         0,
         buffer->layout.num_bytes,
-        MemoryCompletion(op));
+        Completion(op));
 
     op->initialize(*this);
 
@@ -824,7 +824,7 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_fill(
         0,
         buffer->layout.num_bytes,
         fill_pattern,
-        MemoryCompletion(op));
+        Completion(op));
     op->initialize(*this);
 
     if (op->is_running()) {
@@ -981,7 +981,7 @@ bool MemoryManager::Resource::is_out_of_memory(AllocationGrant& link) const {
         }
     }
 
-    auto buffer = link.parent->buffer;
+    const auto* buffer = link.parent->buffer;
     spdlog::warn(
         "failed to grant memory allocation to request, out of memory for"
         "device {} while allocating buffer {} of {} bytes",

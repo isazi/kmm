@@ -3,11 +3,11 @@
 
 namespace kmm {
 
-struct ExecuteJob::TaskResult: ITaskCompletion {
+struct ExecuteJob::TaskResult: CompletionHandler {
     TaskResult(std::shared_ptr<const Waker> job) : m_job(std::move(job)) {}
     TaskResult(Result<void> result) : m_inner(std::move(result)) {}
 
-    void complete_task(Result<void> result) final {
+    void complete(Result<void> result) final {
         if (auto job = std::exchange(this->m_job, nullptr)) {
             m_inner = std::move(result);
             job->trigger_wakeup(true);
@@ -106,7 +106,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
             }
 
             worker.executors.at(m_device_id)
-                ->submit(m_task, std::move(context), TaskCompletion(result));
+                ->submit(m_task, std::move(context), Completion(result));
             m_result = std::move(result);
         } catch (...) {
             m_result = std::make_shared<TaskResult>(ErrorPtr::from_current_exception());
@@ -118,7 +118,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
     if (m_status == Status::Running) {
         auto result = m_result->take_result();
 
-        if (!result.has_value()) {
+        if (!result) {
             return PollResult::Pending;
         }
 
@@ -215,11 +215,11 @@ std::shared_ptr<Job> build_job_for_command(EventId id, Command command) {
     if (auto* cmd_exe = std::get_if<ExecuteCommand>(&command)) {
         return std::make_shared<ExecuteJob>(id, std::move(*cmd_exe));
     } else if (auto* cmd_del = std::get_if<BlockDeleteCommand>(&command)) {
-        return std::make_shared<DeleteJob>(id, std::move(*cmd_del));
-    } else if (const auto* cmd_noop = std::get_if<EmptyCommand>(&command)) {
+        return std::make_shared<DeleteJob>(id, *cmd_del);
+    } else if (std::get_if<EmptyCommand>(&command) != nullptr) {
         return std::make_shared<EmptyJob>(id);
     } else if (auto* cmd_fetch = std::get_if<BlockPrefetchCommand>(&command)) {
-        return std::make_shared<PrefetchJob>(id, std::move(*cmd_fetch));
+        return std::make_shared<PrefetchJob>(id, *cmd_fetch);
     } else {
         KMM_PANIC("invalid command");
     }

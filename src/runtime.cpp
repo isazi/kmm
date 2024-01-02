@@ -1,7 +1,7 @@
 #include <future>
 
 #include "kmm/executor.hpp"
-#include "kmm/platforms/host.hpp"
+#include "kmm/host/host.hpp"
 #include "kmm/runtime.hpp"
 #include "kmm/runtime_impl.hpp"
 
@@ -59,33 +59,38 @@ Runtime build_runtime() {
     return std::make_shared<RuntimeImpl>(std::move(executors), std::move(memory));
 }
 
-Buffer::Buffer(std::shared_ptr<RuntimeImpl> runtime, BlockId id) :
+Block::Block(std::shared_ptr<RuntimeImpl> runtime, BlockId id) :
     m_id(id),
     m_runtime(std::move(runtime)) {
     KMM_ASSERT(m_runtime != nullptr);
 }
 
-Buffer::~Buffer() {
+Block::~Block() {
     destroy();
 }
 
-EventId Buffer::prefetch(MemoryId memory_id, EventList dependencies) const {
+EventId Block::prefetch(MemoryId memory_id, EventList dependencies) const {
     return m_runtime->submit_block_prefetch(m_id, memory_id, std::move(dependencies));
 }
 
-EventId Buffer::submit_barrier() const {
+EventId Block::submit_barrier() const {
     return m_runtime->submit_block_barrier(m_id);
 }
 
-void Buffer::synchronize() const {
+void Block::synchronize() const {
     m_runtime->query_event(submit_barrier(), std::chrono::system_clock::time_point::max());
 }
 
-void Buffer::destroy() {
-    if (m_id != BlockId::invalid()) {
-        m_runtime->delete_block(m_id);
-        m_id = BlockId::invalid();
+void Block::destroy() {
+    auto id = release();
+
+    if (id != BlockId::invalid()) {
+        m_runtime->delete_block(id);
     }
+}
+
+BlockId Block::release() {
+    return std::exchange(m_id, BlockId::invalid());
 }
 
 }  // namespace kmm

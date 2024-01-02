@@ -10,7 +10,7 @@ namespace kmm {
 struct BlockMetadata {
     std::shared_ptr<BlockHeader> header;
     std::optional<BufferId> buffer_id;
-    MemoryId home_memory = MemoryId::invalid();
+    MemoryId home_memory;
 };
 
 class BlockManager {

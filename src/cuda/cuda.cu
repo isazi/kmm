@@ -44,7 +44,7 @@ void CudaMemory::copy_async(
     const MemoryAllocation* dst_alloc,
     size_t dst_offset,
     size_t num_bytes,
-    MemoryCompletion completion) {
+    Completion completion) {
     completion.complete(ErrorPtr("not implemented"));
 }
 

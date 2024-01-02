@@ -3,6 +3,7 @@
 #include "kmm/executor.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/types.hpp"
+#include "kmm/work_queue.hpp"
 
 namespace kmm {
 
@@ -12,12 +13,12 @@ class CudaExecutor: public Executor {
   public:
     CudaExecutor();
     ~CudaExecutor() override;
-    void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
+    void submit(std::shared_ptr<Task>, TaskContext, Completion) override;
     void copy_async(
         const void* src_ptr,
         void* dst_ptr,
         size_t nbytes,
-        std::unique_ptr<MemoryCompletion> completion) const;
+        std::unique_ptr<Completion> completion) const;
 
   private:
     std::shared_ptr<WorkQueue<CudaExecutorContext>> m_queue;
@@ -57,7 +58,7 @@ class CudaMemory: public Memory {
         const MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        MemoryCompletion completion) override;
+        Completion completion) override;
 };
 
 }  // namespace kmm

@@ -10,6 +10,7 @@
 #include "kmm/runtime_impl.hpp"
 #include "kmm/task_serialize.hpp"
 #include "kmm/types.hpp"
+#include "kmm/work_queue.hpp"
 
 namespace kmm {
 
@@ -19,7 +20,7 @@ class ParallelExecutor: public Executor {
   public:
     ParallelExecutor();
     ~ParallelExecutor() override;
-    void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
+    void submit(std::shared_ptr<Task>, TaskContext, Completion) override;
     void submit_job(std::unique_ptr<WorkQueue<ParallelExecutorContext>::Job> job);
 
   private:
@@ -65,7 +66,7 @@ class HostMemory: public Memory {
         const MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        MemoryCompletion completion) override;
+        Completion completion) override;
 
     void fill_async(
         MemoryId dst_id,
@@ -73,7 +74,7 @@ class HostMemory: public Memory {
         size_t dst_offset,
         size_t num_bytes,
         std::vector<uint8_t> fill_bytes,
-        MemoryCompletion completion) override;
+        Completion completion) override;
 
   private:
     std::shared_ptr<ParallelExecutor> m_executor;

@@ -2,7 +2,8 @@
 #include <utility>
 
 #include "kmm/host/host.hpp"
-#include "kmm/utils.hpp"
+#include "kmm/panic.hpp"
+#include "kmm/work_queue.hpp"
 
 namespace kmm {
 
@@ -20,7 +21,7 @@ ParallelExecutor::~ParallelExecutor() = default;
 
 class ExecutionJob: public WorkQueue<ParallelExecutorContext>::Job {
   public:
-    ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context, TaskCompletion&& completion) :
+    ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context, Completion&& completion) :
         m_task(std::move(task)),
         m_context(std::move(context)),
         m_completion(std::move(completion)) {}
@@ -28,7 +29,7 @@ class ExecutionJob: public WorkQueue<ParallelExecutorContext>::Job {
     void execute(ParallelExecutorContext& executor) override {
         try {
             m_task->execute(executor, m_context);
-            m_completion.complete();
+            m_completion.complete_ok();
         } catch (...) {
             m_completion.complete(ErrorPtr::from_current_exception());
         }
@@ -37,7 +38,7 @@ class ExecutionJob: public WorkQueue<ParallelExecutorContext>::Job {
   private:
     std::shared_ptr<Task> m_task;
     TaskContext m_context;
-    TaskCompletion m_completion;
+    Completion m_completion;
 };
 
 void ParallelExecutor::submit_job(std::unique_ptr<WorkQueue<ParallelExecutorContext>::Job> job) {
@@ -47,14 +48,16 @@ void ParallelExecutor::submit_job(std::unique_ptr<WorkQueue<ParallelExecutorCont
 void ParallelExecutor::submit(
     std::shared_ptr<Task> task,
     TaskContext context,
-    TaskCompletion completion) {
-    m_queue->push(
-        std::make_unique<ExecutionJob>(std::move(task), std::move(context), std::move(completion)));
+    Completion completion) {
+    m_queue->push(std::make_unique<ExecutionJob>(  //
+        std::move(task),
+        std::move(context),
+        std::move(completion)));
 }
 
 class CopyJob: public WorkQueue<ParallelExecutorContext>::Job {
   public:
-    CopyJob(const void* src_ptr, void* dst_ptr, size_t nbytes, MemoryCompletion&& completion) :
+    CopyJob(const void* src_ptr, void* dst_ptr, size_t nbytes, Completion&& completion) :
         src_ptr(src_ptr),
         dst_ptr(dst_ptr),
         nbytes(nbytes),
@@ -62,14 +65,14 @@ class CopyJob: public WorkQueue<ParallelExecutorContext>::Job {
 
     void execute(ParallelExecutorContext&) override {
         std::memcpy(dst_ptr, src_ptr, nbytes);
-        completion.complete(Result<void>());
+        completion.complete_ok();
     }
 
   private:
     const void* src_ptr;
     void* dst_ptr;
     size_t nbytes;
-    MemoryCompletion completion;
+    Completion completion;
 };
 
 class FillJob: public WorkQueue<ParallelExecutorContext>::Job {
@@ -78,7 +81,7 @@ class FillJob: public WorkQueue<ParallelExecutorContext>::Job {
         void* dst_ptr,
         size_t nbytes,
         std::vector<uint8_t>&& fill_bytes,
-        MemoryCompletion&& completion) :
+        Completion&& completion) :
         dst_ptr(dst_ptr),
         nbytes(nbytes),
         fill_bytes(std::move(fill_bytes)),
@@ -125,7 +128,7 @@ class FillJob: public WorkQueue<ParallelExecutorContext>::Job {
     void* dst_ptr;
     size_t nbytes;
     std::vector<uint8_t> fill_bytes;
-    MemoryCompletion completion;
+    Completion completion;
 };
 
 HostAllocation::HostAllocation(size_t nbytes) : m_nbytes(nbytes) {
@@ -166,7 +169,7 @@ void HostMemory::copy_async(
     const MemoryAllocation* dst_alloc,
     size_t dst_offset,
     size_t num_bytes,
-    MemoryCompletion completion) {
+    Completion completion) {
     const auto& src_host = dynamic_cast<const HostAllocation&>(*src_alloc);
     const auto& dst_host = dynamic_cast<const HostAllocation&>(*dst_alloc);
 
@@ -190,7 +193,7 @@ void HostMemory::fill_async(
     size_t dst_offset,
     size_t num_bytes,
     std::vector<uint8_t> fill_bytes,
-    MemoryCompletion completion) {
+    Completion completion) {
     const auto& dst_host = dynamic_cast<const HostAllocation&>(*dst_alloc);
 
     KMM_ASSERT(dst_id == 0);
