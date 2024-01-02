@@ -111,29 +111,25 @@ class Executor {
 };
 
 template<typename Context>
-class ExecutorQueue;
-
-template<typename Context>
-class ExecutorJob {
+class WorkQueue {
   public:
-    virtual ~ExecutorJob() = default;
-    virtual void execute(Context&) = 0;
+    class Job {
+      public:
+        virtual ~Job() = default;
+        virtual void execute(Context&) = 0;
 
-  private:
-    friend ExecutorQueue<Context>;
-    std::unique_ptr<ExecutorJob<Context>> next;
-};
+      private:
+        friend WorkQueue<Context>;
+        std::unique_ptr<Job> next;
+    };
 
-template<typename Context>
-class ExecutorQueue {
-  public:
     void shutdown() {
         std::lock_guard<std::mutex> guard(lock);
         has_shutdown = true;
         cond.notify_all();
     }
 
-    void push(std::unique_ptr<ExecutorJob<Context>> unit) {
+    void push(std::unique_ptr<Job> unit) {
         std::lock_guard<std::mutex> guard(lock);
         if (front) {
             unit->next = nullptr;
@@ -173,8 +169,8 @@ class ExecutorQueue {
     std::mutex lock;
     std::condition_variable cond;
     bool has_shutdown = false;
-    std::unique_ptr<ExecutorJob<Context>> front = nullptr;
-    ExecutorJob<Context>* back = nullptr;
+    std::unique_ptr<Job> front = nullptr;
+    Job* back = nullptr;
 };
 
 }  // namespace kmm

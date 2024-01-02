@@ -4,26 +4,28 @@
 
 #include "fmt/format.h"
 
+#include "kmm/event.hpp"
+
 // Macro for implementing comparison operators for class `T`
-#define KMM_IMPL_COMPARISON_OPS(T)         \
+#define KMM_IMPL_COMPARISON_OPS(T)                   \
     constexpr bool operator!=(const T& that) const { \
-        return !(*this == that);           \
-    }                                      \
+        return !(*this == that);                     \
+    }                                                \
     constexpr bool operator<=(const T& that) const { \
-        return !(*this > that);            \
-    }                                      \
+        return !(*this > that);                      \
+    }                                                \
     constexpr bool operator>(const T& that) const {  \
-        return that < *this;               \
-    }                                      \
+        return that < *this;                         \
+    }                                                \
     constexpr bool operator>=(const T& that) const { \
-        return that <= *this;              \
+        return that <= *this;                        \
     }
 
 namespace kmm {
 
 class MemoryId {
   public:
-    explicit constexpr MemoryId(uint8_t value): m_value(value) {}
+    explicit constexpr MemoryId(uint8_t value) : m_value(value) {}
 
     static constexpr MemoryId invalid() {
         return MemoryId(~uint8_t(0));
@@ -53,7 +55,7 @@ class MemoryId {
 
 class ExecutorId {
   public:
-    explicit constexpr ExecutorId(uint8_t value): m_value(value) {}
+    explicit constexpr ExecutorId(uint8_t value) : m_value(value) {}
 
     constexpr uint8_t get() const {
         return m_value;
@@ -77,37 +79,6 @@ class ExecutorId {
     uint8_t m_value;
 };
 
-class EventId {
-  public:
-    explicit constexpr EventId(uint64_t value): m_value(value) {}
-
-    static constexpr EventId invalid() {
-        return EventId(~uint64_t(0));
-    }
-
-    constexpr uint64_t get() const {
-        return m_value;
-    }
-
-    operator uint64_t() const {
-        return get();
-    }
-
-    constexpr bool operator==(const EventId& that) const {
-        return m_value == that.m_value;
-    }
-
-    constexpr bool operator<(const EventId& that) const {
-        return m_value < that.m_value;
-    }
-
-    KMM_IMPL_COMPARISON_OPS(EventId)
-
-  private:
-    uint64_t m_value;
-};
-
-
 class BlockId {
   public:
     explicit constexpr BlockId(EventId event, uint8_t index) : m_event(event), m_index(index) {}
@@ -129,18 +100,16 @@ class BlockId {
     }
 
     std::string to_string() const {
-        return std::to_string(m_event.get()) + ":" + std::to_string(m_index);
+        return std::to_string(m_event.get()) + "@" + std::to_string(m_index);
     }
 
     constexpr bool operator==(const BlockId& that) const {
         return m_event == that.m_event && m_index == that.m_index;
     }
 
-    constexpr bool operator<(const BlockId& that) const {
-        return m_event < that.m_event || (m_event == that.m_event && m_index < that.m_index);
+    constexpr bool operator!=(const BlockId& that) const {
+        return !(*this == that);
     }
-
-    KMM_IMPL_COMPARISON_OPS(BlockId)
 
   private:
     EventId m_event;
@@ -187,7 +156,7 @@ class BufferId {
     uint64_t m_index;
     size_t m_nbytes;
 };
-}
+}  // namespace kmm
 
 namespace fmt {
 template<>
@@ -197,19 +166,16 @@ template<>
 struct formatter<kmm::ExecutorId>: formatter<uint8_t> {};
 
 template<>
-struct formatter<kmm::EventId>: formatter<uint64_t> {};
-
-template<>
 struct formatter<kmm::BufferId>: formatter<uint64_t> {};
 
 template<>
 struct formatter<kmm::BlockId>: formatter<std::string> {
-    template <typename FormatContext>
+    template<typename FormatContext>
     auto format(const kmm::BlockId& bid, FormatContext& ctx) const {
         return fmt::format_to(ctx.out(), "{}@{}", bid.event(), bid.index());
     }
 };
-}
+}  // namespace fmt
 
 namespace std {
 template<>
@@ -217,9 +183,6 @@ struct hash<kmm::MemoryId>: hash<uint8_t> {};
 
 template<>
 struct hash<kmm::ExecutorId>: hash<uint8_t> {};
-
-template<>
-struct hash<kmm::EventId>: hash<uint64_t> {};
 
 template<>
 struct hash<kmm::BufferId>: hash<uint64_t> {};

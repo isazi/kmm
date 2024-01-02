@@ -1,8 +1,8 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/utils.hpp"
-#include "kmm/worker/worker.hpp"
 #include "kmm/worker/runner.hpp"
+#include "kmm/worker/worker.hpp"
 
 namespace kmm {
 void run_forever(std::shared_ptr<Worker> worker) {

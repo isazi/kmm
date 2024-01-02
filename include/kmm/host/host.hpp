@@ -20,10 +20,10 @@ class ParallelExecutor: public Executor {
     ParallelExecutor();
     ~ParallelExecutor() override;
     void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
-    void submit_job(std::unique_ptr<ExecutorJob<ParallelExecutorContext>> job);
+    void submit_job(std::unique_ptr<WorkQueue<ParallelExecutorContext>::Job> job);
 
   private:
-    std::shared_ptr<ExecutorQueue<ParallelExecutorContext>> m_queue;
+    std::shared_ptr<WorkQueue<ParallelExecutorContext>> m_queue;
     std::thread m_thread;
 };
 

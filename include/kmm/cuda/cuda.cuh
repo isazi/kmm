@@ -20,7 +20,7 @@ class CudaExecutor: public Executor {
         std::unique_ptr<MemoryCompletion> completion) const;
 
   private:
-    std::shared_ptr<ExecutorQueue<CudaExecutorContext>> m_queue;
+    std::shared_ptr<WorkQueue<CudaExecutorContext>> m_queue;
 };
 
 class CudaAllocation: public MemoryAllocation {

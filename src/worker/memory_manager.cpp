@@ -295,11 +295,15 @@ std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
 
 static size_t round_up_to_power_of_two(size_t align) {
     for (size_t i = 0; i < 63; i++) {
-        if (align <= (1 << i)) {
-            return 1 << i;
+        if (align <= (size_t(1) << i)) {
+            return size_t(1) << i;
         }
     }
     return 0;
+}
+
+static size_t round_up_to_multiple(size_t n, size_t k) {
+    return n + ((n % k == 0) ? 0 : (k - n % k));
 }
 
 BufferId MemoryManager::create_buffer(
@@ -308,7 +312,8 @@ BufferId MemoryManager::create_buffer(
     std::lock_guard guard {m_mutex};
 
     size_t align = round_up_to_power_of_two(layout.alignment);
-    size_t nbytes = ((layout.num_bytes + align - 1) / align) * align;
+    size_t nbytes = round_up_to_multiple(layout.num_bytes, align);
+
     BufferId id = BufferId(m_next_buffer_id++, nbytes);
     m_buffers.insert({id, std::make_unique<Buffer>(id, layout, std::move(fill_pattern))});
 

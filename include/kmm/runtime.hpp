@@ -11,6 +11,8 @@
 
 namespace kmm {
 
+class RuntimeImpl;
+
 class Runtime {
   public:
     Runtime(std::shared_ptr<RuntimeImpl> impl);

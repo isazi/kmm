@@ -1,6 +1,6 @@
 #include "spdlog/spdlog.h"
 
-#include "kmm/platforms/cuda.cuh"
+#include "kmm/cuda/cuda.cuh"
 
 namespace kmm {
 

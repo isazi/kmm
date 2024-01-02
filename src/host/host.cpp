@@ -1,13 +1,13 @@
 #include <cstring>
 #include <utility>
 
-#include "kmm/platforms/host.hpp"
+#include "kmm/host/host.hpp"
 #include "kmm/utils.hpp"
 
 namespace kmm {
 
 ParallelExecutor::ParallelExecutor() :
-    m_queue(std::make_shared<ExecutorQueue<ParallelExecutorContext>>()),
+    m_queue(std::make_shared<WorkQueue<ParallelExecutorContext>>()),
     m_thread([q = m_queue] {
         ParallelExecutorContext ctx {};
         q->process_forever(ctx);
@@ -18,7 +18,7 @@ ParallelExecutor::ParallelExecutor() :
 
 ParallelExecutor::~ParallelExecutor() = default;
 
-class ExecutionJob: public ExecutorJob<ParallelExecutorContext> {
+class ExecutionJob: public WorkQueue<ParallelExecutorContext>::Job {
   public:
     ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context, TaskCompletion&& completion) :
         m_task(std::move(task)),
@@ -40,7 +40,7 @@ class ExecutionJob: public ExecutorJob<ParallelExecutorContext> {
     TaskCompletion m_completion;
 };
 
-void ParallelExecutor::submit_job(std::unique_ptr<ExecutorJob<ParallelExecutorContext>> job) {
+void ParallelExecutor::submit_job(std::unique_ptr<WorkQueue<ParallelExecutorContext>::Job> job) {
     m_queue->push(std::move(job));
 }
 
@@ -52,7 +52,7 @@ void ParallelExecutor::submit(
         std::make_unique<ExecutionJob>(std::move(task), std::move(context), std::move(completion)));
 }
 
-class CopyJob: public ExecutorJob<ParallelExecutorContext> {
+class CopyJob: public WorkQueue<ParallelExecutorContext>::Job {
   public:
     CopyJob(const void* src_ptr, void* dst_ptr, size_t nbytes, MemoryCompletion&& completion) :
         src_ptr(src_ptr),
@@ -72,7 +72,7 @@ class CopyJob: public ExecutorJob<ParallelExecutorContext> {
     MemoryCompletion completion;
 };
 
-class FillJob: public ExecutorJob<ParallelExecutorContext> {
+class FillJob: public WorkQueue<ParallelExecutorContext>::Job {
   public:
     FillJob(
         void* dst_ptr,
@@ -84,11 +84,26 @@ class FillJob: public ExecutorJob<ParallelExecutorContext> {
         fill_bytes(std::move(fill_bytes)),
         completion(std::move(completion)) {}
 
+    template<typename K>
+    void fill_impl(K k) {
+        size_t i = 0;
+
+        for (; i < nbytes / k; i++) {
+            for (size_t j = 0; j < k; j++) {
+                static_cast<uint8_t*>(dst_ptr)[i * k + j] = fill_bytes[j];
+            }
+        }
+
+        for (size_t j = 0; j < nbytes % k; j++) {
+            static_cast<uint8_t*>(dst_ptr)[i * k + j] = fill_bytes[j];
+        }
+    }
+
     void execute(ParallelExecutorContext&) override {
         size_t k = fill_bytes.size();
 
         if (k == 1) {
-            fill_impl(std::integral_constant<size_t, 1>());
+            std::memset(dst_ptr, fill_bytes[0], nbytes);
         } else if (k == 2) {
             fill_impl(std::integral_constant<size_t, 2>());
         } else if (k == 4) {
@@ -104,21 +119,6 @@ class FillJob: public ExecutorJob<ParallelExecutorContext> {
         }
 
         completion.complete(Result<void>());
-    }
-
-    template<typename K>
-    void fill_impl(K k) {
-        size_t i = 0;
-
-        for (; i < nbytes / k; i++) {
-            for (size_t j = 0; j < k; j++) {
-                static_cast<uint8_t*>(dst_ptr)[i * k + j] = fill_bytes[j];
-            }
-        }
-
-        for (size_t j = 0; j < nbytes % k; j++) {
-            static_cast<uint8_t*>(dst_ptr)[i * k + j] = fill_bytes[j];
-        }
     }
 
   private:
