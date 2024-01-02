@@ -24,7 +24,7 @@ struct TaskInput {
 };
 
 /**
- * Represents an output of a task, containing memory identifier and a block header.
+ * Represents an output of a task, containing a memory identifier and a block header.
  */
 struct TaskOutput {
     MemoryId memory_id;

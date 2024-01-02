@@ -12,14 +12,14 @@
 
 namespace kmm {
 
+struct EmptyCommand {};
+
 struct ExecuteCommand {
     ExecutorId executor_id;
     std::shared_ptr<Task> task;
     std::vector<TaskInput> inputs;
     std::vector<TaskOutput> outputs;
 };
-
-struct EmptyCommand {};
 
 struct BlockDeleteCommand {
     BlockId id;
@@ -36,13 +36,13 @@ using Command =
 inline const char* format_as(const Command& cmd) {
     switch (cmd.index()) {
         case 0:
-            return "CommandNoop";
+            return "EmptyCommand";
         case 1:
-            return "CommandExecute";
+            return "ExecuteCommand";
         case 2:
-            return "CommandBlockDelete";
+            return "BlockDeleteCommand";
         case 3:
-            return "CommandPrefetch";
+            return "BlockPrefetchCommand";
         default:
             return "???";
     }

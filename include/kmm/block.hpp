@@ -69,7 +69,7 @@ class ArrayHeader: public BlockHeader {
 template<typename T>
 class Scalar;
 
-class ScalarBase: public BlockHeader {
+class ScalarHeader: public BlockHeader {
   public:
     virtual const std::type_info& type() const = 0;
 
@@ -109,7 +109,7 @@ class ScalarBase: public BlockHeader {
 };
 
 template<typename T>
-class Scalar: public ScalarBase {
+class Scalar: public ScalarHeader {
   public:
     Scalar() {}
     Scalar(T value) : m_value(std::move(value)) {}
