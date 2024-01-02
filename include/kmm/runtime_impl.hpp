@@ -5,7 +5,7 @@
 
 #include "kmm/executor.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/worker_thread.hpp"
+#include "kmm/worker/runner.hpp"
 
 namespace kmm {
 
@@ -29,7 +29,7 @@ class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
 
   private:
     std::shared_ptr<Worker> m_worker;
-    WorkerThread m_thread;
+    WorkerRunner m_thread;
 
     mutable std::mutex m_mutex;
     mutable uint64_t m_next_event = 1;
