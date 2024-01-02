@@ -1,7 +1,8 @@
 #pragma once
 
-#include <cstddef>
 #include <vector>
+
+#include "fmt/format.h"
 
 namespace kmm {
 

@@ -1,8 +1,6 @@
 #pragma once
 
 #include "kmm/executor.hpp"
-#include "kmm/memory.hpp"
-#include "kmm/types.hpp"
 #include "kmm/work_queue.hpp"
 
 namespace kmm {

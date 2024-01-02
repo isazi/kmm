@@ -1,15 +1,14 @@
 #pragma once
 
-#include <deque>
-#include <functional>
+#include <array>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <unordered_map>
 
 #include "kmm/block.hpp"
+#include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/types.hpp"
 
 namespace kmm {
 

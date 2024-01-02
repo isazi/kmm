@@ -1,3 +1,4 @@
+#include <deque>
 #include <gtest/gtest.h>
 
 #include "kmm/worker/memory_manager.hpp"

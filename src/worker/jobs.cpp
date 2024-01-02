@@ -1,3 +1,5 @@
+#include "spdlog/spdlog.h"
+
 #include "kmm/worker/jobs.hpp"
 #include "kmm/worker/worker.hpp"
 

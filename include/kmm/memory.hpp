@@ -1,14 +1,14 @@
 #pragma once
 
-#include <deque>
-#include <functional>
 #include <memory>
 #include <optional>
-#include <unordered_map>
+
+#include "fmt/format.h"
 
 #include "kmm/completion.hpp"
+#include "kmm/event.hpp"
+#include "kmm/identifiers.hpp"
 #include "kmm/result.hpp"
-#include "kmm/types.hpp"
 
 namespace kmm {
 

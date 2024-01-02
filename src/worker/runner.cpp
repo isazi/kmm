@@ -1,6 +1,5 @@
 #include "spdlog/spdlog.h"
 
-#include "kmm/panic.hpp"
 #include "kmm/worker/runner.hpp"
 #include "kmm/worker/worker.hpp"
 

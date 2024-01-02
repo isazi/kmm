@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 
 #include "kmm/panic.hpp"
 #include "kmm/result.hpp"

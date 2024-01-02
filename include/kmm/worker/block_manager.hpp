@@ -1,9 +1,12 @@
 #pragma once
 
+#include <memory>
+#include <optional>
+#include <unordered_map>
+
 #include "kmm/block.hpp"
-#include "kmm/executor.hpp"
+#include "kmm/identifiers.hpp"
 #include "kmm/result.hpp"
-#include "kmm/types.hpp"
 
 namespace kmm {
 

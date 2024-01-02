@@ -1,9 +1,6 @@
 #pragma once
 
-#include <functional>
 #include <sstream>
-#include <variant>
-#include <vector>
 
 #define KMM_PANIC(...)                                     \
     do {                                                   \

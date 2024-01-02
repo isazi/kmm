@@ -1,7 +1,14 @@
 #pragma once
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <optional>
+
+#include "kmm/identifiers.hpp"
 #include "kmm/types.hpp"
-#include "kmm/worker/memory_manager.hpp"
 #include "kmm/worker/scheduler.hpp"
 
 namespace kmm {

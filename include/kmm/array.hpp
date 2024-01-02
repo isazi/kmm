@@ -1,5 +1,15 @@
+#include <array>
+#include <memory>
+#include <utility>
+
+#include "kmm/block.hpp"
+#include "kmm/event.hpp"
 #include "kmm/host/host.hpp"
+#include "kmm/identifiers.hpp"
+#include "kmm/memory.hpp"
 #include "kmm/runtime.hpp"
+#include "kmm/task_serialize.hpp"
+#include "kmm/types.hpp"
 
 namespace kmm {
 

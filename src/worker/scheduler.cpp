@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "kmm/worker/scheduler.hpp"
 
 namespace kmm {

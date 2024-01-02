@@ -1,19 +1,12 @@
 #pragma once
 
-#include <condition_variable>
 #include <deque>
 #include <memory>
-#include <mutex>
-#include <optional>
 #include <unordered_map>
-#include <vector>
 
-#include "spdlog/spdlog.h"
-
-#include "kmm/executor.hpp"
+#include "kmm/event.hpp"
 #include "kmm/panic.hpp"
 #include "kmm/worker/command.hpp"
-#include "kmm/worker/memory_manager.hpp"
 
 namespace kmm {
 

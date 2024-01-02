@@ -1,14 +1,11 @@
 #pragma once
 
-#include <memory>
-#include <optional>
-#include <stdexcept>
-#include <vector>
-
-#include "kmm/executor.hpp"
+#include "kmm/event.hpp"
+#include "kmm/identifiers.hpp"
+#include "kmm/memory.hpp"
+#include "kmm/result.hpp"
 #include "kmm/types.hpp"
 #include "kmm/worker/command.hpp"
-#include "kmm/worker/memory_manager.hpp"
 #include "kmm/worker/worker.hpp"
 
 namespace kmm {

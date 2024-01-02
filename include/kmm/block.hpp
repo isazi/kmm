@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "kmm/types.hpp"
 
 namespace kmm {

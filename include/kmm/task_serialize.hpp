@@ -1,6 +1,11 @@
 #pragma once
 
-#include "kmm/executor.hpp"
+#include <memory>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+
+#include "kmm/runtime_impl.hpp"
 
 namespace kmm {
 

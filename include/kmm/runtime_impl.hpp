@@ -1,10 +1,13 @@
 #pragma once
 
+#include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
+#include "kmm/event.hpp"
 #include "kmm/executor.hpp"
-#include "kmm/memory.hpp"
+#include "kmm/identifiers.hpp"
 #include "kmm/worker/runner.hpp"
 
 namespace kmm {

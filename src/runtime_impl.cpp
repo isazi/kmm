@@ -1,5 +1,7 @@
 #include <utility>
 
+#include "spdlog/spdlog.h"
+
 #include "kmm/runtime_impl.hpp"
 #include "kmm/worker/worker.hpp"
 

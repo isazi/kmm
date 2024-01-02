@@ -1,7 +1,10 @@
 #include "spdlog/spdlog.h"
 
+#include "kmm/block.hpp"
+#include "kmm/memory.hpp"
 #include "kmm/panic.hpp"
 #include "kmm/result.hpp"
+#include "kmm/types.hpp"
 #include "kmm/worker/memory_manager.hpp"
 
 namespace kmm {

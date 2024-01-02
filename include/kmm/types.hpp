@@ -1,15 +1,6 @@
 #pragma once
 
-#include <algorithm>
-#include <limits>
 #include <memory>
-#include <string>
-#include <vector>
-
-#include "fmt/format.h"
-
-#include "kmm/event.hpp"
-#include "kmm/identifiers.hpp"
 
 namespace kmm {
 
