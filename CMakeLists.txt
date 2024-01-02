@@ -15,13 +15,15 @@ if(DEFINED CMAKE_CUDA_COMPILER)
       "${PROJECT_SOURCE_DIR}/src/*/*.cpp"
       "${PROJECT_SOURCE_DIR}/include/kmm/*.h"
       "${PROJECT_SOURCE_DIR}/include/kmm/*/*.h"
-      "${PROJECT_SOURCE_DIR}/src/*.cu")
-    set_source_files_properties(${sources} PROPERTIES LANGUAGE CXX)
+      "${PROJECT_SOURCE_DIR}/src/*.cu"
+      "${PROJECT_SOURCE_DIR}/src/*/*.cu")
+#    set_source_files_properties(${sources} PROPERTIES LANGUAGE CXX)
 else()
   file(GLOB_RECURSE sources
       "${PROJECT_SOURCE_DIR}/src/*.cpp"
       "${PROJECT_SOURCE_DIR}/include/kmm/*.h")
 endif()
+
 file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp" "${PROJECT_SOURCE_DIR}/include/*.cuh")
 add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
@@ -53,12 +55,13 @@ install(TARGETS ${PROJECT_NAME}
 # The CUDA compiler struggles with the "Werror" options, so we need to explicitly forward it to the host compiler
 # using `-Xcompiler=-Werror` if we are compiling CUDA code.
 set(CXXFLAGS
-    #$<$<COMPILE_LANGUAGE:CUDA>:-forward-unknown-to-host-compiler>
-    #   $<$<COMPILE_LANGUAGE:CUDA>:--generate-line-info>
-        -Wall -Wextra -Wconversion -Wno-unused-parameter
-        #   $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Werror>
-        # $<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>
-        #$<$<COMPILE_LANGUAGE:CUDA>:-Xptxas="-v">
+  #$<$<COMPILE_LANGUAGE:CUDA>:-forward-unknown-to-host-compiler>
+  #$<$<COMPILE_LANGUAGE:CUDA>:--generate-line-info>
+  $<$<COMPILE_LANGUAGE:CUDA>:--forward-unknown-to-host-compiler>
+  -Wall -Wextra -Wconversion -Wno-unused-parameter
+  #$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Werror>
+  #$<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>
+  #$<$<COMPILE_LANGUAGE:CUDA>:-Xptxas="-v">
 )
 target_compile_options(${PROJECT_NAME} PRIVATE ${CXXFLAGS})
 #target_compile_options(${PROJECT_NAME} PRIVATE "-fsanitize=address")
@@ -78,6 +81,7 @@ if(DEFINED CMAKE_CUDA_COMPILER)
   target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cudart_static)
   target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cuda_driver)
   target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::nvrtc)
+  set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES "50")
 endif()
 
 # Unit testing

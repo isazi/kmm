@@ -6,73 +6,19 @@
 
 namespace kmm {
 
-struct ParallelExecutor::Job {
-    virtual ~Job() = default;
-    virtual void execute(ParallelExecutorContext&) = 0;
-    std::unique_ptr<Job> next;
-};
-
-struct ParallelExecutor::Queue {
-    std::mutex lock;
-    std::condition_variable cond;
-    bool has_shutdown = false;
-    std::unique_ptr<Job> front = nullptr;
-    Job* back = nullptr;
-
-    void shutdown() {
-        std::lock_guard<std::mutex> guard(lock);
-        has_shutdown = true;
-        cond.notify_all();
-    }
-
-    void push(std::unique_ptr<Job> unit) {
-        std::lock_guard<std::mutex> guard(lock);
-        if (front) {
-            unit->next = nullptr;
-            back->next = std::move(unit);
-            back = back->next.get();
-        } else {
-            front = std::move(unit);
-            back = front.get();
-            cond.notify_all();
-        }
-    }
-
-    void process_forever() {
-        std::unique_lock<std::mutex> guard(lock);
-        ParallelExecutorContext context {};
-
-        while (!has_shutdown || front != nullptr) {
-            if (front == nullptr) {
-                cond.wait(guard);
-                continue;
-            }
-
-            auto popped = std::move(front);
-            if (popped->next != nullptr) {
-                front = std::move(popped->next);
-            } else {
-                front = nullptr;
-                back = nullptr;
-            }
-
-            guard.unlock();
-            popped->execute(context);
-            guard.lock();
-        }
-    }
-};
-
 ParallelExecutor::ParallelExecutor() :
-    m_queue(std::make_shared<Queue>()),
-    m_thread([q = m_queue] { q->process_forever(); }) {
+    m_queue(std::make_shared<ExecutorQueue<ParallelExecutorContext>>()),
+    m_thread([q = m_queue] {
+        ParallelExecutorContext ctx {};
+        q->process_forever(ctx);
+    }) {
     // Do we want to detach or join?
     m_thread.detach();
 }
 
 ParallelExecutor::~ParallelExecutor() = default;
 
-class ExecutionJob: public ParallelExecutor::Job {
+class ExecutionJob: public ExecutorJob<ParallelExecutorContext> {
   public:
     ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context, TaskCompletion&& completion) :
         m_task(std::move(task)),
@@ -94,7 +40,7 @@ class ExecutionJob: public ParallelExecutor::Job {
     TaskCompletion m_completion;
 };
 
-void ParallelExecutor::submit_job(std::unique_ptr<Job> job) {
+void ParallelExecutor::submit_job(std::unique_ptr<ExecutorJob<ParallelExecutorContext>> job) {
     m_queue->push(std::move(job));
 }
 
@@ -106,7 +52,7 @@ void ParallelExecutor::submit(
         std::make_unique<ExecutionJob>(std::move(task), std::move(context), std::move(completion)));
 }
 
-class CopyJob: public ParallelExecutor::Job {
+class CopyJob: public ExecutorJob<ParallelExecutorContext> {
   public:
     CopyJob(const void* src_ptr, void* dst_ptr, size_t nbytes, MemoryCompletion&& completion) :
         src_ptr(src_ptr),
@@ -126,7 +72,7 @@ class CopyJob: public ParallelExecutor::Job {
     MemoryCompletion completion;
 };
 
-class FillJob: public ParallelExecutor::Job {
+class FillJob: public ExecutorJob<ParallelExecutorContext> {
   public:
     FillJob(
         void* dst_ptr,

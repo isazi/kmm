@@ -1,8 +1,10 @@
 #pragma once
 
+#include <condition_variable>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <variant>
 #include <vector>
 
@@ -106,6 +108,73 @@ class Executor {
   public:
     virtual ~Executor() = default;
     virtual void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) = 0;
+};
+
+template<typename Context>
+class ExecutorQueue;
+
+template<typename Context>
+class ExecutorJob {
+  public:
+    virtual ~ExecutorJob() = default;
+    virtual void execute(Context&) = 0;
+
+  private:
+    friend ExecutorQueue<Context>;
+    std::unique_ptr<ExecutorJob<Context>> next;
+};
+
+template<typename Context>
+class ExecutorQueue {
+  public:
+    void shutdown() {
+        std::lock_guard<std::mutex> guard(lock);
+        has_shutdown = true;
+        cond.notify_all();
+    }
+
+    void push(std::unique_ptr<ExecutorJob<Context>> unit) {
+        std::lock_guard<std::mutex> guard(lock);
+        if (front) {
+            unit->next = nullptr;
+            back->next = std::move(unit);
+            back = back->next.get();
+        } else {
+            front = std::move(unit);
+            back = front.get();
+            cond.notify_all();
+        }
+    }
+
+    void process_forever(Context& context) {
+        std::unique_lock<std::mutex> guard(lock);
+
+        while (!has_shutdown || front != nullptr) {
+            if (front == nullptr) {
+                cond.wait(guard);
+                continue;
+            }
+
+            auto popped = std::move(front);
+            if (popped->next != nullptr) {
+                front = std::move(popped->next);
+            } else {
+                front = nullptr;
+                back = nullptr;
+            }
+
+            guard.unlock();
+            popped->execute(context);
+            guard.lock();
+        }
+    }
+
+  private:
+    std::mutex lock;
+    std::condition_variable cond;
+    bool has_shutdown = false;
+    std::unique_ptr<ExecutorJob<Context>> front = nullptr;
+    ExecutorJob<Context>* back = nullptr;
 };
 
 }  // namespace kmm

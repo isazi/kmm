@@ -17,16 +17,13 @@ class ParallelExecutorContext: public ExecutorContext {};
 
 class ParallelExecutor: public Executor {
   public:
-    struct Job;
-    struct Queue;
-
     ParallelExecutor();
     ~ParallelExecutor() override;
     void submit(std::shared_ptr<Task>, TaskContext, TaskCompletion) override;
-    void submit_job(std::unique_ptr<Job> job);
+    void submit_job(std::unique_ptr<ExecutorJob<ParallelExecutorContext>> job);
 
   private:
-    std::shared_ptr<Queue> m_queue;
+    std::shared_ptr<ExecutorQueue<ParallelExecutorContext>> m_queue;
     std::thread m_thread;
 };
 
