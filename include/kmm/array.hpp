@@ -91,10 +91,10 @@ template<ExecutionSpace Space, typename T, size_t N>
 struct TaskArgumentSerializer<Space, Array<T, N>> {
     using type = SerializedArray<const T, N>;
 
-    type serialize(const Array<T>& array, TaskRequirements& requirements) {
+    type serialize(RuntimeImpl& rt, const Array<T>& array, TaskRequirements& requirements) {
         size_t index = requirements.inputs.size();
         requirements.inputs.push_back(TaskInput {
-            .memory_id = MemoryId(requirements.executor_id),
+            .memory_id = rt.executor_info(requirements.executor_id).memory_affinity(),
             .block_id = array.id(),
         });
 
@@ -108,12 +108,15 @@ template<ExecutionSpace Space, typename T, size_t N>
 struct TaskArgumentSerializer<Space, Write<Array<T, N>>> {
     using type = SerializedArray<T, N>;
 
-    type serialize(const Write<Array<T, N>>& array, TaskRequirements& requirements) {
+    type serialize(
+        RuntimeImpl& rt,
+        const Write<Array<T, N>>& array,
+        TaskRequirements& requirements) {
         size_t output_index = requirements.outputs.size();
         auto header = array.inner.header();
 
         requirements.outputs.push_back(TaskOutput {
-            .memory_id = MemoryId(requirements.executor_id),
+            .memory_id = rt.executor_info(requirements.executor_id).memory_affinity(),
             .header = std::make_unique<decltype(header)>(header),
         });
 

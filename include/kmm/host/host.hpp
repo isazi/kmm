@@ -15,14 +15,20 @@ namespace kmm {
 
 class ParallelExecutorContext: public ExecutorContext {};
 
+class HostExecutorInfo: public ExecutorInfo {
+    std::string name() const override;
+    MemoryId memory_affinity() const override;
+};
+
 class ParallelExecutor: public Executor {
   public:
     ParallelExecutor();
     ~ParallelExecutor() override;
-    void submit(std::shared_ptr<Task>, TaskContext, Completion) override;
-    void submit_job(std::unique_ptr<WorkQueue<ParallelExecutorContext>::Job> job);
+    std::unique_ptr<ExecutorInfo> info() const override;
+    void submit(std::shared_ptr<Task>, TaskContext, Completion) const override;
 
   private:
+    friend class HostMemory;
     std::shared_ptr<WorkQueue<ParallelExecutorContext>> m_queue;
     std::thread m_thread;
 };
@@ -76,18 +82,22 @@ class HostMemory: public Memory {
         Completion completion) override;
 
   private:
-    std::shared_ptr<ParallelExecutor> m_executor;
+    std::shared_ptr<WorkQueue<ParallelExecutorContext>> m_queue;
     size_t m_bytes_remaining;
 };
 
 struct Host {
     template<typename Fun, typename... Args>
     EventId operator()(RuntimeImpl& rt, Fun&& fun, Args&&... args) const {
-        return TaskLauncher<ExecutionSpace::Host, Fun, Args...>::call(
-            ExecutorId(0),
-            rt,
-            fun,
-            args...);
+        for (size_t i = 0, n = rt.num_executors(); i < n; i++) {
+            auto id = ExecutorId(i);
+
+            if (dynamic_cast<const HostExecutorInfo*>(&rt.executor_info(id)) != nullptr) {
+                return TaskLauncher<ExecutionSpace::Host, Fun, Args...>::call(id, rt, fun, args...);
+            }
+        }
+
+        throw std::runtime_error("could not find host executor");
     }
 };
 

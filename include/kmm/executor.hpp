@@ -65,6 +65,31 @@ struct TaskContext {
 };
 
 /**
+ * Represents information of an executor.
+ */
+class ExecutorInfo {
+  public:
+    virtual ~ExecutorInfo() = default;
+
+    /**
+     * The name of the executor. Useful for debugging.
+     */
+    virtual std::string name() const = 0;
+
+    /**
+     * Which memory does this executor has the strongest affinity to.
+     */
+    virtual MemoryId memory_affinity() const = 0;
+
+    /**
+     * Can the compute units from this executor access the specified memory?
+     */
+    virtual bool is_memory_accessible(MemoryId id) const {
+        return id == memory_affinity();
+    }
+};
+
+/**
  * Represents the context in which an executor operates.
  */
 class ExecutorContext {};
@@ -78,10 +103,14 @@ class Task {
     virtual void execute(ExecutorContext&, TaskContext&) = 0;
 };
 
+/**
+ * Abstract class representing a compute unit that can process tasks.
+ */
 class Executor {
   public:
     virtual ~Executor() = default;
-    virtual void submit(std::shared_ptr<Task>, TaskContext, Completion) = 0;
+    virtual std::unique_ptr<ExecutorInfo> info() const = 0;
+    virtual void submit(std::shared_ptr<Task>, TaskContext, Completion) const = 0;
 };
 
 }  // namespace kmm

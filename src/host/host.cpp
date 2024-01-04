@@ -7,6 +7,14 @@
 
 namespace kmm {
 
+std::string HostExecutorInfo::name() const {
+    return "CPU";
+}
+
+MemoryId HostExecutorInfo::memory_affinity() const {
+    return MemoryId(0);
+}
+
 ParallelExecutor::ParallelExecutor() :
     m_queue(std::make_shared<WorkQueue<ParallelExecutorContext>>()),
     m_thread([q = m_queue] {
@@ -15,6 +23,10 @@ ParallelExecutor::ParallelExecutor() :
     }) {
     // Do we want to detach or join?
     m_thread.detach();
+}
+
+std::unique_ptr<ExecutorInfo> ParallelExecutor::info() const {
+    return std::make_unique<HostExecutorInfo>();
 }
 
 ParallelExecutor::~ParallelExecutor() = default;
@@ -41,14 +53,10 @@ class ExecutionJob: public WorkQueue<ParallelExecutorContext>::Job {
     Completion m_completion;
 };
 
-void ParallelExecutor::submit_job(std::unique_ptr<WorkQueue<ParallelExecutorContext>::Job> job) {
-    m_queue->push(std::move(job));
-}
-
 void ParallelExecutor::submit(
     std::shared_ptr<Task> task,
     TaskContext context,
-    Completion completion) {
+    Completion completion) const {
     m_queue->push(std::make_unique<ExecutionJob>(  //
         std::move(task),
         std::move(context),
@@ -136,7 +144,7 @@ HostAllocation::HostAllocation(size_t nbytes) : m_nbytes(nbytes) {
 }
 
 HostMemory::HostMemory(std::shared_ptr<ParallelExecutor> executor, size_t max_bytes) :
-    m_executor(std::move(executor)),
+    m_queue(executor->m_queue),
     m_bytes_remaining(max_bytes) {}
 
 std::optional<std::unique_ptr<MemoryAllocation>> HostMemory::allocate(
@@ -180,7 +188,7 @@ void HostMemory::copy_async(
     KMM_ASSERT(src_offset <= src_host.size() - num_bytes);
     KMM_ASSERT(dst_offset <= dst_host.size() - num_bytes);
 
-    m_executor->submit_job(std::make_unique<CopyJob>(
+    m_queue->push(std::make_unique<CopyJob>(
         static_cast<const char*>(src_host.data()) + src_offset,
         static_cast<char*>(dst_host.data()) + dst_offset,
         num_bytes,
@@ -200,7 +208,7 @@ void HostMemory::fill_async(
     KMM_ASSERT(num_bytes <= dst_host.size());
     KMM_ASSERT(dst_offset <= dst_host.size() - num_bytes);
 
-    m_executor->submit_job(std::make_unique<FillJob>(
+    m_queue->push(std::make_unique<FillJob>(
         static_cast<char*>(dst_host.data()) + dst_offset,
         num_bytes,
         std::move(fill_bytes),

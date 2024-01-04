@@ -30,7 +30,11 @@ class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
     bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {})
         const;
 
+    size_t num_executors() const;
+    const ExecutorInfo& executor_info(ExecutorId id) const;
+
   private:
+    std::vector<std::unique_ptr<ExecutorInfo>> m_executors;
     std::shared_ptr<Worker> m_worker;
     WorkerRunner m_thread;
 

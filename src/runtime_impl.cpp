@@ -10,8 +10,12 @@ namespace kmm {
 RuntimeImpl::RuntimeImpl(
     std::vector<std::shared_ptr<Executor>> executors,
     std::unique_ptr<Memory> memory) :
-    m_worker(std::make_shared<Worker>(std::move(executors), std::move(memory))),
-    m_thread(m_worker) {}
+    m_worker(std::make_shared<Worker>(executors, std::move(memory))),
+    m_thread(m_worker) {
+    for (const auto& executor : executors) {
+        m_executors.push_back(executor->info());
+    }
+}
 
 RuntimeImpl::~RuntimeImpl() {
     m_worker->shutdown();
@@ -133,6 +137,14 @@ bool RuntimeImpl::query_event(
     /* std::lock_guard guard {m_mutex}; */
 
     return m_worker->query_event(id, deadline);
+}
+
+size_t RuntimeImpl::num_executors() const {
+    return m_executors.size();
+}
+
+const ExecutorInfo& RuntimeImpl::executor_info(ExecutorId id) const {
+    return *m_executors.at(id);
 }
 
 }  // namespace kmm

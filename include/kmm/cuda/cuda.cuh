@@ -11,7 +11,8 @@ class CudaExecutor: public Executor {
   public:
     CudaExecutor();
     ~CudaExecutor() override;
-    void submit(std::shared_ptr<Task>, TaskContext, Completion) override;
+    void submit(std::shared_ptr<Task>, TaskContext, Completion) const override;
+
     void copy_async(
         const void* src_ptr,
         void* dst_ptr,

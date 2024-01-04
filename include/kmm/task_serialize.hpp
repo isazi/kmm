@@ -15,7 +15,7 @@ template<ExecutionSpace Space, typename T, typename = void>
 struct TaskArgumentSerializer {
     using type = std::decay_t<T>;
 
-    type serialize(T value, TaskRequirements& requirements) {
+    type serialize(RuntimeImpl& rt, T value, TaskRequirements& requirements) {
         return std::forward<T>(value);
     }
 
@@ -72,7 +72,7 @@ struct TaskLauncher {
             std::decay_t<Fun>,
             typename TaskArgumentSerializer<Space, std::decay_t<Args>>::type...>>(
             std::forward<Fun>(fun),
-            std::get<Is>(serializers).serialize(std::forward<Args>(args), reqs)...);
+            std::get<Is>(serializers).serialize(rt, std::forward<Args>(args), reqs)...);
 
         auto event_id = rt.submit_task(std::move(task), std::move(reqs));
         (std::get<Is>(serializers).update(rt, event_id), ...);
