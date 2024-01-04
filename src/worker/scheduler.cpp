@@ -4,6 +4,13 @@
 
 namespace kmm {
 
+Scheduler::Scheduler() {
+    m_ready_queues.emplace_back(ReadyQueue {
+        .current_workload = 0,
+        .max_workload = std::numeric_limits<size_t>::max(),
+        .ready = {}});
+}
+
 std::shared_ptr<Scheduler::Node> Scheduler::insert(
     EventId id,
     Command command,
@@ -22,15 +29,16 @@ std::shared_ptr<Scheduler::Node> Scheduler::insert(
         id,  //
         num_dependencies + 1,
         std::move(command),
-        std::move(parent));
-    m_jobs.insert({id, node});
+        std::move(parent),
+        m_next_sequence_number++);
+    m_tasks.insert({id, node});
 
     size_t satisfied = 1;
 
     for (size_t i = 0; i < num_dependencies; i++) {
-        auto it = m_jobs.find(dependencies[i]);
+        auto it = m_tasks.find(dependencies[i]);
 
-        if (it != m_jobs.end()) {
+        if (it != m_tasks.end()) {
             auto predecessor = it->second;
             predecessor->successors.push_back(node);
         } else {
@@ -43,34 +51,40 @@ std::shared_ptr<Scheduler::Node> Scheduler::insert(
 }
 
 void Scheduler::push_ready(std::shared_ptr<Node> node) {
-    if (std::holds_alternative<ExecuteCommand>(node->command)) {
-        m_ready_tasks.push_back(std::move(node));
-    } else {
-        m_ready_aux.push_back(std::move(node));
+    while (node->queue_id >= m_ready_queues.size()) {
+        m_ready_queues.emplace_back();
     }
+
+    m_ready_queues[node->queue_id].ready.emplace(node->sequence_number, std::move(node));
 }
 
 std::optional<std::shared_ptr<Scheduler::Node>> Scheduler::pop_ready() {
     std::shared_ptr<Scheduler::Node> node;
 
-    if (!m_ready_aux.empty()) {
-        node = std::move(m_ready_aux.front());
-        m_ready_aux.pop_front();
-    } else if (!m_ready_tasks.empty()) {
-        node = std::move(m_ready_tasks.front());
-        m_ready_tasks.pop_front();
-    } else {
+    for (auto& q : m_ready_queues) {
+        if (q.current_workload < q.max_workload) {
+            auto it = q.ready.begin();
+            node = std::move(it->second);
+            q.ready.erase(it);
+            break;
+        }
+    }
+
+    if (!node) {
         return std::nullopt;
     }
 
     KMM_ASSERT(node->status == Node::Status::Ready);
     node->status = Node::Status::Running;
+    m_ready_queues[node->queue_id].current_workload++;
+
     return node;
 }
 
 void Scheduler::complete(std::shared_ptr<Node> node) {
     KMM_ASSERT(node->status == Node::Status::Running);
     node->status = Node::Status::WaitingForChildren;
+    m_ready_queues[node->queue_id].current_workload--;
 
     if (node->active_children == 0) {
         complete_impl(std::move(node));
@@ -78,12 +92,12 @@ void Scheduler::complete(std::shared_ptr<Node> node) {
 }
 
 void Scheduler::complete_impl(std::shared_ptr<Node> node) {
-    auto it = m_jobs.find(node->id());
-    if (it == m_jobs.end() || it->second.get() != node.get()) {
+    auto it = m_tasks.find(node->id());
+    if (it == m_tasks.end() || it->second.get() != node.get()) {
         return;
     }
 
-    m_jobs.erase(it);
+    m_tasks.erase(it);
     node->status = Node::Status::Done;
 
     auto successors = std::move(node->successors);
@@ -115,11 +129,11 @@ void Scheduler::satisfy_job_dependencies(std::shared_ptr<Node> node, size_t sati
 }
 
 bool Scheduler::is_all_completed() const {
-    return m_jobs.empty();
+    return m_tasks.empty();
 }
 
 bool Scheduler::is_completed(EventId id) const {
-    return m_jobs.find(id) == m_jobs.end();
+    return m_tasks.find(id) == m_tasks.end();
 }
 
 }  // namespace kmm

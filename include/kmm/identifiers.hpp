@@ -58,6 +58,10 @@ class ExecutorId {
   public:
     explicit constexpr ExecutorId(uint8_t value) : m_value(value) {}
 
+    static constexpr ExecutorId invalid() {
+        return ExecutorId(~uint8_t(0));
+    }
+
     constexpr uint8_t get() const {
         return m_value;
     }

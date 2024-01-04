@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <map>
 #include <memory>
 #include <unordered_map>
 
@@ -11,14 +12,28 @@
 namespace kmm {
 
 class Scheduler {
+    using sequence_number_t = uint64_t;
+
   public:
     class Node {
       public:
-        Node(EventId id, size_t predecessors, Command command, std::shared_ptr<Node> parent) :
+        Node(
+            EventId id,
+            size_t predecessors,
+            Command command,
+            std::shared_ptr<Node> parent,
+            sequence_number_t sequence_number) :
             identifier(id),
             command(std::move(command)),
             parent(std::move(parent)),
-            unsatisfied_predecessors(predecessors) {}
+            unsatisfied_predecessors(predecessors),
+            sequence_number(sequence_number) {
+            if (const auto* cmd = std::get_if<ExecuteCommand>(&this->command)) {
+                queue_id = cmd->executor_id.get() + 1;
+            } else {
+                queue_id = 0;
+            }
+        }
         Node(const Node&) = delete;
         Node(Node&&) = delete;
 
@@ -50,7 +65,15 @@ class Scheduler {
         size_t unsatisfied_predecessors;
         size_t active_children = 0;
         std::vector<std::shared_ptr<Node>> successors = {};
+
+        uint8_t queue_id = 0;
+        sequence_number_t sequence_number;
     };
+
+    /**
+     * Construct a new scheduler.
+     */
+    Scheduler();
 
     /**
      * Insert a new task into this scheduler.
@@ -94,9 +117,15 @@ class Scheduler {
     void satisfy_job_dependencies(std::shared_ptr<Node> node, size_t satisfied = 1);
     void complete_impl(std::shared_ptr<Node> node);
 
-    std::unordered_map<EventId, std::shared_ptr<Node>> m_jobs;
-    std::deque<std::shared_ptr<Node>> m_ready_aux;
-    std::deque<std::shared_ptr<Node>> m_ready_tasks;
+    struct ReadyQueue {
+        uint64_t current_workload = 0;
+        uint64_t max_workload = 4;  // TODO: why is this hardcoded?
+        std::map<sequence_number_t, std::shared_ptr<Node>> ready;
+    };
+
+    std::unordered_map<EventId, std::shared_ptr<Node>> m_tasks;
+    std::vector<ReadyQueue> m_ready_queues;
+    sequence_number_t m_next_sequence_number = 0;
 };
 
 }  // namespace kmm
