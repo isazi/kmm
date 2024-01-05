@@ -62,7 +62,7 @@ std::optional<std::shared_ptr<Scheduler::Node>> Scheduler::pop_ready() {
     std::shared_ptr<Scheduler::Node> node;
 
     for (auto& q : m_ready_queues) {
-        if (q.current_workload < q.max_workload) {
+        if (!q.ready.empty() && q.current_workload < q.max_workload) {
             auto it = q.ready.begin();
             node = std::move(it->second);
             q.ready.erase(it);
