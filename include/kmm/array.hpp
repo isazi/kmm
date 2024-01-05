@@ -3,7 +3,7 @@
 #include <utility>
 
 #include "kmm/block.hpp"
-#include "kmm/event.hpp"
+#include "kmm/event_list.hpp"
 #include "kmm/host/host.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"

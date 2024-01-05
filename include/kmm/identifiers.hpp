@@ -5,8 +5,6 @@
 
 #include "fmt/format.h"
 
-#include "kmm/event.hpp"
-
 // Macro for implementing comparison operators for class `T`
 #define KMM_IMPL_COMPARISON_OPS(T)                   \
     constexpr bool operator!=(const T& that) const { \
@@ -23,6 +21,36 @@
     }
 
 namespace kmm {
+
+class EventId {
+  public:
+    explicit constexpr EventId(uint64_t value) : m_value(value) {}
+
+    static constexpr EventId invalid() {
+        return EventId(~uint64_t(0));
+    }
+
+    constexpr uint64_t get() const {
+        return m_value;
+    }
+
+    operator uint64_t() const {
+        return get();
+    }
+
+    constexpr bool operator==(const EventId& that) const {
+        return m_value == that.m_value;
+    }
+
+    constexpr bool operator<(const EventId& that) const {
+        return m_value < that.m_value;
+    }
+
+    KMM_IMPL_COMPARISON_OPS(EventId)
+
+  private:
+    uint64_t m_value;
+};
 
 class MemoryId {
   public:
@@ -165,6 +193,9 @@ class BufferId {
 
 namespace fmt {
 template<>
+struct formatter<kmm::EventId>: formatter<uint64_t> {};
+
+template<>
 struct formatter<kmm::MemoryId>: formatter<uint8_t> {};
 
 template<>
@@ -183,6 +214,9 @@ struct formatter<kmm::BlockId>: formatter<std::string> {
 }  // namespace fmt
 
 namespace std {
+template<>
+struct hash<kmm::EventId>: hash<uint64_t> {};
+
 template<>
 struct hash<kmm::MemoryId>: hash<uint8_t> {};
 

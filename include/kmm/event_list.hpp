@@ -4,35 +4,9 @@
 
 #include "fmt/format.h"
 
+#include "kmm/identifiers.hpp"
+
 namespace kmm {
-
-class EventId {
-  public:
-    explicit constexpr EventId(uint64_t value) : m_value(value) {}
-
-    static constexpr EventId invalid() {
-        return EventId(~uint64_t(0));
-    }
-
-    constexpr uint64_t get() const {
-        return m_value;
-    }
-
-    operator uint64_t() const {
-        return get();
-    }
-
-    constexpr bool operator==(const EventId& that) const {
-        return m_value == that.m_value;
-    }
-
-    constexpr bool operator!=(const EventId& that) const {
-        return m_value != that.m_value;
-    }
-
-  private:
-    uint64_t m_value;
-};
 
 class EventList {
   public:
@@ -90,9 +64,3 @@ class EventList {
 };
 
 }  // namespace kmm
-
-template<>
-struct fmt::formatter<kmm::EventId>: fmt::formatter<uint64_t> {};
-
-template<>
-struct std::hash<kmm::EventId>: std::hash<uint64_t> {};

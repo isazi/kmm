@@ -5,7 +5,7 @@
 #include <memory>
 #include <unordered_map>
 
-#include "kmm/event.hpp"
+#include "kmm/event_list.hpp"
 #include "kmm/panic.hpp"
 #include "kmm/worker/command.hpp"
 

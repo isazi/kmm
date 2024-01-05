@@ -6,7 +6,7 @@
 #include "fmt/format.h"
 
 #include "kmm/block.hpp"
-#include "kmm/event.hpp"
+#include "kmm/event_list.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
 
