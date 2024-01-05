@@ -416,7 +416,10 @@ void MemoryManager::delete_request(const std::shared_ptr<Request>& req) {
         return;
     }
 
-    KMM_ASSERT(req->status == Request::Status::Ready || req->status == Request::Status::Error);
+    KMM_ASSERT(
+        req->status == Request::Status::Init ||  //
+        req->status == Request::Status::Error ||  //
+        req->status == Request::Status::Ready);
     req->status = Request::Status::Terminated;
 
     spdlog::debug(

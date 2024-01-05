@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstring>
 #include <utility>
 
@@ -63,6 +64,36 @@ void ParallelExecutor::submit(
         std::move(completion)));
 }
 
+HostAllocation::HostAllocation(size_t nbytes) : m_nbytes(nbytes) {
+    m_data = std::unique_ptr<char[]>(new char[nbytes]);
+}
+
+HostMemory::HostMemory(std::shared_ptr<ParallelExecutor> executor, size_t max_bytes) :
+    m_queue(executor->m_queue),
+    m_bytes_remaining(max_bytes) {}
+
+std::optional<std::unique_ptr<MemoryAllocation>> HostMemory::allocate(
+    MemoryId id,
+    size_t num_bytes) {
+    KMM_ASSERT(id == 0);
+    if (m_bytes_remaining >= num_bytes) {
+        m_bytes_remaining -= num_bytes;
+        return std::make_unique<HostAllocation>(num_bytes);
+    } else {
+        return std::nullopt;
+    }
+}
+
+void HostMemory::deallocate(MemoryId id, std::unique_ptr<MemoryAllocation> allocation) {
+    KMM_ASSERT(id == 0);
+    auto& alloc = dynamic_cast<HostAllocation&>(*allocation);
+    m_bytes_remaining += alloc.size();
+}
+
+bool HostMemory::is_copy_possible(MemoryId src_id, MemoryId dst_id) {
+    return src_id == 0 && dst_id == 0;
+}
+
 class CopyJob: public WorkQueue<ParallelExecutorContext>::Job {
   public:
     CopyJob(const void* src_ptr, void* dst_ptr, size_t nbytes, Completion&& completion) :
@@ -82,6 +113,32 @@ class CopyJob: public WorkQueue<ParallelExecutorContext>::Job {
     size_t nbytes;
     Completion completion;
 };
+
+void HostMemory::copy_async(
+    MemoryId src_id,
+    const MemoryAllocation* src_alloc,
+    size_t src_offset,
+    MemoryId dst_id,
+    const MemoryAllocation* dst_alloc,
+    size_t dst_offset,
+    size_t num_bytes,
+    Completion completion) {
+    const auto& src_host = dynamic_cast<const HostAllocation&>(*src_alloc);
+    const auto& dst_host = dynamic_cast<const HostAllocation&>(*dst_alloc);
+
+    KMM_ASSERT(src_id == 0);
+    KMM_ASSERT(dst_id == 0);
+    KMM_ASSERT(num_bytes <= src_host.size());
+    KMM_ASSERT(num_bytes <= dst_host.size());
+    KMM_ASSERT(src_offset <= src_host.size() - num_bytes);
+    KMM_ASSERT(dst_offset <= dst_host.size() - num_bytes);
+
+    m_queue->push(std::make_unique<CopyJob>(
+        static_cast<const char*>(src_host.data()) + src_offset,
+        static_cast<char*>(dst_host.data()) + dst_offset,
+        num_bytes,
+        std::move(completion)));
+}
 
 class FillJob: public WorkQueue<ParallelExecutorContext>::Job {
   public:
@@ -138,62 +195,6 @@ class FillJob: public WorkQueue<ParallelExecutorContext>::Job {
     std::vector<uint8_t> fill_bytes;
     Completion completion;
 };
-
-HostAllocation::HostAllocation(size_t nbytes) : m_nbytes(nbytes) {
-    m_data = std::unique_ptr<char[]>(new char[nbytes]);
-}
-
-HostMemory::HostMemory(std::shared_ptr<ParallelExecutor> executor, size_t max_bytes) :
-    m_queue(executor->m_queue),
-    m_bytes_remaining(max_bytes) {}
-
-std::optional<std::unique_ptr<MemoryAllocation>> HostMemory::allocate(
-    MemoryId id,
-    size_t num_bytes) {
-    KMM_ASSERT(id == 0);
-    if (m_bytes_remaining >= num_bytes) {
-        m_bytes_remaining -= num_bytes;
-        return std::make_unique<HostAllocation>(num_bytes);
-    } else {
-        return std::nullopt;
-    }
-}
-
-void HostMemory::deallocate(MemoryId id, std::unique_ptr<MemoryAllocation> allocation) {
-    KMM_ASSERT(id == 0);
-    auto& alloc = dynamic_cast<HostAllocation&>(*allocation);
-    m_bytes_remaining += alloc.size();
-}
-
-bool HostMemory::is_copy_possible(MemoryId src_id, MemoryId dst_id) {
-    return src_id == 0 && dst_id == 0;
-}
-
-void HostMemory::copy_async(
-    MemoryId src_id,
-    const MemoryAllocation* src_alloc,
-    size_t src_offset,
-    MemoryId dst_id,
-    const MemoryAllocation* dst_alloc,
-    size_t dst_offset,
-    size_t num_bytes,
-    Completion completion) {
-    const auto& src_host = dynamic_cast<const HostAllocation&>(*src_alloc);
-    const auto& dst_host = dynamic_cast<const HostAllocation&>(*dst_alloc);
-
-    KMM_ASSERT(src_id == 0);
-    KMM_ASSERT(dst_id == 0);
-    KMM_ASSERT(num_bytes <= src_host.size());
-    KMM_ASSERT(num_bytes <= dst_host.size());
-    KMM_ASSERT(src_offset <= src_host.size() - num_bytes);
-    KMM_ASSERT(dst_offset <= dst_host.size() - num_bytes);
-
-    m_queue->push(std::make_unique<CopyJob>(
-        static_cast<const char*>(src_host.data()) + src_offset,
-        static_cast<char*>(dst_host.data()) + dst_offset,
-        num_bytes,
-        std::move(completion)));
-}
 
 void HostMemory::fill_async(
     MemoryId dst_id,
