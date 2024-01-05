@@ -47,7 +47,7 @@ class Array {
         return size() == 0;
     }
 
-    bool has_buffer() const {
+    bool has_block() const {
         return bool(m_buffer);
     }
 
@@ -66,6 +66,12 @@ class Array {
 
     ArrayHeader header() const {
         return ArrayHeader::for_type<T>(size());
+    }
+
+    void synchronize() const {
+        if (m_buffer) {
+            m_buffer->synchronize();
+        }
     }
 
     EventId prefetch(MemoryId memory_id, EventList dependencies = {}) const {
@@ -92,12 +98,7 @@ struct TaskArgumentSerializer<Space, Array<T, N>> {
     using type = SerializedArray<const T, N>;
 
     type serialize(RuntimeImpl& rt, const Array<T>& array, TaskRequirements& requirements) {
-        size_t index = requirements.inputs.size();
-        requirements.inputs.push_back(TaskInput {
-            .memory_id = rt.executor_info(requirements.executor_id).memory_affinity(),
-            .block_id = array.id(),
-        });
-
+        size_t index = requirements.add_input(array.id(), rt);
         return {index, array.sizes()};
     }
 
@@ -112,13 +113,8 @@ struct TaskArgumentSerializer<Space, Write<Array<T, N>>> {
         RuntimeImpl& rt,
         const Write<Array<T, N>>& array,
         TaskRequirements& requirements) {
-        size_t output_index = requirements.outputs.size();
-        auto header = array.inner.header();
-
-        requirements.outputs.push_back(TaskOutput {
-            .memory_id = rt.executor_info(requirements.executor_id).memory_affinity(),
-            .header = std::make_unique<decltype(header)>(header),
-        });
+        auto header = std::make_unique<ArrayHeader>(array.inner.header());
+        size_t output_index = requirements.add_output(std::move(header), rt);
 
         m_target = &array.inner;
         m_output_index = output_index;

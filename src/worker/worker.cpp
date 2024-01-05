@@ -119,7 +119,7 @@ bool Worker::make_progress_impl() {
 }
 
 void Worker::start_job(std::shared_ptr<Scheduler::Node> node) {
-    auto command = node->take_command();
+    auto&& command = node->take_command();
 
     // For empty commands, bypass the regular job procedure and immediately complete it.
     if (std::holds_alternative<EmptyCommand>(command)) {

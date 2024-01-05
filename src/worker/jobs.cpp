@@ -38,10 +38,10 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
         for (const auto& arg : m_inputs) {
             auto buffer_id_opt = worker.block_manager.get_block_buffer(arg.block_id);
 
-            if (buffer_id_opt) {
+            if (buffer_id_opt.has_value() && arg.memory_id.has_value()) {
                 requests.emplace_back(worker.memory_manager->create_request(  //
                     *buffer_id_opt,
-                    arg.memory_id,
+                    *arg.memory_id,
                     AccessMode::Read,
                     transaction));
             } else {

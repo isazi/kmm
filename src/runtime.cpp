@@ -11,11 +11,8 @@ Runtime::Runtime(std::shared_ptr<RuntimeImpl> impl) : m_impl(std::move(impl)) {
     KMM_ASSERT(m_impl);
 }
 
-EventId Runtime::submit_task(
-    std::shared_ptr<Task> task,
-    TaskRequirements reqs,
-    EventList dependencies) const {
-    return m_impl->submit_task(std::move(task), std::move(reqs), std::move(dependencies));
+EventId Runtime::submit_task(std::shared_ptr<Task> task, TaskRequirements reqs) const {
+    return m_impl->submit_task(std::move(task), std::move(reqs));
 }
 
 EventId Runtime::submit_barrier() const {

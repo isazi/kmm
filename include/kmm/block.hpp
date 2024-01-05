@@ -69,59 +69,19 @@ class ArrayHeader: public BlockHeader {
 };
 
 template<typename T>
-class Scalar;
-
 class ScalarHeader: public BlockHeader {
   public:
-    virtual const std::type_info& type() const = 0;
+    ScalarHeader(T value = {}) : m_value(std::move(value)) {}
+
+    std::string name() const {
+        return typeid(T).name();
+    }
 
     BlockLayout layout() const override {
         return BlockLayout {
             .num_bytes = 0,
             .alignment = 1,
         };
-    }
-
-    bool is(const std::type_info& t) const {
-        return type() == t;
-    }
-
-    template<typename T>
-    bool is() const {
-        return is(typeid(T));
-    }
-
-    template<typename T>
-    T* get_if() {
-        if (auto ptr = dynamic_cast<Scalar<T>*>(this)) {
-            return ptr->get();
-        } else {
-            return nullptr;
-        }
-    }
-
-    template<typename T>
-    const T* get_if() const {
-        if (auto ptr = dynamic_cast<const Scalar<T>*>(this)) {
-            return ptr->get();
-        } else {
-            return nullptr;
-        }
-    }
-};
-
-template<typename T>
-class Scalar: public ScalarHeader {
-  public:
-    Scalar() {}
-    Scalar(T value) : m_value(std::move(value)) {}
-
-    const std::type_info& type() const override {
-        return typeid(T);
-    }
-
-    void set(T new_value) {
-        m_value = std::move(new_value);
     }
 
     T& get() {
@@ -132,12 +92,8 @@ class Scalar: public ScalarHeader {
         return m_value;
     }
 
-    operator T() const {
-        return get();
-    }
-
   private:
-    T m_value = {};
+    T m_value;
 };
 
 }  // namespace kmm

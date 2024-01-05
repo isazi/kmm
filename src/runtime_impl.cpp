@@ -22,8 +22,7 @@ RuntimeImpl::~RuntimeImpl() {
     m_thread.join();
 }
 
-EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements reqs, EventList deps)
-    const {
+EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements reqs) const {
     std::lock_guard guard {m_mutex};
 
     spdlog::info("submit task");
@@ -32,7 +31,7 @@ EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements re
 
     for (auto& input : reqs.inputs) {
         auto& accesses = m_block_accesses.at(input.block_id);
-        deps.extend(accesses);
+        reqs.dependencies.extend(accesses);
         accesses.push_back(event_id);
     }
 
@@ -49,7 +48,7 @@ EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements re
             .inputs = std::move(reqs.inputs),
             .outputs = std::move(reqs.outputs),
         },
-        std::move(deps));
+        std::move(reqs.dependencies));
 
     return event_id;
 }

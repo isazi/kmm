@@ -19,8 +19,7 @@ class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
     RuntimeImpl(std::vector<std::shared_ptr<Executor>> executors, std::unique_ptr<Memory> memory);
     ~RuntimeImpl();
 
-    EventId submit_task(std::shared_ptr<Task> task, TaskRequirements reqs, EventList deps = {})
-        const;
+    EventId submit_task(std::shared_ptr<Task> task, TaskRequirements reqs) const;
     EventId delete_block(BlockId block_id, EventList deps = {}) const;
     EventId join_events(EventList deps) const;
     EventId submit_barrier() const;

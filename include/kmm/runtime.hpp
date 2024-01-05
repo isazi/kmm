@@ -20,13 +20,9 @@ class Runtime {
      *
      * @param task The Task definition.
      * @param reqs The task requirements.
-     * @param dependencies Events that should complete before the task may run.
      * @return The event identifier of the submitted task.
      */
-    EventId submit_task(
-        std::shared_ptr<Task> task,
-        TaskRequirements reqs,
-        EventList dependencies = {}) const;
+    EventId submit_task(std::shared_ptr<Task> task, TaskRequirements reqs) const;
 
     /**
      * Submit a task to the runtime system using a task launcher.
