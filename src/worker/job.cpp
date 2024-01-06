@@ -5,9 +5,9 @@
 
 namespace kmm {
 
-void Job::trigger_wakeup(bool allow_progress) const {
+void CopyJob::trigger_wakeup(bool allow_progress) const {
     if (auto owner = worker.lock()) {
-        auto self = std::shared_ptr<Job>(shared_from_this(), const_cast<Job*>(this));
+        auto self = std::shared_ptr<CopyJob>(shared_from_this(), const_cast<CopyJob*>(this));
         owner->wakeup(self, allow_progress);
     }
 }
@@ -16,7 +16,7 @@ bool JobQueue::is_empty() const {
     return m_head == nullptr;
 }
 
-bool JobQueue::push(std::shared_ptr<Job> op) {
+bool JobQueue::push(std::shared_ptr<CopyJob> op) {
     if (op->in_queue.test_and_set()) {
         return false;
     }
@@ -52,7 +52,7 @@ void JobQueue::push_all(JobQueue that) {
     m_tail = std::exchange(that.m_tail, nullptr);
 }
 
-std::optional<std::shared_ptr<Job>> JobQueue::pop() {
+std::optional<std::shared_ptr<CopyJob>> JobQueue::pop() {
     // This queue is empty
     if (m_head == nullptr) {
         return std::nullopt;
@@ -65,7 +65,7 @@ std::optional<std::shared_ptr<Job>> JobQueue::pop() {
     return std::optional {std::move(op)};
 }
 
-bool SharedJobQueue::push_job(std::shared_ptr<Job> op) const {
+bool SharedJobQueue::push_job(std::shared_ptr<CopyJob> op) const {
     std::lock_guard guard {m_lock};
     auto id = op->id();
 

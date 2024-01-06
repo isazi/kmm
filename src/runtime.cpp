@@ -1,7 +1,8 @@
 #include <future>
 
 #include "kmm/executor.hpp"
-#include "kmm/host/host.hpp"
+#include "kmm/host/executor.hpp"
+#include "kmm/host/memory.hpp"
 #include "kmm/runtime.hpp"
 #include "kmm/runtime_impl.hpp"
 

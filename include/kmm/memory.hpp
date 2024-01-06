@@ -69,7 +69,7 @@ class Memory {
         const MemoryAllocation* dst_alloc,
         size_t dst_offset,
         size_t num_bytes,
-        std::vector<uint8_t> fill_bytes,
+        std::vector<uint8_t> fill_pattern,
         Completion completion) = 0;
 };
 

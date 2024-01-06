@@ -31,7 +31,7 @@ void Worker::make_progress(std::chrono::time_point<std::chrono::system_clock> de
     }
 }
 
-void Worker::wakeup(std::shared_ptr<Job> job, bool allow_progress) {
+void Worker::wakeup(std::shared_ptr<CopyJob> job, bool allow_progress) {
     auto id = job->id();
 
     if (allow_progress) {
@@ -131,16 +131,16 @@ void Worker::start_job(std::shared_ptr<Scheduler::Node> node) {
     spdlog::debug("start job id={}", node->id());
     auto job = build_job_for_command(node->id(), std::move(command));
 
-    KMM_ASSERT(job->status == Job::Status::Created);
-    job->status = Job::Status::Running;
+    KMM_ASSERT(job->status == CopyJob::Status::Created);
+    job->status = CopyJob::Status::Running;
     job->worker = weak_from_this();
     job->completion = std::move(node);
     job->start(m_state);
     poll_job(*job);
 }
 
-void Worker::poll_job(Job& job) {
-    if (job.status == Job::Status::Running) {
+void Worker::poll_job(CopyJob& job) {
+    if (job.status == CopyJob::Status::Running) {
         spdlog::debug("poll job id={}", job.id());
 
         if (job.poll(m_state) == PollResult::Ready) {
@@ -149,9 +149,9 @@ void Worker::poll_job(Job& job) {
     }
 }
 
-void Worker::stop_job(Job& job) {
+void Worker::stop_job(CopyJob& job) {
     spdlog::debug("stop job id={}", job.id());
-    job.status = Job::Status::Done;
+    job.status = CopyJob::Status::Done;
     job.stop(m_state);
 
     m_scheduler.complete(std::move(job.completion));

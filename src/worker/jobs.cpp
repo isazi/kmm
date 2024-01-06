@@ -213,7 +213,7 @@ PollResult EmptyJob::poll(WorkerState& worker) {
     return PollResult::Ready;
 }
 
-std::shared_ptr<Job> build_job_for_command(EventId id, Command command) {
+std::shared_ptr<CopyJob> build_job_for_command(EventId id, Command command) {
     if (auto* cmd_exe = std::get_if<ExecuteCommand>(&command)) {
         return std::make_shared<ExecuteJob>(id, std::move(*cmd_exe));
     } else if (auto* cmd_del = std::get_if<BlockDeleteCommand>(&command)) {

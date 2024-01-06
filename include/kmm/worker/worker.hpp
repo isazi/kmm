@@ -7,7 +7,6 @@
 #include "kmm/executor.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/work_queue.hpp"
 #include "kmm/worker/block_manager.hpp"
 #include "kmm/worker/command.hpp"
 #include "kmm/worker/job.hpp"
@@ -30,7 +29,7 @@ class Worker: public std::enable_shared_from_this<Worker> {
     void make_progress(std::chrono::time_point<std::chrono::system_clock> deadline = {});
     void submit_command(EventId id, Command command, EventList dependencies);
     bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {});
-    void wakeup(std::shared_ptr<Job> job, bool allow_progress = false);
+    void wakeup(std::shared_ptr<CopyJob> job, bool allow_progress = false);
     void shutdown();
     bool is_shutdown();
 
@@ -38,8 +37,8 @@ class Worker: public std::enable_shared_from_this<Worker> {
     bool make_progress_impl();
 
     void start_job(std::shared_ptr<Scheduler::Node> node);
-    void poll_job(Job& job);
-    void stop_job(Job& job);
+    void poll_job(CopyJob& job);
+    void stop_job(CopyJob& job);
 
     std::shared_ptr<SharedJobQueue> m_shared_poll_queue;
 

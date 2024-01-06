@@ -4,7 +4,7 @@
 
 #include "kmm/block.hpp"
 #include "kmm/event_list.hpp"
-#include "kmm/host/host.hpp"
+#include "kmm/host/memory.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/runtime.hpp"

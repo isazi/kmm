@@ -10,10 +10,10 @@
 
 namespace kmm {
 
-class ExecuteJob: public Job {
+class ExecuteJob: public CopyJob {
   public:
     ExecuteJob(EventId id, ExecuteCommand command) :
-        Job(id),
+        CopyJob(id),
         m_id(id),
         m_device_id(command.executor_id),
         m_task(std::move(command.task)),
@@ -38,9 +38,9 @@ class ExecuteJob: public Job {
     std::shared_ptr<TaskResult> m_result = nullptr;
 };
 
-class DeleteJob: public Job {
+class DeleteJob: public CopyJob {
   public:
-    DeleteJob(EventId id, BlockDeleteCommand cmd) : Job(id), m_block_id(cmd.id) {}
+    DeleteJob(EventId id, BlockDeleteCommand cmd) : CopyJob(id), m_block_id(cmd.id) {}
     PollResult poll(WorkerState&) final;
 
   private:
@@ -48,10 +48,10 @@ class DeleteJob: public Job {
     std::optional<BufferId> m_buffer_id;
 };
 
-class PrefetchJob: public Job {
+class PrefetchJob: public CopyJob {
   public:
     PrefetchJob(EventId id, BlockPrefetchCommand cmd) :
-        Job(id),
+        CopyJob(id),
         m_memory_id(cmd.memory_id),
         m_block_id(cmd.block_id) {}
 
@@ -65,12 +65,12 @@ class PrefetchJob: public Job {
     BlockId m_block_id;
 };
 
-class EmptyJob: public Job {
+class EmptyJob: public CopyJob {
   public:
-    EmptyJob(EventId id) : Job(id) {}
+    EmptyJob(EventId id) : CopyJob(id) {}
     PollResult poll(WorkerState&) final;
 };
 
-std::shared_ptr<Job> build_job_for_command(EventId id, Command command);
+std::shared_ptr<CopyJob> build_job_for_command(EventId id, Command command);
 
 }  // namespace kmm
