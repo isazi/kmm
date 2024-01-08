@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "kmm/block.hpp"
+#include "kmm/cuda/memory.hpp"
 #include "kmm/event_list.hpp"
 #include "kmm/host/memory.hpp"
 #include "kmm/identifiers.hpp"
@@ -158,6 +159,34 @@ struct TaskArgumentDeserializer<ExecutionSpace::Host, SerializedArray<const T, N
         KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
 
         auto& alloc = dynamic_cast<const HostAllocation&>(*access.allocation);
+        return reinterpret_cast<const T*>(alloc.data());
+    }
+};
+
+template<typename T, size_t N>
+struct TaskArgumentDeserializer<ExecutionSpace::Cuda, SerializedArray<T, N>> {
+    using type = T*;
+
+    T* deserialize(const SerializedArray<T, N>& array, TaskContext& context) {
+        const auto& access = context.outputs.at(array.buffer_index);
+        const auto* header = dynamic_cast<const ArrayHeader*>(access.header);
+        KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
+
+        auto& alloc = dynamic_cast<const CudaAllocation&>(*access.allocation);
+        return reinterpret_cast<T*>(alloc.data());
+    }
+};
+
+template<typename T, size_t N>
+struct TaskArgumentDeserializer<ExecutionSpace::Cuda, SerializedArray<const T, N>> {
+    using type = const T*;
+
+    const T* deserialize(const SerializedArray<const T, N>& array, TaskContext& context) {
+        const auto& access = context.inputs.at(array.buffer_index);
+        const auto* header = dynamic_cast<const ArrayHeader*>(access.header.get());
+        KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
+
+        auto& alloc = dynamic_cast<const CudaAllocation&>(*access.allocation);
         return reinterpret_cast<const T*>(alloc.data());
     }
 };
