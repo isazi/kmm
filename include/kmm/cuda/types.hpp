@@ -39,8 +39,8 @@ class CudaContextHandle {
     CudaContextHandle(CUcontext context, std::shared_ptr<void> lifetime);
 
   public:
-    static CudaContextHandle build_new_context(CUdevice device);
-    static CudaContextHandle retrieve_primary_context(CUdevice device);
+    static CudaContextHandle from_new_context(CUdevice device);
+    static CudaContextHandle from_primary_context(CUdevice device);
 
     CudaContextHandle() = delete;
     CudaContextHandle(const CudaContextHandle&) = default;
@@ -70,6 +70,12 @@ class CudaContextGuard {
   public:
     CudaContextGuard(CudaContextHandle context);
     ~CudaContextGuard();
+
+    CudaContextGuard(const CudaContextGuard&) = delete;
+    CudaContextGuard(CudaContextGuard&&) noexcept = delete;
+
+    CudaContextGuard& operator=(const CudaContextGuard&) = delete;
+    CudaContextGuard& operator=(CudaContextGuard&&) noexcept = delete;
 
   private:
     CudaContextHandle m_context;

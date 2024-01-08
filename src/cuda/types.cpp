@@ -26,7 +26,7 @@ CudaContextHandle::CudaContextHandle(CUcontext context, std::shared_ptr<void> li
     m_context(context),
     m_lifetime(std::move(lifetime)) {}
 
-CudaContextHandle CudaContextHandle::build_new_context(CUdevice device) {
+CudaContextHandle CudaContextHandle::from_new_context(CUdevice device) {
     int flags = CU_CTX_MAP_HOST;
     CUcontext context;
     KMM_CUDA_CHECK(cuCtxCreate(&context, flags, device));
@@ -38,7 +38,7 @@ CudaContextHandle CudaContextHandle::build_new_context(CUdevice device) {
     return {context, lifetime};
 }
 
-CudaContextHandle CudaContextHandle::retrieve_primary_context(CUdevice device) {
+CudaContextHandle CudaContextHandle::from_primary_context(CUdevice device) {
     CUcontext context;
     KMM_CUDA_CHECK(cuDevicePrimaryCtxRetain(&context, device));
 

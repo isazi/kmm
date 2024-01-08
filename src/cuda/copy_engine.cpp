@@ -283,7 +283,7 @@ std::optional<CudaCopyEngine::CopyJob> CudaCopyEngine::wait_for_new_job(
 
     auto new_job = std::move(this->m_queue.front());
     m_queue.pop_front();
-    return std::move(new_job);
+    return new_job;
 }
 
 void CudaCopyEngine::submit_job(CopyJob&& job) {
