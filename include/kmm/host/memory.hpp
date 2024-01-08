@@ -5,7 +5,7 @@
 
 namespace kmm {
 
-class HostAllocation final: public MemoryAllocation {
+class HostAllocation: public MemoryAllocation {
   public:
     virtual void* data() const = 0;
     virtual size_t size() const = 0;

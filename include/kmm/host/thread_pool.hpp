@@ -12,6 +12,10 @@ namespace kmm {
 class ParallelExecutor final: public Executor {};
 
 class ThreadPool {
+    class FillJob;
+    class CopyJob;
+    class ExecutionJob;
+
   public:
     class Job: public WorkQueue<Job>::JobBase {
       public:

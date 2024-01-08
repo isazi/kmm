@@ -17,7 +17,7 @@ ThreadPool::ThreadPool() :
 
 ThreadPool::~ThreadPool() = default;
 
-class ExecutionJob: public ThreadPool::Job {
+class ThreadPool::ExecutionJob: public ThreadPool::Job {
   public:
     ExecutionJob(std::shared_ptr<Task>&& task, TaskContext&& context, Completion&& completion) :
         m_task(std::move(task)),
@@ -41,11 +41,13 @@ class ExecutionJob: public ThreadPool::Job {
 
 void ThreadPool::submit_task(std::shared_ptr<Task> task, TaskContext context, Completion completion)
     const {
-    m_queue->push(
-        std::make_unique<ExecutionJob>(std::move(task), std::move(context), std::move(completion)));
+    m_queue->push(std::make_unique<ExecutionJob>(  //
+        std::move(task),
+        std::move(context),
+        std::move(completion)));
 }
 
-class FillJob: public ThreadPool::Job {
+class ThreadPool::FillJob: public ThreadPool::Job {
   public:
     FillJob(
         void* dst_ptr,
@@ -113,9 +115,9 @@ void ThreadPool::submit_fill(
         std::move(completion)));
 }
 
-class Job: public ThreadPool::Job {
+class ThreadPool::CopyJob: public ThreadPool::Job {
   public:
-    Job(const void* src_ptr, void* dst_ptr, size_t num_bytes, Completion&& completion) :
+    CopyJob(const void* src_ptr, void* dst_ptr, size_t num_bytes, Completion&& completion) :
         src_ptr(src_ptr),
         dst_ptr(dst_ptr),
         num_bytes(num_bytes),
@@ -138,7 +140,7 @@ void ThreadPool::submit_copy(
     void* dst_data,
     size_t num_bytes,
     Completion completion) {
-    m_queue->push(std::make_unique<Job>(src_data, dst_data, num_bytes, std::move(completion)));
+    m_queue->push(std::make_unique<CopyJob>(src_data, dst_data, num_bytes, std::move(completion)));
 }
 
 }  // namespace kmm
