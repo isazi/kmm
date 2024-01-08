@@ -113,9 +113,9 @@ void ThreadPool::submit_fill(
         std::move(completion)));
 }
 
-class CopyJob: public ThreadPool::Job {
+class Job: public ThreadPool::Job {
   public:
-    CopyJob(const void* src_ptr, void* dst_ptr, size_t num_bytes, Completion&& completion) :
+    Job(const void* src_ptr, void* dst_ptr, size_t num_bytes, Completion&& completion) :
         src_ptr(src_ptr),
         dst_ptr(dst_ptr),
         num_bytes(num_bytes),
@@ -138,7 +138,7 @@ void ThreadPool::submit_copy(
     void* dst_data,
     size_t num_bytes,
     Completion completion) {
-    m_queue->push(std::make_unique<CopyJob>(src_data, dst_data, num_bytes, std::move(completion)));
+    m_queue->push(std::make_unique<Job>(src_data, dst_data, num_bytes, std::move(completion)));
 }
 
 }  // namespace kmm

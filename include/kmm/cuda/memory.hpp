@@ -16,7 +16,7 @@ namespace kmm {
 // Forward so we don't need to include cuda/copy_engine.hpp
 class CudaCopyEngine;
 
-class CudaAllocation: public MemoryAllocation {
+class CudaAllocation final: public MemoryAllocation {
   public:
     void* data() const {
         KMM_TODO();
@@ -28,7 +28,7 @@ class CudaAllocation: public MemoryAllocation {
 
 class PinnedAllocation: public HostAllocation {};
 
-class CudaMemory: public Memory {
+class CudaMemory final: public Memory {
   public:
     CudaMemory(std::shared_ptr<ThreadPool> host_thread, std::vector<CudaContextHandle> contexts);
     ~CudaMemory();

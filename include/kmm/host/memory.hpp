@@ -5,13 +5,13 @@
 
 namespace kmm {
 
-class HostAllocation: public MemoryAllocation {
+class HostAllocation final: public MemoryAllocation {
   public:
     virtual void* data() const = 0;
     virtual size_t size() const = 0;
 };
 
-class HostMemory: public Memory {
+class HostMemory final: public Memory {
   public:
     HostMemory(
         std::shared_ptr<ThreadPool> pool,

@@ -16,12 +16,12 @@ namespace kmm {
 class Worker;
 class WorkerState;
 
-class CopyJob: public Waker {
+class Job: public Waker {
   public:
-    CopyJob(EventId id) : identifier(id) {}
-    CopyJob(const CopyJob&) = delete;
-    CopyJob(CopyJob&&) = delete;
-    ~CopyJob() override = default;
+    Job(EventId id) : identifier(id) {}
+    Job(const Job&) = delete;
+    Job(Job&&) = delete;
+    ~Job() override = default;
 
     virtual void start(WorkerState&) {}
     virtual PollResult poll(WorkerState&) = 0;
@@ -41,7 +41,7 @@ class CopyJob: public Waker {
     Status status = Status::Created;
 
     std::atomic_flag in_queue = false;
-    std::shared_ptr<CopyJob> next_queue_item = nullptr;
+    std::shared_ptr<Job> next_queue_item = nullptr;
 
     EventId identifier;
     std::weak_ptr<Worker> worker;
@@ -58,18 +58,18 @@ class JobQueue {
     JobQueue& operator=(JobQueue&&) noexcept = default;
 
     bool is_empty() const;
-    bool push(std::shared_ptr<CopyJob>);
+    bool push(std::shared_ptr<Job>);
     void push_all(JobQueue);
-    std::optional<std::shared_ptr<CopyJob>> pop();
+    std::optional<std::shared_ptr<Job>> pop();
 
   private:
-    std::shared_ptr<CopyJob> m_head = nullptr;
-    CopyJob* m_tail = nullptr;
+    std::shared_ptr<Job> m_head = nullptr;
+    Job* m_tail = nullptr;
 };
 
 class SharedJobQueue {
   public:
-    bool push_job(std::shared_ptr<CopyJob>) const;
+    bool push_job(std::shared_ptr<Job>) const;
     JobQueue pop_all_jobs() const;
 
     bool wait_until(std::chrono::time_point<std::chrono::system_clock> deadline) const;

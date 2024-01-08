@@ -18,7 +18,7 @@ class BlockHeader {
     virtual std::string name() const = 0;
 };
 
-class ArrayHeader: public BlockHeader {
+class ArrayHeader final: public BlockHeader {
   private:
     ArrayHeader(
         index_t length,
@@ -69,7 +69,7 @@ class ArrayHeader: public BlockHeader {
 };
 
 template<typename T>
-class ScalarHeader: public BlockHeader {
+class ScalarHeader final: public BlockHeader {
   public:
     ScalarHeader(T value = {}) : m_value(std::move(value)) {}
 

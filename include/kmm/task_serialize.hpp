@@ -30,7 +30,7 @@ struct TaskArgumentDeserializer {
 };
 
 template<ExecutionSpace Space, typename Fun, typename... Args>
-class TaskImpl: public Task {
+class TaskImpl final: public Task {
   public:
     TaskImpl(Fun fun, Args... args) : m_fun(std::move(fun)), m_args(std::move(args)...) {}
 

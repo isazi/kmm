@@ -9,7 +9,7 @@
 
 namespace kmm {
 
-class HostExecutorInfo: public ExecutorInfo {
+class HostExecutorInfo final: public ExecutorInfo {
     std::string name() const override;
     MemoryId memory_affinity() const override;
 };
