@@ -42,10 +42,10 @@ class CudaExecutorInfo: public ExecutorInfo {
     std::array<int, NUM_ATTRIBUTES> m_attributes;
 };
 
-class CudaExecutorContext final: public ExecutorContext, public CudaExecutorInfo {
+class CudaExecutor final: public Executor, public CudaExecutorInfo {
   public:
-    CudaExecutorContext(CudaContextHandle, MemoryId affinity_id);
-    ~CudaExecutorContext() noexcept final;
+    CudaExecutor(CudaContextHandle, MemoryId affinity_id);
+    ~CudaExecutor() noexcept final;
 
     CudaContextHandle context_handle() const {
         return m_context;
@@ -71,7 +71,7 @@ class CudaExecutorContext final: public ExecutorContext, public CudaExecutorInfo
     CUevent m_event;
 };
 
-class CudaExecutor: public Executor {
+class CudaExecutorHandle: public ExecutorHandle {
   public:
     class Job: public WorkQueue<Job>::JobBase {
       public:
@@ -82,8 +82,8 @@ class CudaExecutor: public Executor {
         Completion completion;
     };
 
-    CudaExecutor(CudaContextHandle context, MemoryId affinity_id, size_t num_streams = 1);
-    ~CudaExecutor() noexcept;
+    CudaExecutorHandle(CudaContextHandle context, MemoryId affinity_id, size_t num_streams = 1);
+    ~CudaExecutorHandle() noexcept;
 
     std::unique_ptr<ExecutorInfo> info() const override;
     void submit(std::shared_ptr<Task> task, TaskContext context, Completion completion)

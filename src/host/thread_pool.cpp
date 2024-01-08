@@ -5,7 +5,7 @@ namespace kmm {
 ThreadPool::ThreadPool() :
     m_queue(std::make_shared<WorkQueue<Job>>()),
     m_thread([q = m_queue] {
-        ParallelExecutorContext context {};
+        ParallelExecutor context {};
 
         while (auto popped = q->pop()) {
             (*popped)->execute(context);
@@ -24,7 +24,7 @@ class ExecutionJob: public ThreadPool::Job {
         m_context(std::move(context)),
         m_completion(std::move(completion)) {}
 
-    void execute(ParallelExecutorContext& executor) override {
+    void execute(ParallelExecutor& executor) override {
         try {
             m_task->execute(executor, m_context);
             m_completion.complete_ok();
@@ -72,7 +72,7 @@ class FillJob: public ThreadPool::Job {
         }
     }
 
-    void execute(ParallelExecutorContext&) override {
+    void execute(ParallelExecutor&) override {
         size_t k = fill_bytes.size();
 
         if (k == 1) {
@@ -121,7 +121,7 @@ class CopyJob: public ThreadPool::Job {
         num_bytes(num_bytes),
         completion(std::move(completion)) {}
 
-    void execute(ParallelExecutorContext&) override {
+    void execute(ParallelExecutor&) override {
         std::memcpy(dst_ptr, src_ptr, num_bytes);
         completion.complete_ok();
     }

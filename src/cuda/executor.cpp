@@ -48,7 +48,7 @@ int CudaExecutorInfo::attribute(CUdevice_attribute attrib) const {
     throw std::runtime_error("unsupported attribute requested");
 }
 
-CudaExecutorContext::CudaExecutorContext(CudaContextHandle context, MemoryId affinity_id) :
+CudaExecutor::CudaExecutor(CudaContextHandle context, MemoryId affinity_id) :
     CudaExecutorInfo(context, affinity_id),
     m_context(context) {
     CudaContextGuard guard {context};
@@ -60,12 +60,12 @@ CudaExecutorContext::CudaExecutorContext(CudaContextHandle context, MemoryId aff
     KMM_CUDA_CHECK(cuEventCreate(&m_event, flags));
 }
 
-CudaExecutorContext::~CudaExecutorContext() {
+CudaExecutor::~CudaExecutor() {
     KMM_CUDA_CHECK(cuStreamDestroy(m_stream));
     KMM_CUDA_CHECK(cuEventDestroy(m_event));
 }
 
-void CudaExecutorContext::synchronize() const {
+void CudaExecutor::synchronize() const {
     CudaContextGuard guard {m_context};
     KMM_CUDA_CHECK(cuStreamSynchronize(m_stream));
 }
@@ -73,25 +73,25 @@ void CudaExecutorContext::synchronize() const {
 class CudaExecutorThread {
   public:
     CudaExecutorThread(
-        std::shared_ptr<WorkQueue<CudaExecutor::Job>> queue,
-        std::vector<std::unique_ptr<CudaExecutorContext>> streams);
+        std::shared_ptr<WorkQueue<CudaExecutorHandle::Job>> queue,
+        std::vector<std::unique_ptr<CudaExecutor>> streams);
     ~CudaExecutorThread();
 
     void run_forever();
 
   private:
     PollResult poll_stream(size_t slot);
-    void submit_job(size_t slot, std::unique_ptr<CudaExecutor::Job> job);
+    void submit_job(size_t slot, std::unique_ptr<CudaExecutorHandle::Job> job);
 
-    std::shared_ptr<WorkQueue<CudaExecutor::Job>> m_queue;
-    std::vector<std::unique_ptr<CudaExecutorContext>> m_streams;
+    std::shared_ptr<WorkQueue<CudaExecutorHandle::Job>> m_queue;
+    std::vector<std::unique_ptr<CudaExecutor>> m_streams;
     std::vector<Completion> m_running_jobs;
     std::vector<CUevent> m_events;
 };
 
 CudaExecutorThread::CudaExecutorThread(
-    std::shared_ptr<WorkQueue<CudaExecutor::Job>> queue,
-    std::vector<std::unique_ptr<CudaExecutorContext>> streams) :
+    std::shared_ptr<WorkQueue<CudaExecutorHandle::Job>> queue,
+    std::vector<std::unique_ptr<CudaExecutor>> streams) :
     m_queue(std::move(queue)),
     m_streams(std::move(streams)) {
     KMM_ASSERT(m_streams.empty() == false);
@@ -190,7 +190,7 @@ PollResult CudaExecutorThread::poll_stream(size_t slot) {
     return PollResult::Ready;
 }
 
-void CudaExecutorThread::submit_job(size_t slot, std::unique_ptr<CudaExecutor::Job> job) {
+void CudaExecutorThread::submit_job(size_t slot, std::unique_ptr<CudaExecutorHandle::Job> job) {
     KMM_ASSERT(!m_running_jobs[slot]);
 
     try {
@@ -207,36 +207,44 @@ void CudaExecutorThread::submit_job(size_t slot, std::unique_ptr<CudaExecutor::J
     }
 }
 
-CudaExecutor::Job::Job(std::shared_ptr<Task> task, TaskContext context, Completion completion) :
+CudaExecutorHandle::Job::Job(
+    std::shared_ptr<Task> task,
+    TaskContext context,
+    Completion completion) :
     task(std::move(task)),
     context(std::move(context)),
     completion(std::move(completion)) {
 
     };
 
-CudaExecutor::CudaExecutor(CudaContextHandle context, MemoryId affinity_id, size_t num_streams) :
+CudaExecutorHandle::CudaExecutorHandle(
+    CudaContextHandle context,
+    MemoryId affinity_id,
+    size_t num_streams) :
     m_info(context, affinity_id),
     m_queue(std::make_shared<WorkQueue<Job>>()) {
-    std::vector<std::unique_ptr<CudaExecutorContext>> streams;
+    std::vector<std::unique_ptr<CudaExecutor>> streams;
 
     for (size_t i = 0; i < num_streams; i++) {
-        streams.push_back(std::make_unique<CudaExecutorContext>(context, affinity_id));
+        streams.push_back(std::make_unique<CudaExecutor>(context, affinity_id));
     }
 
     auto state = std::make_unique<CudaExecutorThread>(m_queue, std::move(streams));
     m_thread = std::thread([state = std::move(state)] { state->run_forever(); });
 }
 
-CudaExecutor::~CudaExecutor() noexcept {
+CudaExecutorHandle::~CudaExecutorHandle() noexcept {
     m_queue->shutdown();
     m_thread.join();
 }
 
-std::unique_ptr<ExecutorInfo> CudaExecutor::info() const {
+std::unique_ptr<ExecutorInfo> CudaExecutorHandle::info() const {
     return std::make_unique<CudaExecutorInfo>(m_info);
 }
-void CudaExecutor::submit(std::shared_ptr<Task> task, TaskContext context, Completion completion)
-    const {
+void CudaExecutorHandle::submit(
+    std::shared_ptr<Task> task,
+    TaskContext context,
+    Completion completion) const {
     auto job = std::make_unique<Job>(std::move(task), std::move(context), std::move(completion));
     m_queue->push(std::move(job));
 }

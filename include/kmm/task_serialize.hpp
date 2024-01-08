@@ -34,13 +34,13 @@ class TaskImpl: public Task {
   public:
     TaskImpl(Fun fun, Args... args) : m_fun(std::move(fun)), m_args(std::move(args)...) {}
 
-    void execute(ExecutorContext& executor, TaskContext& context) override {
+    void execute(Executor& executor, TaskContext& context) override {
         return execute_impl(executor, context, std::index_sequence_for<Args...>());
     }
 
   private:
     template<size_t... Is>
-    void execute_impl(ExecutorContext& executor, TaskContext& context, std::index_sequence<Is...>) {
+    void execute_impl(Executor& executor, TaskContext& context, std::index_sequence<Is...>) {
         m_fun(TaskArgumentDeserializer<Space, Args>().deserialize(  //
             std::get<Is>(m_args),
             context)...);

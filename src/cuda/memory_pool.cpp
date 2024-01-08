@@ -83,7 +83,7 @@ void MemoryPool::insert_block(void* addr, size_t size) {
     m_blocks.insert(m_blocks.begin() + m_active_block, std::move(block));
 }
 
-bool MemoryPool::remove_empty_block(void*& addr_out, size_t& size_out) {
+bool MemoryPool::remove_empty_block(void** addr_out, size_t* size_out) {
     for (size_t i = 0; i < m_blocks.size(); i++) {
         if (m_blocks[i]->bytes_in_use > 0) {
             continue;
@@ -96,8 +96,8 @@ bool MemoryPool::remove_empty_block(void*& addr_out, size_t& size_out) {
             m_active_block -= 1;
         }
 
-        addr_out = reinterpret_cast<void*>(block->base_addr);
-        size_out = block->size;
+        *addr_out = reinterpret_cast<void*>(block->base_addr);
+        *size_out = block->size;
         return true;
     }
 
@@ -106,7 +106,7 @@ bool MemoryPool::remove_empty_block(void*& addr_out, size_t& size_out) {
 
 void* MemoryPool::allocate_range(size_t alloc_size, size_t alloc_align) {
     for (size_t i = 0; i < m_blocks.size(); i++) {
-        auto& block = *m_blocks[m_active_block];
+        auto* block = m_blocks[m_active_block].get();
         auto gap = remove_free_range_from_block(block, alloc_size, alloc_align);
 
         if (!gap) {
@@ -204,12 +204,12 @@ size_t MemoryPool::num_blocks() const {
 }
 
 void MemoryPool::insert_free_range_into_block(
-    Block& parent,
+    Block* parent,
     size_t addr,
     size_t size,
     BlockRange* prev,
     BlockRange* next) {
-    auto new_range = std::make_unique<BlockRange>(&parent, addr, size);
+    auto new_range = std::make_unique<BlockRange>(parent, addr, size);
 
     if (prev != nullptr) {
         prev->next = new_range.get();
@@ -221,16 +221,16 @@ void MemoryPool::insert_free_range_into_block(
         new_range->next = next;
     }
 
-    parent.free_blocks.emplace(std::move(new_range));
+    parent->free_blocks.emplace(std::move(new_range));
 }
 
 std::unique_ptr<MemoryPool::BlockRange> MemoryPool::remove_free_range_from_block(
-    Block& block,
+    Block* parent,
     size_t size,
     size_t align) {
-    auto it = block.free_blocks.lower_bound(BlockSize {size});
+    auto it = parent->free_blocks.lower_bound(BlockSize {size});
 
-    while (it != block.free_blocks.end()) {
+    while (it != parent->free_blocks.end()) {
         const auto& range = *it;
 
         if (!range->is_free) {
@@ -245,7 +245,7 @@ std::unique_ptr<MemoryPool::BlockRange> MemoryPool::remove_free_range_from_block
             continue;
         }
 
-        auto node = block.free_blocks.extract(it);
+        auto node = parent->free_blocks.extract(it);
         return std::move(node.value());
     }
 

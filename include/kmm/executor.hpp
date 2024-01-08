@@ -68,6 +68,9 @@ struct BlockAccessorMut {
     const MemoryAllocation* allocation = nullptr;
 };
 
+/**
+ * Provides the context required to run task, such as the input and output data.
+ */
 struct TaskContext {
     TaskContext() = default;
 
@@ -101,9 +104,52 @@ class ExecutorInfo {
 };
 
 /**
+ * Exception throw if
+ */
+class InvalidExecutorException: public std::exception {
+  public:
+    InvalidExecutorException(const std::type_info& expected, const std::type_info& gotten);
+    const char* what() const noexcept override;
+
+  private:
+    std::string m_message;
+};
+
+/**
  * Represents the context in which an executor operates.
  */
-class ExecutorContext {};
+class Executor {
+  public:
+    virtual ~Executor() = default;
+
+    template<typename T>
+    T* cast_if() {
+        return dynamic_cast<T>(this);
+    }
+
+    template<typename T>
+    const T* cast_if() const {
+        return dynamic_cast<const T>(this);
+    }
+
+    template<typename T>
+    T& cast() {
+        if (auto* ptr = this->template cast_if<T>()) {
+            return *ptr;
+        }
+
+        throw InvalidExecutorException(typeid(T), typeid(*this));
+    }
+
+    template<typename T>
+    const T& cast() const {
+        if (auto* ptr = this->template cast_if<T>()) {
+            return *ptr;
+        }
+
+        throw InvalidExecutorException(typeid(T), typeid(*this));
+    }
+};
 
 /**
  * Abstract class representing a task to be executed.
@@ -111,15 +157,15 @@ class ExecutorContext {};
 class Task {
   public:
     virtual ~Task() = default;
-    virtual void execute(ExecutorContext&, TaskContext&) = 0;
+    virtual void execute(Executor&, TaskContext&) = 0;
 };
 
 /**
  * Abstract class representing a compute unit that can process tasks.
  */
-class Executor {
+class ExecutorHandle {
   public:
-    virtual ~Executor() = default;
+    virtual ~ExecutorHandle() = default;
     virtual std::unique_ptr<ExecutorInfo> info() const = 0;
     virtual void submit(std::shared_ptr<Task>, TaskContext, Completion) const = 0;
 };

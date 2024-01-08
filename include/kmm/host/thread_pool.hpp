@@ -9,14 +9,14 @@
 
 namespace kmm {
 
-class ParallelExecutorContext: public ExecutorContext {};
+class ParallelExecutor final: public Executor {};
 
 class ThreadPool {
   public:
     class Job: public WorkQueue<Job>::JobBase {
       public:
         virtual ~Job() = default;
-        virtual void execute(ParallelExecutorContext&) = 0;
+        virtual void execute(ParallelExecutor&) = 0;
     };
 
     ThreadPool();

@@ -47,4 +47,17 @@ size_t TaskRequirements::add_output(std::unique_ptr<BlockHeader> header, Runtime
     auto memory_id = rt.executor_info(executor_id).memory_affinity();
     return add_output(std::move(header), memory_id);
 }
+
+InvalidExecutorException::InvalidExecutorException(
+    const std::type_info& expected,
+    const std::type_info& gotten) {
+    m_message = fmt::format(
+        "invalid executor: expecting an executor of type `{}`, but gotten an executor of type `{}`",
+        expected.name(),
+        gotten.name());
+}
+
+const char* InvalidExecutorException::what() const noexcept {
+    return m_message.c_str();
+}
 }  // namespace kmm

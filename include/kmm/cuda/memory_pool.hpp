@@ -15,21 +15,21 @@ class MemoryPool {
     ~MemoryPool();
 
     void insert_block(void* addr, size_t size);
-    bool remove_empty_block(void*& addr_out, size_t& size_out);
+    bool remove_empty_block(void** addr_out, size_t* size_out);
     void* allocate_range(size_t alloc_size, size_t alloc_align);
     size_t deallocate_range(void* addr);
     size_t num_blocks() const;
 
   public:
     static void insert_free_range_into_block(
-        Block& parent,
+        Block* parent,
         size_t addr,
         size_t size,
         BlockRange* prev,
         BlockRange* next);
 
     static std::unique_ptr<BlockRange> remove_free_range_from_block(
-        Block& block,
+        Block* parent,
         size_t size,
         size_t align);
 

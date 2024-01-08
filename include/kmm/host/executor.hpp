@@ -14,7 +14,7 @@ class HostExecutorInfo: public ExecutorInfo {
     MemoryId memory_affinity() const override;
 };
 
-class ParallelExecutor: public Executor, public ThreadPool {
+class ParallelExecutorHandle: public ExecutorHandle, public ThreadPool {
   public:
     std::unique_ptr<ExecutorInfo> info() const override;
     void submit(std::shared_ptr<Task>, TaskContext, Completion) const override;

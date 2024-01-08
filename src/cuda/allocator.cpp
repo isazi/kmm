@@ -87,7 +87,7 @@ size_t CudaAllocatorBase::reclaim_some_free_memory() {
     void* addr;
     size_t size;
 
-    if (!m_pool.remove_empty_block(addr, size)) {
+    if (!m_pool.remove_empty_block(&addr, &size)) {
         return 0;
     }
 

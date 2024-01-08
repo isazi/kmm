@@ -12,7 +12,9 @@
 
 namespace kmm {
 
-Worker::Worker(std::vector<std::shared_ptr<Executor>> executors, std::unique_ptr<Memory> memory) :
+Worker::Worker(
+    std::vector<std::shared_ptr<ExecutorHandle>> executors,
+    std::unique_ptr<Memory> memory) :
     m_shared_poll_queue {std::make_shared<SharedJobQueue>()},
     m_state {executors, std::make_shared<MemoryManager>(std::move(memory)), BlockManager()} {}
 

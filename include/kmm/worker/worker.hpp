@@ -17,14 +17,14 @@ namespace kmm {
 
 class WorkerState {
   public:
-    std::vector<std::shared_ptr<Executor>> executors;
+    std::vector<std::shared_ptr<ExecutorHandle>> executors;
     std::shared_ptr<MemoryManager> memory_manager;
     BlockManager block_manager;
 };
 
 class Worker: public std::enable_shared_from_this<Worker> {
   public:
-    Worker(std::vector<std::shared_ptr<Executor>> executors, std::unique_ptr<Memory> memory);
+    Worker(std::vector<std::shared_ptr<ExecutorHandle>> executors, std::unique_ptr<Memory> memory);
 
     void make_progress(std::chrono::time_point<std::chrono::system_clock> deadline = {});
     void submit_command(EventId id, Command command, EventList dependencies);

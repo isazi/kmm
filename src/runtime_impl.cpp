@@ -8,7 +8,7 @@
 namespace kmm {
 
 RuntimeImpl::RuntimeImpl(
-    std::vector<std::shared_ptr<Executor>> executors,
+    std::vector<std::shared_ptr<ExecutorHandle>> executors,
     std::unique_ptr<Memory> memory) :
     m_worker(std::make_shared<Worker>(executors, std::move(memory))),
     m_thread(m_worker) {

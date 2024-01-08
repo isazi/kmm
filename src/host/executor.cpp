@@ -14,11 +14,11 @@ MemoryId HostExecutorInfo::memory_affinity() const {
     return MemoryId(0);
 }
 
-std::unique_ptr<ExecutorInfo> ParallelExecutor::info() const {
+std::unique_ptr<ExecutorInfo> ParallelExecutorHandle::info() const {
     return std::make_unique<HostExecutorInfo>();
 }
 
-void ParallelExecutor::submit(
+void ParallelExecutorHandle::submit(
     std::shared_ptr<Task> task,
     TaskContext context,
     Completion completion) const {
