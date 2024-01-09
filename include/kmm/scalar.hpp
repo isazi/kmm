@@ -1,4 +1,5 @@
 #include "block.hpp"
+#include "block_header.hpp"
 #include "runtime.hpp"
 #include "task_serialize.hpp"
 

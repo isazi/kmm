@@ -12,7 +12,7 @@ class Block {
     KMM_NOT_COPYABLE_OR_MOVABLE(Block)
 
   public:
-    Block(std::shared_ptr<RuntimeImpl> runtime, BlockId id = BlockId::invalid());
+    Block(std::shared_ptr<RuntimeImpl> runtime, BlockId id);
     ~Block();
 
     /**
@@ -52,20 +52,13 @@ class Block {
     void synchronize() const;
 
     /**
-     * Delete this buffer. It is not necessary to call this method manually, since it will also be
-     * called by the destructor.
-     */
-    void destroy();
-
-    /**
-     *
+     * Release this block.
      */
     BlockId release();
 
   private:
-    BlockId m_id = BlockId::invalid();
+    BlockId m_id;
     std::shared_ptr<RuntimeImpl> m_runtime;
 };
 
-
-}
+}  // namespace kmm

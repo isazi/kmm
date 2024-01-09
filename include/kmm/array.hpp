@@ -2,7 +2,9 @@
 #include <memory>
 #include <utility>
 
-#include "kmm/block.hpp"
+#include "block.hpp"
+
+#include "kmm/block_header.hpp"
 #include "kmm/cuda/memory.hpp"
 #include "kmm/event_list.hpp"
 #include "kmm/host/memory.hpp"
@@ -14,39 +16,14 @@
 
 namespace kmm {
 
-template<typename T, size_t N = 1>
-class Array {
+class ArrayBase {
   public:
-    Array(std::array<index_t, N> sizes = {}, std::shared_ptr<Block> buffer = nullptr) :
-        m_sizes(sizes),
-        m_buffer(std::move(buffer)) {}
+    ArrayBase(std::shared_ptr<Block> buffer = nullptr) : m_buffer(std::move(buffer)) {}
+    virtual ~ArrayBase() = default;
 
-    template<
-        typename... Sizes,
-        std::enable_if_t<
-            sizeof...(Sizes) == N && (std::is_convertible_v<Sizes, index_t> && ...),
-            int> = 0>
-    Array(Sizes... sizes) : m_sizes {sizes...} {}
-
-    size_t rank() const {
-        return N;
-    }
-
-    std::array<index_t, N> sizes() const {
-        return m_sizes;
-    }
-
-    index_t size(size_t axis) const {
-        return axis < N ? m_sizes[axis] : 1;
-    }
-
-    index_t size() const {
-        return checked_product(m_sizes.begin(), m_sizes.end());
-    }
-
-    bool is_empty() const {
-        return size() == 0;
-    }
+    virtual ArrayHeader header() const = 0;
+    virtual size_t rank() const = 0;
+    virtual index_t size(size_t axis) const = 0;
 
     bool has_block() const {
         return bool(m_buffer);
@@ -65,14 +42,29 @@ class Array {
         return block()->runtime();
     }
 
-    ArrayHeader header() const {
-        return ArrayHeader::for_type<T>(size());
-    }
-
     void synchronize() const {
         if (m_buffer) {
             m_buffer->synchronize();
         }
+    }
+
+    index_t size() const {
+        index_t volume = 1;
+        for (size_t i = 0; i < rank(); i++) {
+            volume *= size(i);
+        }
+
+        return volume;
+    }
+
+    bool is_empty() const {
+        for (size_t i = 0; i < rank(); i++) {
+            if (size(i) == 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     EventId prefetch(MemoryId memory_id, EventList dependencies = {}) const {
@@ -83,8 +75,43 @@ class Array {
         }
     }
 
-  private:
+  protected:
     std::shared_ptr<Block> m_buffer;
+};
+
+template<typename T, size_t N = 1>
+class Array: public ArrayBase {
+  public:
+    using ArrayBase::size;
+
+    Array(std::array<index_t, N> sizes = {}, std::shared_ptr<Block> buffer = nullptr) :
+        m_sizes(sizes),
+        ArrayBase(std::move(buffer)) {}
+
+    template<
+        typename... Sizes,
+        std::enable_if_t<
+            sizeof...(Sizes) == N && (std::is_convertible_v<Sizes, index_t> && ...),
+            int> = 0>
+    Array(Sizes... sizes) : m_sizes {sizes...} {}
+
+    size_t rank() const final {
+        return N;
+    }
+
+    index_t size(size_t axis) const final {
+        return axis < N ? m_sizes[axis] : 1;
+    }
+
+    std::array<index_t, N> sizes() const {
+        return m_sizes;
+    }
+
+    ArrayHeader header() const final {
+        return ArrayHeader::for_type<T>(size());
+    }
+
+  private:
     std::array<index_t, N> m_sizes;
 };
 
@@ -115,11 +142,10 @@ struct TaskArgumentSerializer<Space, Write<Array<T, N>>> {
         const Write<Array<T, N>>& array,
         TaskRequirements& requirements) {
         auto header = std::make_unique<ArrayHeader>(array.inner.header());
-        size_t output_index = requirements.add_output(std::move(header), rt);
 
         m_target = &array.inner;
-        m_output_index = output_index;
-        return {output_index, array.inner.sizes()};
+        m_output_index = requirements.add_output(std::move(header), rt);
+        return {m_output_index, array.inner.sizes()};
     }
 
     void update(RuntimeImpl& rt, EventId event_id) {
@@ -128,6 +154,8 @@ struct TaskArgumentSerializer<Space, Write<Array<T, N>>> {
             auto buffer = std::make_shared<Block>(rt.shared_from_this(), block_id);
             *m_target = Array<T, N>(m_target->sizes(), buffer);
         }
+
+        m_target = nullptr;
     }
 
   private:

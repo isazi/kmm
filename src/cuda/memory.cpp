@@ -11,31 +11,75 @@ namespace kmm {
 
 static constexpr MemoryId HOST_MEMORY = MemoryId(0);
 
-static constexpr CUdevice memory_to_device_id(MemoryId id) {
+static constexpr size_t memory_id_to_device_index(MemoryId id) {
+    KMM_ASSERT(id.get() > 0);
     return id.get() - 1;
 }
 
 CudaMemory::CudaMemory(
     std::shared_ptr<ThreadPool> host_thread,
     std::vector<CudaContextHandle> contexts) :
-    m_pool(std::move(host_thread)),
-    m_copy_engine(std::make_shared<CudaCopyEngine>(contexts)) {
+    m_pool(std::move(host_thread)) {
+    KMM_ASSERT(!contexts.empty());
+
+    m_copy_engine = std::make_shared<CudaCopyEngine>(contexts);
     m_copy_thread = std::thread([engine = m_copy_engine]() { engine->run_forever(); });
+
+    m_host_allocator = std::make_unique<CudaPinnedAllocator>(contexts[0], 524'288'000);
+
+    for (const auto& context : contexts) {
+        m_device_allocators.emplace_back(std::make_unique<CudaDeviceAllocator>(context));
+    }
 }
 
 CudaMemory::~CudaMemory() {
     m_copy_engine->shutdown();
     m_copy_thread.join();
+
+    m_host_allocator->reclaim_free_memory();
+    for (auto& device : m_device_allocators) {
+        device->reclaim_free_memory();
+    }
 }
 
 std::optional<std::unique_ptr<MemoryAllocation>> CudaMemory::allocate(
     MemoryId id,
     size_t num_bytes) {
-    KMM_TODO();
+    if (id == HOST_MEMORY) {
+        if (auto* ptr = m_host_allocator->allocate(num_bytes)) {
+            return std::make_unique<PinnedAllocation>(ptr, num_bytes);
+        }
+
+        return std::nullopt;
+    }
+
+    auto index = memory_id_to_device_index(id);
+    if (index < m_device_allocators.size()) {
+        if (auto* ptr = m_device_allocators[index]->allocate(num_bytes)) {
+            return std::make_unique<CudaAllocation>(ptr, num_bytes);
+        }
+
+        return std::nullopt;
+    }
+
+    return std::nullopt;
 }
 
 void CudaMemory::deallocate(MemoryId id, std::unique_ptr<MemoryAllocation> allocation) {
-    KMM_TODO();
+    if (id == HOST_MEMORY) {
+        const auto* alloc = dynamic_cast<const HostAllocation*>(allocation.get());
+        KMM_ASSERT(alloc != nullptr);
+
+        m_host_allocator->deallocate(alloc->data());
+    }
+
+    auto index = memory_id_to_device_index(id);
+    KMM_ASSERT(index < m_device_allocators.size());
+
+    const auto* alloc = dynamic_cast<const CudaAllocation*>(allocation.get());
+    KMM_ASSERT(alloc != nullptr);
+
+    m_device_allocators[index]->deallocate(alloc->data());
 }
 
 void CudaMemory::copy_async(
@@ -54,22 +98,22 @@ void CudaMemory::copy_async(
         m_pool->submit_copy(src_ptr, dst_ptr, num_bytes, std::move(completion));
     } else if (src_id == HOST_MEMORY) {
         m_copy_engine->copy_host_to_device_async(
-            memory_to_device_id(dst_id),
+            memory_id_to_device_index(dst_id),
             src_ptr,
             dst_ptr,
             num_bytes,
             std::move(completion));
     } else if (dst_id == HOST_MEMORY) {
         m_copy_engine->copy_device_to_host_async(
-            memory_to_device_id(src_id),
+            memory_id_to_device_index(src_id),
             src_ptr,
             dst_ptr,
             num_bytes,
             std::move(completion));
     } else {
         m_copy_engine->copy_device_to_device_async(
-            memory_to_device_id(src_id),
-            memory_to_device_id(dst_id),
+            memory_id_to_device_index(src_id),
+            memory_id_to_device_index(dst_id),
             src_ptr,
             dst_ptr,
             num_bytes,
@@ -120,7 +164,7 @@ void CudaMemory::fill_async(
         KMM_ASSERT(alloc->size() >= dst_offset + num_bytes);
 
         m_copy_engine->fill_device_async(
-            memory_to_device_id(dst_id),
+            memory_id_to_device_index(dst_id),
             static_cast<char*>(alloc->data()) + dst_offset,
             num_bytes,
             std::move(fill_pattern),

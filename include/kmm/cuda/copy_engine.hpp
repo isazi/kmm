@@ -15,7 +15,7 @@ class CudaCopyEngine {
     struct TransferQueue;
     struct Device;
     struct CopyJob {
-        int device_id;
+        size_t device_index;
         bool src_is_host = false;
         const void* src_ptr;
         void* dst_ptr;
@@ -30,29 +30,29 @@ class CudaCopyEngine {
     ~CudaCopyEngine();
 
     void copy_host_to_device_async(
-        CUdevice dst_device,
+        size_t dst_device,
         const void* src_data,
         void* dst_data,
         size_t num_bytes,
         Completion completion);
 
     void copy_device_to_host_async(
-        CUdevice src_device,
+        size_t src_device,
         const void* src_data,
         void* dst_data,
         size_t num_bytes,
         Completion completion);
 
     void copy_device_to_device_async(
-        CUdevice src_device,
-        CUdevice dst_device,
+        size_t src_device,
+        size_t dst_device,
         const void* src_data,
         void* dst_data,
         size_t num_bytes,
         Completion completion);
 
     void fill_device_async(
-        CUdevice dst_device,
+        size_t dst_device,
         void* dst_data,
         size_t num_bytes,
         std::vector<uint8_t> fill_pattern,
@@ -66,7 +66,7 @@ class CudaCopyEngine {
     std::optional<CopyJob> wait_for_new_job(
         std::chrono::system_clock::time_point deadline,
         bool& shutdown_requested);
-    bool execute_job_and_make_progress(std::optional<CopyJob> new_job);
+    bool submit_job_and_make_progress(std::optional<CopyJob> new_job);
 
     std::mutex m_mutex;
     std::vector<std::unique_ptr<Device>> m_devices;

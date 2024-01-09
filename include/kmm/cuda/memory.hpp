@@ -6,6 +6,7 @@
 #include <mutex>
 
 #include "kmm/completion.hpp"
+#include "kmm/cuda/allocator.hpp"
 #include "kmm/cuda/types.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/host/memory.hpp"
@@ -18,20 +19,42 @@ class CudaCopyEngine;
 
 class CudaAllocation final: public MemoryAllocation {
   public:
+    CudaAllocation(void* data, size_t size) : m_data(data), m_size(size) {}
+
     void* data() const {
-        KMM_TODO();
+        return m_data;
     }
+
     size_t size() const {
-        KMM_TODO();
+        return m_size;
     }
+
+  private:
+    void* m_data;
+    size_t m_size;
 };
 
-class PinnedAllocation: public HostAllocation {};
+class PinnedAllocation: public HostAllocation {
+  public:
+    PinnedAllocation(void* data, size_t size) : m_data(data), m_size(size) {}
+
+    void* data() const final {
+        return m_data;
+    }
+
+    size_t size() const final {
+        return m_size;
+    }
+
+  private:
+    void* m_data;
+    size_t m_size;
+};
 
 class CudaMemory final: public Memory {
   public:
     CudaMemory(std::shared_ptr<ThreadPool> host_thread, std::vector<CudaContextHandle> contexts);
-    ~CudaMemory();
+    ~CudaMemory() override;
 
     std::optional<std::unique_ptr<MemoryAllocation>> allocate(MemoryId id, size_t num_bytes)
         override;
@@ -68,6 +91,9 @@ class CudaMemory final: public Memory {
     std::shared_ptr<ThreadPool> m_pool;
     std::shared_ptr<CudaCopyEngine> m_copy_engine;
     std::thread m_copy_thread;
+
+    std::unique_ptr<CudaPinnedAllocator> m_host_allocator;
+    std::vector<std::unique_ptr<CudaDeviceAllocator>> m_device_allocators;
 };
 
 }  // namespace kmm

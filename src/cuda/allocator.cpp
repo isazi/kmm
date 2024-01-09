@@ -37,45 +37,38 @@ void* CudaAllocatorBase::allocate(size_t size, size_t align) {
     align = std::min(round_up_to_power_of_two(std::max(size, align)), MAX_ALIGN);
     size_t aligned_size = round_up_to_multiple(size, align);
 
-    // Try to allocate. If successful, we are done.
-    if (auto* ptr = m_pool.allocate_range(aligned_size, align)) {
-        m_bytes_inuse += aligned_size;
-        return ptr;
-    }
-
-    // The blocks must be:
-    // - at least large enough for `aligned_size` bytes
-    // - at most `m_bytes_capacity - m_bytes_allocated` to ensure we do not exceed capacity
-    size_t min_block_size = aligned_size + align;
-    size_t max_block_size = m_max_capacity - m_current_capacity;
-    size_t new_block_size = std::max(std::min(m_block_size, max_block_size), min_block_size);
-
-    if (new_block_size > max_block_size) {
-        return nullptr;
-    }
-
-    // Try to allocate the block.  While we fail to allocate a block, deallocate an empty block
-    // and retry block allocation.
     while (true) {
-        // Try to allocate. If success, insert the block
-        if (auto* block_addr = allocate_impl(new_block_size)) {
-            m_current_capacity += new_block_size;
-            m_pool.insert_block(block_addr, new_block_size);
-            break;
+        // Try to allocate. If successful, we are done.
+        if (auto* ptr = m_pool.allocate_range(aligned_size, align)) {
+            m_bytes_inuse += aligned_size;
+            return ptr;
+        }
+
+        // We must allocate more memory. The new block must be:
+        // - at least large enough for `aligned_size` bytes
+        // - at most `m_bytes_capacity - m_bytes_allocated` to ensure we do not exceed capacity
+        size_t min_block_size = aligned_size + align;
+        size_t max_block_size = m_max_capacity - m_current_capacity;
+
+        // We can only allocate if the block size does not exceed the maximum block size.
+        if (min_block_size <= max_block_size) {
+            size_t new_block_size = std::clamp(m_block_size, min_block_size, max_block_size);
+
+            if (auto* block_addr = allocate_impl(new_block_size)) {
+                m_current_capacity += new_block_size;
+                m_pool.insert_block(block_addr, new_block_size);
+                continue;
+            }
         }
 
         // Otherwise, reclaim some free memory and try again
-        if (reclaim_some_free_memory() > 0) {
-            return nullptr;
+        if (try_reclaim_some_free_memory()) {
+            continue;
         }
+
+        // We could not allocate a new block and not free memory. Just return an error.
+        return nullptr;
     }
-
-    // Should never fail since we just inserted a block of the right size.
-    auto* ptr = m_pool.allocate_range(aligned_size, align);
-    KMM_ASSERT(ptr != nullptr);
-    m_bytes_inuse += aligned_size;
-
-    return ptr;
 }
 
 void CudaAllocatorBase::deallocate(void* addr) {
@@ -83,21 +76,21 @@ void CudaAllocatorBase::deallocate(void* addr) {
     m_bytes_inuse -= size;
 }
 
-size_t CudaAllocatorBase::reclaim_some_free_memory() {
+bool CudaAllocatorBase::try_reclaim_some_free_memory() {
     void* addr;
     size_t size;
 
     if (!m_pool.remove_empty_block(&addr, &size)) {
-        return 0;
+        return false;
     }
 
     m_current_capacity -= size;
     deallocate_impl(addr);
-    return size;
+    return true;
 }
 
 void CudaAllocatorBase::reclaim_free_memory() {
-    while (reclaim_some_free_memory() > 0) {
+    while (try_reclaim_some_free_memory()) {
     }
 }
 

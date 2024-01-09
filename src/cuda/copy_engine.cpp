@@ -68,6 +68,8 @@ struct CudaCopyEngine::TransferQueue {
 
     void execute_job(CopyJob&& job) {
         size_t slot = (m_head + m_num_running) % m_events.size();
+        KMM_ASSERT(!m_running_jobs[slot]);
+
         try {
             KMM_CUDA_CHECK(cuEventSynchronize(m_events[slot]));
 
@@ -87,7 +89,7 @@ struct CudaCopyEngine::TransferQueue {
             m_running_jobs[slot] = std::move(job.completion);
             m_num_running++;
         } catch (...) {
-            job.completion.complete_error(ErrorPtr::from_current_exception());
+            job.completion.complete(ErrorPtr::from_current_exception());
         }
     }
 
@@ -179,13 +181,13 @@ CudaCopyEngine::CudaCopyEngine(std::vector<CudaContextHandle> contexts) {
 CudaCopyEngine::~CudaCopyEngine() = default;
 
 void CudaCopyEngine::copy_host_to_device_async(
-    CUdevice dst_device,
+    size_t dst_device,
     const void* src_data,
     void* dst_data,
     size_t num_bytes,
     Completion completion) {
     submit_job(CopyJob {
-        .device_id = dst_device,
+        .device_index = dst_device,
         .src_is_host = true,
         .src_ptr = src_data,
         .dst_ptr = dst_data,
@@ -195,13 +197,13 @@ void CudaCopyEngine::copy_host_to_device_async(
 }
 
 void CudaCopyEngine::copy_device_to_host_async(
-    CUdevice src_device,
+    size_t src_device,
     const void* src_data,
     void* dst_data,
     size_t num_bytes,
     Completion completion) {
     submit_job(CopyJob {
-        .device_id = src_device,
+        .device_index = src_device,
         .src_is_host = false,
         .src_ptr = src_data,
         .dst_ptr = dst_data,
@@ -211,14 +213,14 @@ void CudaCopyEngine::copy_device_to_host_async(
 }
 
 void CudaCopyEngine::copy_device_to_device_async(
-    CUdevice src_device,
-    CUdevice dst_device,
+    size_t src_device,
+    size_t dst_device,
     const void* src_data,
     void* dst_data,
     size_t num_bytes,
     Completion completion) {
     submit_job(CopyJob {
-        .device_id = src_device,
+        .device_index = src_device,
         .src_is_host = false,
         .src_ptr = src_data,
         .dst_ptr = dst_data,
@@ -228,7 +230,7 @@ void CudaCopyEngine::copy_device_to_device_async(
 }
 
 void CudaCopyEngine::fill_device_async(
-    CUdevice dst_device,
+    size_t dst_device,
     void* dst_data,
     size_t num_bytes,
     std::vector<uint8_t> fill_pattern,
@@ -245,20 +247,20 @@ void CudaCopyEngine::run_forever() {
         std::optional<CopyJob> new_job = wait_for_new_job(next_update, shutdown_requested);
 
         auto before_update = std::chrono::system_clock::now();
-        copies_in_progress = execute_job_and_make_progress(std::move(new_job));
+        copies_in_progress = submit_job_and_make_progress(std::move(new_job));
 
         // If there are any copies in progress, we sleep for just 10 microseconds
         // If there are no copies in progress, we wait for much longer
         next_update = before_update
-            + (copies_in_progress ? std::chrono::microseconds(10) : std::chrono::milliseconds(50));
+            + (copies_in_progress ? std::chrono::microseconds(10) : std::chrono::milliseconds(100));
     }
 }
 
-bool CudaCopyEngine::execute_job_and_make_progress(std::optional<CopyJob> new_job) {
+bool CudaCopyEngine::submit_job_and_make_progress(std::optional<CopyJob> new_job) {
     std::lock_guard guard {m_mutex};
 
     if (new_job) {
-        m_devices[new_job->device_id]->submit_job(std::move(*new_job));
+        m_devices[new_job->device_index]->submit_job(std::move(*new_job));
     }
 
     bool copies_in_progress = false;
@@ -298,7 +300,7 @@ void CudaCopyEngine::submit_job(CopyJob&& job) {
 
     if (std::unique_lock g = {m_mutex, std::try_to_lock}) {
         queue_guard.unlock();
-        m_devices[job.device_id]->submit_job(std::move(job));
+        m_devices[job.device_index]->submit_job(std::move(job));
         return;
     }
 

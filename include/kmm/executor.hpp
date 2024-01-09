@@ -5,7 +5,7 @@
 
 #include "fmt/format.h"
 
-#include "kmm/block.hpp"
+#include "kmm/block_header.hpp"
 #include "kmm/event_list.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
@@ -124,12 +124,12 @@ class Executor {
 
     template<typename T>
     T* cast_if() {
-        return dynamic_cast<T>(this);
+        return dynamic_cast<T*>(this);
     }
 
     template<typename T>
     const T* cast_if() const {
-        return dynamic_cast<const T>(this);
+        return dynamic_cast<const T*>(this);
     }
 
     template<typename T>

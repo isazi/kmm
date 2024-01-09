@@ -5,6 +5,7 @@
 
 #include "kmm/panic.hpp"
 #include "kmm/result.hpp"
+#include "kmm/types.hpp"
 
 namespace kmm {
 
@@ -15,6 +16,8 @@ class CompletionHandler {
 };
 
 class Completion {
+    KMM_NOT_COPYABLE(Completion)
+
   public:
     explicit Completion(std::shared_ptr<CompletionHandler> impl = {}) : m_impl(std::move(impl)) {}
     ~Completion() {
@@ -25,9 +28,6 @@ class Completion {
 
     Completion(Completion&&) noexcept = default;
     Completion& operator=(Completion&&) noexcept = default;
-
-    Completion(const Completion&) = delete;
-    Completion& operator=(const Completion&) = delete;
 
     explicit operator bool() const {
         return bool(m_impl);

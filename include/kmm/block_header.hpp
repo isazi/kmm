@@ -73,7 +73,7 @@ class ScalarHeader final: public BlockHeader {
   public:
     ScalarHeader(T value = {}) : m_value(std::move(value)) {}
 
-    std::string name() const {
+    std::string name() const override {
         return typeid(T).name();
     }
 

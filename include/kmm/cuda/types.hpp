@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 
+#include "kmm/types.hpp"
+
 #define KMM_CUDA_CHECK(...)                                                               \
     do {                                                                                  \
         auto code = (__VA_ARGS__);                                                        \
@@ -36,18 +38,12 @@ class CudaException: public std::exception {
 };
 
 class CudaContextHandle {
+    CudaContextHandle() = delete;
     CudaContextHandle(CUcontext context, std::shared_ptr<void> lifetime);
 
   public:
     static CudaContextHandle from_new_context(CUdevice device);
     static CudaContextHandle from_primary_context(CUdevice device);
-
-    CudaContextHandle() = delete;
-    CudaContextHandle(const CudaContextHandle&) = default;
-    CudaContextHandle(CudaContextHandle&&) noexcept = default;
-
-    CudaContextHandle& operator=(const CudaContextHandle&) = default;
-    CudaContextHandle& operator=(CudaContextHandle&&) noexcept = default;
 
     operator CUcontext() const {
         return m_context;
@@ -67,15 +63,11 @@ inline bool operator!=(const CudaContextHandle& lhs, const CudaContextHandle& rh
 }
 
 class CudaContextGuard {
+    KMM_NOT_COPYABLE_OR_MOVABLE(CudaContextGuard)
+
   public:
     CudaContextGuard(CudaContextHandle context);
     ~CudaContextGuard();
-
-    CudaContextGuard(const CudaContextGuard&) = delete;
-    CudaContextGuard(CudaContextGuard&&) noexcept = delete;
-
-    CudaContextGuard& operator=(const CudaContextGuard&) = delete;
-    CudaContextGuard& operator=(CudaContextGuard&&) noexcept = delete;
 
   private:
     CudaContextHandle m_context;

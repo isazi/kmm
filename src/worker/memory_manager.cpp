@@ -1,6 +1,6 @@
 #include "spdlog/spdlog.h"
 
-#include "kmm/block.hpp"
+#include "kmm/block_header.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/panic.hpp"
 #include "kmm/result.hpp"

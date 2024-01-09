@@ -16,6 +16,8 @@ class Scheduler {
 
   public:
     class Node {
+        KMM_NOT_COPYABLE_OR_MOVABLE(Node)
+
       public:
         Node(
             EventId id,
@@ -34,8 +36,6 @@ class Scheduler {
                 queue_id = 0;
             }
         }
-        Node(const Node&) = delete;
-        Node(Node&&) = delete;
 
         /**
          * Return the identifier of this task.

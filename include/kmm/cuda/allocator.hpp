@@ -16,20 +16,20 @@ class CudaAllocatorBase {
      * physical memory are allocated from the underlying allocator and those large blocks are then
      * split into smaller allocations.
      *
-     * @param max_bytes Set a limit on how many bytes may be allocated at once.
-     * @param block_size The block size in bytes.
+     * @param max_bytes Set a limit on the total number of bytes that may be allocated.
+     * @param block_size The block size in bytes. The default is 500MB.
      */
     CudaAllocatorBase(size_t max_bytes, size_t block_size = DEFAULT_BLOCK_SIZE);
     virtual ~CudaAllocatorBase();
 
     /**
-     * Allocate a range of `size` bytes. Returns NULL on failure.
+     * Try to allocate a range of `size` bytes. Returns NULL on failure.
      *
      * @param size The size of the range in bytes.
-     * @param align The alignment of the allocation. Must be power of two of at most `MAX_ALIGN`.
+     * @param align The alignment of the allocation. Must be power of two and at most `MAX_ALIGN`.
      * @return A pointer to the data.
      */
-    void* allocate(size_t size, size_t align);
+    void* allocate(size_t size, size_t align = 1);
 
     /**
      * Deallocate the memory range that starts at `addr`.
@@ -39,11 +39,17 @@ class CudaAllocatorBase {
     void deallocate(void* addr);
 
     /**
-     * This allocator uses a cache strategy that reuses previous allocations. These methods will
-     * free some or all the allocated memory that is not in use at the moment.
+     * This allocator uses a cache strategy that reuses previous allocations. This method will
+     * free all of the allocated memory that is not in use at the moment.
      */
-    size_t reclaim_some_free_memory();
     void reclaim_free_memory();
+
+    /**
+     * This allocator uses a cache strategy that reuses previous allocations. This methods will
+     * try to free some of the allocated memory that is not in use. It returns `true` if some
+     * memory was freed and `false` if no memory could be freed.
+     */
+    bool try_reclaim_some_free_memory();
 
     /**
      * Returns how many bytes are currently in use.
@@ -66,31 +72,35 @@ class CudaAllocatorBase {
 /**
  * Allocator that calls `cuMemHostAlloc` to allocate memory.
  */
-class CudaPinnedAllocator final: CudaAllocatorBase {
+class CudaPinnedAllocator final: public CudaAllocatorBase {
+  public:
     CudaPinnedAllocator(
         CudaContextHandle context,
         size_t max_bytes,
         size_t block_size = DEFAULT_BLOCK_SIZE);
+
+  private:
     void* allocate_impl(size_t size) final;
     void deallocate_impl(void* addr) final;
 
-  private:
     CudaContextHandle m_context;
 };
 
 /**
  * Allocator that calls `cuMemAlloc` to allocate memory.
  */
-class CudaDeviceAllocator final: CudaAllocatorBase {
+class CudaDeviceAllocator final: public CudaAllocatorBase {
+  public:
     CudaDeviceAllocator(CudaContextHandle context);
     CudaDeviceAllocator(
         CudaContextHandle context,
         size_t max_bytes,
         size_t block_size = DEFAULT_BLOCK_SIZE);
+
+  private:
     void* allocate_impl(size_t size) final;
     void deallocate_impl(void* addr) final;
 
-  private:
     CudaContextHandle m_context;
 };
 

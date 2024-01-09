@@ -6,7 +6,7 @@
 #include <optional>
 #include <unordered_map>
 
-#include "kmm/block.hpp"
+#include "kmm/block_header.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
 

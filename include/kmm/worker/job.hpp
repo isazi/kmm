@@ -17,10 +17,10 @@ class Worker;
 class WorkerState;
 
 class Job: public Waker {
+    KMM_NOT_COPYABLE_OR_MOVABLE(Job)
+
   public:
     Job(EventId id) : identifier(id) {}
-    Job(const Job&) = delete;
-    Job(Job&&) = delete;
     ~Job() override = default;
 
     virtual void start(WorkerState&) {}

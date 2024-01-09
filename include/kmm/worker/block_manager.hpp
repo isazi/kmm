@@ -4,7 +4,7 @@
 #include <optional>
 #include <unordered_map>
 
-#include "kmm/block.hpp"
+#include "kmm/block_header.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/result.hpp"
 
@@ -17,7 +17,11 @@ struct BlockMetadata {
 };
 
 class BlockManager {
+    KMM_NOT_COPYABLE_OR_MOVABLE(BlockManager)
+
   public:
+    BlockManager() = default;
+
     /**
      * Insert a new block with a given `id` and `header`. If this block has an associated block,
      * then `buffer_id` should be its identifier.

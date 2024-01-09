@@ -5,14 +5,17 @@
 
 namespace kmm {
 
-static size_t calculate_padding_for_alignment(size_t offset, size_t alignment) {
-    if ((offset & (alignment - 1)) == 0) {
+static size_t calculate_padding_for_alignment(uintptr_t addr, size_t alignment) {
+    if ((addr & (alignment - 1)) == 0) {
         return 0;
     }
 
-    return alignment - (offset & (alignment - 1));
+    return alignment - (addr & (alignment - 1));
 }
 
+/**
+ * Represents a range within a block.
+ */
 struct MemoryPool::BlockRange {
     BlockRange(Block* parent, uintptr_t addr, size_t size) :
         parent(parent),
