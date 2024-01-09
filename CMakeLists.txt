@@ -95,6 +95,7 @@ add_executable(
   kmmTestCxx
   test/test_memory_manager.cpp
   test/test_result.cpp
+  test/test_memory_pool.cpp
 )
 target_include_directories(
     kmmTestCxx

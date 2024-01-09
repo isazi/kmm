@@ -1,99 +1,71 @@
 #pragma once
 
-#include <string>
-
-#include "kmm/types.hpp"
+#include "kmm/runtime.hpp"
 
 namespace kmm {
 
-struct BlockLayout {
-    size_t num_bytes;
-    size_t alignment;
-};
-
-class BlockHeader {
-  public:
-    virtual ~BlockHeader() = default;
-    virtual BlockLayout layout() const = 0;
-    virtual std::string name() const = 0;
-};
-
-class ArrayHeader final: public BlockHeader {
-  private:
-    ArrayHeader(
-        index_t length,
-        size_t element_size,
-        size_t element_align,
-        const std::type_info& element_type) :
-        length_(length),
-        element_size_(element_size),
-        element_align_(element_align),
-        element_type_(element_type) {}
+/**
+ * Represents a memory buffer within the runtime system. It provides functionalities to prefetch
+ * data, synchronize operations, and manage the memory block lifecycle.
+ */
+class Block {
+    KMM_NOT_COPYABLE_OR_MOVABLE(Block)
 
   public:
-    template<typename T>
-    static ArrayHeader for_type(index_t num_elements) {
-        return {num_elements, sizeof(T), alignof(T), typeid(T)};
+    Block(std::shared_ptr<RuntimeImpl> runtime, BlockId id = BlockId::invalid());
+    ~Block();
+
+    /**
+     * Returns the unique identifier of this buffer.
+     */
+    BlockId id() const {
+        return m_id;
     }
 
-    BlockLayout element_layout() const {
-        return {element_size_, element_align_};
+    /**
+     * Returns the runtime associated with this buffer.
+     */
+    Runtime runtime() const {
+        return m_runtime;
     }
 
-    const std::type_info& element_type() const {
-        return element_type_;
-    }
+    /**
+     * Prefetch this buffer in the provided memory.
+     *
+     * @param memory_id The identifier of the memory.
+     * @param dependencies Events that should complete before the prefetch occurs.
+     * @return The identifier of the prefetch event.
+     */
+    EventId prefetch(MemoryId memory_id, EventList dependencies = {}) const;
 
-    index_t num_elements() const {
-        return length_;
-    }
+    /**
+     * Submit a barrier the runtime system. The barrier completes once all the events submitted
+     * to the runtime system so far associated with this buffer have finished execution.
+     *
+     * @return The identifier of the barrier.
+     */
+    EventId submit_barrier() const;
 
-    BlockLayout layout() const final {
-        auto element = element_layout();
+    /**
+     * Blocks until all the events associated with this buffer have finished execution.
+     */
+    void synchronize() const;
 
-        return BlockLayout {
-            .num_bytes = element.num_bytes * length_,
-            .alignment = element.alignment,
-        };
-    }
+    /**
+     * Delete this buffer. It is not necessary to call this method manually, since it will also be
+     * called by the destructor.
+     */
+    void destroy();
 
-    std::string name() const final {
-        return element_type().name();
-    }
+    /**
+     *
+     */
+    BlockId release();
 
   private:
-    index_t length_;
-    size_t element_size_;
-    size_t element_align_;
-    const std::type_info& element_type_;
+    BlockId m_id = BlockId::invalid();
+    std::shared_ptr<RuntimeImpl> m_runtime;
 };
 
-template<typename T>
-class ScalarHeader final: public BlockHeader {
-  public:
-    ScalarHeader(T value = {}) : m_value(std::move(value)) {}
 
-    std::string name() const {
-        return typeid(T).name();
-    }
-
-    BlockLayout layout() const override {
-        return BlockLayout {
-            .num_bytes = 0,
-            .alignment = 1,
-        };
-    }
-
-    T& get() {
-        return m_value;
-    }
-
-    const T& get() const {
-        return m_value;
-    }
-
-  private:
-    T m_value;
-};
-
-}  // namespace kmm
+}
