@@ -5,42 +5,49 @@
 
 namespace kmm {
 
-template<typename T>
-class Scalar {
+class FutureAny {
   public:
-    Scalar(std::shared_ptr<Block> block = nullptr) : m_block(block) {}
+    FutureAny(const std::type_info* type = nullptr, std::shared_ptr<Block> block = nullptr) :
+        m_type(type),
+        m_block(std::move(block)) {}
 
-    bool has_block() const {
-        return bool(m_block);
+    bool has_block() const;
+    std::shared_ptr<Block> block() const;
+    BlockId id() const;
+    Runtime runtime() const;
+    void synchronize() const;
+    bool is(const std::type_info&) const;
+
+    operator bool() const {
+        return has_block();
     }
 
-    std::shared_ptr<Block> block() const {
-        KMM_ASSERT(m_block != nullptr);
-        return m_block;
-    }
-
-    BlockId id() const {
-        return block()->id();
-    }
-
-    Runtime runtime() const {
-        return block()->runtime();
+    template<typename T>
+    bool is() const {
+        return is(typeid(T));
     }
 
   private:
+    const std::type_info* m_type;
     std::shared_ptr<Block> m_block;
 };
 
 template<typename T>
-struct SerializedScalar {
+class Future: public FutureAny {
+  public:
+    Future(std::shared_ptr<Block> block = nullptr) : FutureAny(&typeid(T), block) {}
+};
+
+template<typename T>
+struct SerializedFuture {
     size_t buffer_index;
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskArgumentSerializer<Space, Scalar<T>> {
-    using type = SerializedScalar<const T>;
+struct TaskArgumentSerializer<Space, Future<T>> {
+    using type = SerializedFuture<const T>;
 
-    type serialize(RuntimeImpl& rt, const Scalar<T>& scalar, TaskRequirements& requirements) {
+    type serialize(RuntimeImpl& rt, const Future<T>& scalar, TaskRequirements& requirements) {
         return {requirements.add_input(scalar.id())};
     }
 
@@ -48,16 +55,16 @@ struct TaskArgumentSerializer<Space, Scalar<T>> {
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskArgumentSerializer<Space, Write<Scalar<T>>> {
-    using type = SerializedScalar<T>;
+struct TaskArgumentSerializer<Space, Write<Future<T>>> {
+    using type = SerializedFuture<T>;
 
     type serialize(
         RuntimeImpl& rt,
-        const Write<Scalar<T>>& scalar,
+        const Write<Future<T>>& scalar,
         TaskRequirements& requirements) {
         auto header = std::make_unique<ScalarHeader<T>>();
-        m_output_index = requirements.add_output(std::move(header), rt);
         m_target = &scalar.inner;
+        m_output_index = requirements.add_output(std::move(header), rt);
 
         return {m_output_index};
     }
@@ -66,20 +73,20 @@ struct TaskArgumentSerializer<Space, Write<Scalar<T>>> {
         if (m_target) {
             auto block_id = BlockId(event_id, m_output_index);
             auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-            *m_target = Scalar<T>(std::move(block));
+            *m_target = Future<T>(std::move(block));
         }
     }
 
   private:
-    Scalar<T>* m_target = nullptr;
+    Future<T>* m_target = nullptr;
     size_t m_output_index = ~0;
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskArgumentDeserializer<Space, SerializedScalar<T>> {
+struct TaskArgumentDeserializer<Space, SerializedFuture<T>> {
     using type = T&;
 
-    type deserialize(const SerializedScalar<T>& scalar, TaskContext& context) {
+    type deserialize(const SerializedFuture<T>& scalar, TaskContext& context) {
         const auto& access = context.outputs.at(scalar.buffer_index);
         auto* header = dynamic_cast<ScalarHeader<T>*>(access.header);
         KMM_ASSERT(header != nullptr);
@@ -89,10 +96,10 @@ struct TaskArgumentDeserializer<Space, SerializedScalar<T>> {
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskArgumentDeserializer<Space, SerializedScalar<const T>> {
+struct TaskArgumentDeserializer<Space, SerializedFuture<const T>> {
     using type = const T&;
 
-    type deserialize(const SerializedScalar<const T>& scalar, TaskContext& context) {
+    type deserialize(const SerializedFuture<const T>& scalar, TaskContext& context) {
         const auto& access = context.inputs.at(scalar.buffer_index);
         const auto* header = dynamic_cast<const ScalarHeader<T>*>(access.header.get());
         KMM_ASSERT(header != nullptr);

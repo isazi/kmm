@@ -4,9 +4,9 @@
 
 #include "kmm/array.hpp"
 #include "kmm/cuda/cuda.hpp"
+#include "kmm/future.hpp"
 #include "kmm/host/host.hpp"
 #include "kmm/runtime.hpp"
-#include "kmm/scalar.hpp"
 
 #define SIZE 6553600
 
@@ -62,13 +62,11 @@ int main(void) {
     auto manager = kmm::build_runtime();
 
     for (size_t i = 0; i < 100000; i++) {
-        auto event = kmm::EventId(0);
-
         // Request 3 memory areas of a certain size
         auto A = kmm::Array<float>(n);
         auto B = kmm::Array<float>(n);
         auto C = kmm::Array<float>(n);
-        auto n_block = kmm::Scalar<unsigned int>();
+        auto size = kmm::Future<unsigned int>();
 
         // Initialize array A and B on the host
         manager.submit(kmm::Host(), initialize, write(A), write(B));
@@ -84,10 +82,9 @@ int main(void) {
         }
 
         // Verify the result on the host.
-        manager.submit(kmm::Host(), verify, C);
+        auto verify_id = manager.submit(kmm::Host(), verify, C);
 
-        event = manager.join(event, manager.submit_barrier());
-        manager.wait(event);
+        manager.synchronize();
     }
 
     manager.synchronize();
