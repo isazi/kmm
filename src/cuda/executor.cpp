@@ -70,6 +70,26 @@ void CudaExecutor::synchronize() const {
     KMM_CUDA_CHECK(cuStreamSynchronize(m_stream));
 }
 
+void CudaExecutor::launch_raw(
+    std::array<unsigned int, 3> grid_dim,
+    std::array<unsigned int, 3> block_dim,
+    unsigned int shared_mem,
+    CUfunction fun,
+    void** kernel_args) const {
+    KMM_CUDA_CHECK(cuLaunchKernel(
+        fun,
+        grid_dim[0],
+        grid_dim[1],
+        grid_dim[2],
+        block_dim[0],
+        block_dim[1],
+        block_dim[2],
+        shared_mem,
+        m_stream,
+        kernel_args,
+        nullptr));
+}
+
 class CudaExecutorThread {
   public:
     CudaExecutorThread(

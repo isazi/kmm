@@ -43,6 +43,8 @@ class CudaExecutorInfo: public ExecutorInfo {
 };
 
 class CudaExecutor final: public Executor, public CudaExecutorInfo {
+    KMM_NOT_COPYABLE_OR_MOVABLE(CudaExecutor);
+
   public:
     CudaExecutor(CudaContextHandle, MemoryId affinity_id);
     ~CudaExecutor() noexcept final;
@@ -64,6 +66,32 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
     }
 
     void synchronize() const;
+
+    template<typename... Args>
+    void launch(
+        std::array<unsigned int, 3> grid_dim,
+        std::array<unsigned int, 3> block_dim,
+        unsigned int shared_mem,
+        void (*const kernel_function)(Args...),
+        Args... args) const {
+        // Get void pointer to the arguments.
+        void* void_args[sizeof...(Args) + 1] = {static_cast<void*>(&args)..., nullptr};
+
+        // Launch the kernel!
+        launch_raw(
+            grid_dim,
+            block_dim,
+            shared_mem,
+            reinterpret_cast<CUfunction>(kernel_function),
+            void_args);
+    }
+
+    void launch_raw(
+        std::array<unsigned int, 3> grid_dim,
+        std::array<unsigned int, 3> block_dim,
+        unsigned int shared_mem,
+        CUfunction fun,
+        void** kernel_args) const;
 
   private:
     CudaContextHandle m_context;

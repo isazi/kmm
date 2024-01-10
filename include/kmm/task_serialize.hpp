@@ -29,10 +29,14 @@ struct TaskArgumentDeserializer {
     }
 };
 
-template<ExecutionSpace Space, typename Fun, typename... Args>
+template<typename Launcher, typename... Args>
 class TaskImpl final: public Task {
   public:
-    TaskImpl(Fun fun, Args... args) : m_fun(std::move(fun)), m_args(std::move(args)...) {}
+    static constexpr ExecutionSpace execution_space = Launcher::execution_space;
+
+    TaskImpl(Launcher launcher, Args... args) :
+        m_launcher(std::move(launcher)),
+        m_args(std::move(args)...) {}
 
     void execute(Executor& executor, TaskContext& context) override {
         return execute_impl(executor, context, std::index_sequence_for<Args...>());
@@ -41,37 +45,42 @@ class TaskImpl final: public Task {
   private:
     template<size_t... Is>
     void execute_impl(Executor& executor, TaskContext& context, std::index_sequence<Is...>) {
-        m_fun(TaskArgumentDeserializer<Space, Args>().deserialize(  //
-            std::get<Is>(m_args),
-            context)...);
+        m_launcher(
+            executor,
+            context,
+            TaskArgumentDeserializer<execution_space, Args>().deserialize(  //
+                std::get<Is>(m_args),
+                context)...);
     }
 
-    Fun m_fun;
+    Launcher m_launcher;
     std::tuple<Args...> m_args;
 };
 
-template<ExecutionSpace Space, typename Fun, typename... Args>
+template<typename Launcher, typename... Args>
 struct TaskLauncher {
-    static EventId call(ExecutorId executor_id, RuntimeImpl& rt, Fun fun, Args... args) {
-        return call_impl(std::index_sequence_for<Args...>(), executor_id, rt, fun, args...);
+    static constexpr ExecutionSpace execution_space = Launcher::execution_space;
+
+    static EventId call(Launcher launcher, ExecutorId executor_id, RuntimeImpl& rt, Args... args) {
+        return call_impl(std::index_sequence_for<Args...>(), launcher, executor_id, rt, args...);
     }
 
   private:
     template<size_t... Is>
     static EventId call_impl(
         std::index_sequence<Is...>,
+        Launcher launcher,
         ExecutorId executor_id,
         RuntimeImpl& rt,
-        Fun fun,
         Args... args) {
         auto reqs = TaskRequirements(executor_id);
-        auto serializers = std::tuple<TaskArgumentSerializer<Space, std::decay_t<Args>>...>();
+        auto serializers =
+            std::tuple<TaskArgumentSerializer<execution_space, std::decay_t<Args>>...>();
 
         std::shared_ptr<Task> task = std::make_shared<TaskImpl<
-            Space,
-            std::decay_t<Fun>,
-            typename TaskArgumentSerializer<Space, std::decay_t<Args>>::type...>>(
-            std::forward<Fun>(fun),
+            Launcher,
+            typename TaskArgumentSerializer<execution_space, std::decay_t<Args>>::type...>>(
+            launcher,
             std::get<Is>(serializers).serialize(rt, std::forward<Args>(args), reqs)...);
 
         auto event_id = rt.submit_task(std::move(task), std::move(reqs));
