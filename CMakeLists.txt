@@ -95,7 +95,6 @@ target_link_libraries(
   kmmTestCxx
   PRIVATE
   kmm
-  GTest::gtest
   GTest::gtest_main
 )
 
