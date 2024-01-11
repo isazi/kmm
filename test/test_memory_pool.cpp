@@ -2,7 +2,7 @@
 
 #ifdef USE_CUDA
 
-#include "kmm/cuda/memory_pool.hpp"
+    #include "kmm/cuda/memory_pool.hpp"
 
 using namespace kmm;
 
@@ -92,4 +92,4 @@ TEST(MemoryPool, alignment) {
     ASSERT_EQ(size, 0xF00);
 }
 
-#endif // USE_CUDA
+#endif  // USE_CUDA
