@@ -1,5 +1,7 @@
 #include "kmm/cuda/executor.hpp"
 
+#ifdef USE_CUDA
+
 namespace kmm {
 
 CUdevice_attribute CudaExecutorInfo::ATTRIBUTES[] = {
@@ -269,3 +271,5 @@ void CudaExecutorHandle::submit(
     m_queue->push(std::move(job));
 }
 }  // namespace kmm
+
+#endif  // USE_CUDA

@@ -2,6 +2,8 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef USE_CUDA
+
 namespace kmm {
 
 class MemoryPool {
@@ -39,3 +41,5 @@ class MemoryPool {
 };
 
 }  // namespace kmm
+
+#endif  // USE_CUDA

@@ -1,5 +1,7 @@
 #include "kmm/cuda/copy_engine.hpp"
 
+#ifdef USE_CUDA
+
 namespace kmm {
 
 CUresult CudaCopyEngine::CopyJob::execute(CUstream stream) const {
@@ -314,3 +316,5 @@ void CudaCopyEngine::shutdown() {
 }
 
 }  // namespace kmm
+
+#endif  // USE_CUDA

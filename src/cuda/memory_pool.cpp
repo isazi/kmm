@@ -3,6 +3,8 @@
 #include "kmm/cuda/memory_pool.hpp"
 #include "kmm/panic.hpp"
 
+#ifdef USE_CUDA
+
 namespace kmm {
 
 static size_t calculate_padding_for_alignment(uintptr_t addr, size_t alignment) {
@@ -256,3 +258,5 @@ std::unique_ptr<MemoryPool::BlockRange> MemoryPool::remove_free_range_from_block
 }
 
 }  // namespace kmm
+
+#endif  // USE_CUDA

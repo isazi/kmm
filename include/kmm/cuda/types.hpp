@@ -1,18 +1,23 @@
 #pragma once
 
-#include <cuda.h>
 #include <memory>
 #include <string>
 
+#ifdef USE_CUDA
+    #include <cuda.h>
+#endif
+
 #include "kmm/types.hpp"
 
-#define KMM_CUDA_CHECK(...)                                                               \
-    do {                                                                                  \
-        auto code = (__VA_ARGS__);                                                        \
-        if (code != decltype(code)(0)) {                                                  \
-            ::kmm::cuda_throw_exception((__VA_ARGS__), __FILE__, __LINE__, #__VA_ARGS__); \
-        }                                                                                 \
-    } while (0);
+#ifdef USE_CUDA
+
+    #define KMM_CUDA_CHECK(...)                                                               \
+        do {                                                                                  \
+            auto code = (__VA_ARGS__);                                                        \
+            if (code != decltype(code)(0)) {                                                  \
+                ::kmm::cuda_throw_exception((__VA_ARGS__), __FILE__, __LINE__, #__VA_ARGS__); \
+            }                                                                                 \
+        } while (0);
 
 namespace kmm {
 
@@ -74,3 +79,5 @@ class CudaContextGuard {
 };
 
 }  // namespace kmm
+
+#endif  // USE_CUDA

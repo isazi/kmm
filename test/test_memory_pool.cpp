@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#ifdef USE_CUDA
+
 #include "kmm/cuda/memory_pool.hpp"
 
 using namespace kmm;
@@ -89,3 +91,5 @@ TEST(MemoryPool, alignment) {
     ASSERT_EQ(addr, reinterpret_cast<void*>(0x1000));
     ASSERT_EQ(size, 0xF00);
 }
+
+#endif // USE_CUDA

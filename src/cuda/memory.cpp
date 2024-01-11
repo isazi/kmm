@@ -7,6 +7,8 @@
 #include "kmm/cuda/types.hpp"
 #include "kmm/host/memory.hpp"
 
+#ifdef USE_CUDA
+
 namespace kmm {
 
 static constexpr MemoryId HOST_MEMORY = MemoryId(0);
@@ -173,3 +175,5 @@ void CudaMemory::fill_async(
 }
 
 }  // namespace kmm
+
+#endif  // USE_CUDA

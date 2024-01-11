@@ -5,6 +5,8 @@
 #include "kmm/cuda/types.hpp"
 #include "kmm/panic.hpp"
 
+#ifdef USE_CUDA
+
 namespace kmm {
 
 void cuda_throw_exception(CUresult result, const char* file, int line, const char* expression) {
@@ -59,3 +61,5 @@ CudaContextGuard::~CudaContextGuard() {
 }
 
 }  // namespace kmm
+
+#endif  // USE_CUDA

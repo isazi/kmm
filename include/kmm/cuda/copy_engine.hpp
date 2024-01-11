@@ -9,6 +9,8 @@
 #include "kmm/completion.hpp"
 #include "kmm/cuda/types.hpp"
 
+#ifdef USE_CUDA
+
 namespace kmm {
 
 class CudaCopyEngine {
@@ -77,3 +79,5 @@ class CudaCopyEngine {
     std::deque<CopyJob> m_queue;
 };
 }  // namespace kmm
+
+#endif  // USE_CUDA

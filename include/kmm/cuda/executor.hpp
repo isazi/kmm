@@ -1,16 +1,21 @@
 #pragma once
 
 #include <condition_variable>
-#include <cuda.h>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 
+#ifdef USE_CUDA
+    #include <cuda.h>
+#endif
+
 #include "kmm/cuda/types.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/host/work_queue.hpp"
 #include "kmm/identifiers.hpp"
+
+#ifdef USE_CUDA
 
 namespace kmm {
 
@@ -124,3 +129,5 @@ class CudaExecutorHandle: public ExecutorHandle {
 };
 
 }  // namespace kmm
+
+#endif  // USE_CUDA

@@ -9,22 +9,13 @@ if(${USE_CUDA})
   set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
-if(DEFINED CMAKE_CUDA_COMPILER)
-  file(GLOB_RECURSE sources
-      "${PROJECT_SOURCE_DIR}/src/*.cpp"
-      "${PROJECT_SOURCE_DIR}/src/*/*.cpp"
-      "${PROJECT_SOURCE_DIR}/include/kmm/*.h"
-      "${PROJECT_SOURCE_DIR}/include/kmm/*/*.h"
-      "${PROJECT_SOURCE_DIR}/src/*.cu"
-      "${PROJECT_SOURCE_DIR}/src/*/*.cu")
-#    set_source_files_properties(${sources} PROPERTIES LANGUAGE CXX)
-else()
-  file(GLOB_RECURSE sources
-      "${PROJECT_SOURCE_DIR}/src/*.cpp"
-      "${PROJECT_SOURCE_DIR}/include/kmm/*.h")
-endif()
+file(GLOB_RECURSE sources
+  "${PROJECT_SOURCE_DIR}/src/*.cpp"
+  "${PROJECT_SOURCE_DIR}/src/*/*.cpp"
+  "${PROJECT_SOURCE_DIR}/include/kmm/*.h"
+  "${PROJECT_SOURCE_DIR}/include/kmm/*/*.h")
 
-file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp" "${PROJECT_SOURCE_DIR}/include/*.cuh")
+file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
 add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
@@ -54,15 +45,15 @@ install(TARGETS ${PROJECT_NAME}
 
 # The CUDA compiler struggles with the "Werror" options, so we need to explicitly forward it to the host compiler
 # using `-Xcompiler=-Werror` if we are compiling CUDA code.
-set(CXXFLAGS
+#set(CXXFLAGS
   #$<$<COMPILE_LANGUAGE:CUDA>:-forward-unknown-to-host-compiler>
   #$<$<COMPILE_LANGUAGE:CUDA>:--generate-line-info>
-  $<$<COMPILE_LANGUAGE:CUDA>:--forward-unknown-to-host-compiler>
-  -Wall -Wextra -Wconversion -Wno-unused-parameter
+  #$<$<COMPILE_LANGUAGE:CUDA>:--forward-unknown-to-host-compiler>
+  #-Wall -Wextra -Wconversion -Wno-unused-parameter
   #$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Werror>
   #$<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>
   #$<$<COMPILE_LANGUAGE:CUDA>:-Xptxas="-v">
-)
+#)
 target_compile_options(${PROJECT_NAME} PRIVATE ${CXXFLAGS})
 #target_compile_options(${PROJECT_NAME} PRIVATE "-fsanitize=address")
 
@@ -88,9 +79,6 @@ endif()
 enable_testing()
 find_package(GTest)
 
-if(DEFINED CMAKE_CUDA_COMPILER)
-    #set_source_files_properties(test/kmmTest.cpp PROPERTIES LANGUAGE CUDA)
-endif()
 add_executable(
   kmmTestCxx
   test/test_memory_manager.cpp
@@ -110,8 +98,6 @@ target_link_libraries(
   GTest::gtest
   GTest::gtest_main
 )
-if(DEFINED CMAKE_CUDA_COMPILER)
-endif()
 
 include(GoogleTest)
 gtest_discover_tests(kmmTestCxx)

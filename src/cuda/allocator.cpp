@@ -3,6 +3,8 @@
 #include "kmm/cuda/allocator.hpp"
 #include "kmm/panic.hpp"
 
+#ifdef USE_CUDA
+
 namespace kmm {
 
 static size_t round_up_to_power_of_two(size_t size) {
@@ -171,3 +173,5 @@ void CudaDeviceAllocator::deallocate_impl(void* addr) {
     KMM_CUDA_CHECK(cuMemFree(reinterpret_cast<CUdeviceptr>(addr)));
 }
 };  // namespace kmm
+
+#endif  // USE_CUDA
