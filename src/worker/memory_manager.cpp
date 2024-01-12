@@ -176,22 +176,21 @@ struct MemoryManager::Buffer {
 
 struct MemoryManager::Operation: std::enable_shared_from_this<Operation> {
     bool is_running() const {
-        std::unique_lock guard {m_mutex};
+        std::lock_guard guard {m_mutex};
         return !m_completed;
     }
 
     Result<void> result() const {
-        std::unique_lock guard {m_mutex};
+        std::lock_guard guard {m_mutex};
         return m_result;
     }
 
     std::vector<std::shared_ptr<Request>> waiting_requests;
     uint64_t waiting_resources;
 
-  protected:
     mutable std::mutex m_mutex;
-    mutable bool m_completed = false;
     mutable Result<void> m_result;
+    mutable bool m_completed = false;
 };
 
 struct MemoryManager::TransferOperation: CompletionHandler, Operation {
@@ -200,30 +199,32 @@ struct MemoryManager::TransferOperation: CompletionHandler, Operation {
         src_id(src_id),
         dst_id(dst_id) {}
 
-    void initialize(MemoryManager& manager) const {
-        std::unique_lock guard {m_mutex};
-        if (!m_completed) {
-            m_manager = manager.shared_from_this();
+    bool initialize(MemoryManager& manager) const {
+        std::lock_guard guard {m_mutex};
+        if (m_has_result) {
+            return false;
         }
+
+        m_manager = manager.shared_from_this();
+        return true;
     }
 
     void complete(Result<void> result) final {
         std::unique_lock guard {m_mutex};
-        if (m_completed) {
+        if (m_has_result) {
             return;
         }
 
-        m_completed = true;
+        m_has_result = true;
         m_result = std::move(result);
-        auto manager = std::exchange(m_manager, nullptr);
 
-        guard.unlock();
-
-        if (manager) {
+        if (auto manager = std::exchange(m_manager, nullptr)) {
+            guard.unlock();
             manager->complete_operation(*this);
         }
     }
 
+    bool m_has_result = false;
     Buffer* const buffer;
     MemoryId const src_id;
     MemoryId const dst_id;
@@ -444,6 +445,7 @@ void MemoryManager::complete_operation(TransferOperation& op) {
 
     KMM_ASSERT(dst_entry.incoming_operation == &op);
     dst_entry.incoming_operation = nullptr;
+    op.m_completed = true;
 
     bool success = bool(op.result());
     spdlog::debug(
@@ -788,12 +790,12 @@ std::shared_ptr<MemoryManager::Operation> MemoryManager::initiate_transfer(
         buffer->layout.num_bytes,
         Completion(op));
 
-    op->initialize(*this);
-
-    if (op->is_running()) {
+    if (op->initialize(*this)) {
         dst_entry.status = BufferEntry::Status::IncomingTransfer;
         dst_entry.incoming_operation = op.get();
     } else {
+        op->m_completed = true;
+
         bool success = op->result().has_value();
         spdlog::debug(
             "transfer finished: buffer={} src={} dst={} success={}",
