@@ -135,6 +135,14 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
         unsigned long num_outputs = m_outputs.size();
         const auto* error = result->error_if_present();
 
+        if (error != nullptr) {
+            spdlog::warn(
+                "task {} failed with error: {} ({})",
+                id(),
+                error->what(),
+                error->type().name());
+        }
+
         for (unsigned long i = 0; i < num_outputs; i++) {
             auto& output = m_outputs[i];
             auto block_id = BlockId(m_id, static_cast<uint8_t>(i));
