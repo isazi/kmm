@@ -48,6 +48,10 @@ void Worker::wakeup(std::shared_ptr<Job> job, bool allow_progress) {
     m_shared_poll_queue->push_job(std::move(job));
 }
 
+void Worker::submit_barrier(EventId id) {
+    submit_command(id, EmptyCommand {}, m_scheduler.active_tasks());
+}
+
 void Worker::submit_command(EventId id, Command command, EventList dependencies) {
     std::unique_lock guard {m_lock};
 

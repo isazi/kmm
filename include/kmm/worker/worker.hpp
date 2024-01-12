@@ -27,6 +27,7 @@ class Worker: public std::enable_shared_from_this<Worker> {
     Worker(std::vector<std::shared_ptr<ExecutorHandle>> executors, std::unique_ptr<Memory> memory);
 
     void make_progress(std::chrono::time_point<std::chrono::system_clock> deadline = {});
+    void submit_barrier(EventId id);
     void submit_command(EventId id, Command command, EventList dependencies);
     bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {});
     void wakeup(std::shared_ptr<Job> job, bool allow_progress = false);

@@ -31,7 +31,7 @@ EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements re
 
     for (auto& input : reqs.inputs) {
         auto& accesses = m_block_accesses.at(input.block_id);
-        reqs.dependencies.extend(accesses);
+        reqs.dependencies.push_back(input.block_id.event());
         accesses.push_back(event_id);
     }
 
@@ -75,18 +75,8 @@ EventId RuntimeImpl::join_events(EventList deps) const {
 }
 
 EventId RuntimeImpl::submit_barrier() const {
-    std::lock_guard guard {m_mutex};
-
-    auto deps = EventList();
     auto id = EventId(m_next_event++);
-
-    for (auto& entry : m_block_accesses) {
-        auto& accesses = entry.second;
-        deps.extend(accesses);
-        accesses = {id};
-    }
-
-    m_worker->submit_command(id, EmptyCommand {}, std::move(deps));
+    m_worker->submit_barrier(id);
     return id;
 }
 

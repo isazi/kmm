@@ -136,4 +136,14 @@ bool Scheduler::is_completed(EventId id) const {
     return m_tasks.find(id) == m_tasks.end();
 }
 
+EventList Scheduler::active_tasks() const {
+    EventList result;
+
+    for (const auto& [id, task] : m_tasks) {
+        result.push_back(id);
+    }
+
+    return result;
+}
+
 }  // namespace kmm

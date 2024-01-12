@@ -112,6 +112,13 @@ class Scheduler {
      */
     bool is_all_completed() const;
 
+    /**
+     * Returns the identifiers ot the tasks that are currently active.
+     *
+     * @return
+     */
+    EventList active_tasks() const;
+
   private:
     void push_ready(std::shared_ptr<Node> node);
     void satisfy_job_dependencies(std::shared_ptr<Node> node, size_t satisfied = 1);
