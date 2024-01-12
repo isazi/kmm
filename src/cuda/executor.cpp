@@ -2,7 +2,7 @@
 
 #include "kmm/cuda/executor.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -282,4 +282,4 @@ void CudaExecutorHandle::submit(
 }
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

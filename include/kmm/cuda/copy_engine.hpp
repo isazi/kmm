@@ -10,7 +10,7 @@
 #include "kmm/completion.hpp"
 #include "kmm/cuda/types.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -83,4 +83,4 @@ class CudaCopyEngine {
 };
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

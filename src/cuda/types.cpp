@@ -6,7 +6,7 @@
 #include "kmm/cuda/types.hpp"
 #include "kmm/panic.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -89,4 +89,4 @@ CudaContextGuard::~CudaContextGuard() {
 
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

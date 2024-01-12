@@ -7,7 +7,7 @@
 #include <string>
 #include <thread>
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
     #include <cuda.h>
 #endif
 
@@ -16,7 +16,7 @@
 #include "kmm/host/work_queue.hpp"
 #include "kmm/identifiers.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -131,4 +131,4 @@ class CudaExecutorHandle: public ExecutorHandle {
 
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

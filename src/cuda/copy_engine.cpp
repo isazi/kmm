@@ -2,7 +2,7 @@
 
 #include "kmm/cuda/copy_engine.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -319,4 +319,4 @@ void CudaCopyEngine::shutdown() {
 
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

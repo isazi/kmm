@@ -4,7 +4,7 @@
 #include <memory>
 #include <mutex>
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
     #include <cuda.h>
 #endif
 
@@ -15,7 +15,7 @@
 #include "kmm/host/memory.hpp"
 #include "kmm/host/thread_pool.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -103,4 +103,4 @@ class CudaMemory final: public Memory {
 
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

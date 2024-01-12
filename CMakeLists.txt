@@ -5,7 +5,7 @@ project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
 
 if(${USE_CUDA})
   enable_language(CUDA)
-  add_definitions(-DUSE_CUDA=${USE_CUDA})
+  add_definitions(-DKMM_USE_CUDA=${USE_CUDA})
   set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 endif()
 

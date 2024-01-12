@@ -1,7 +1,7 @@
 #include "memory_pool.hpp"
 #include "types.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -108,4 +108,4 @@ class CudaDeviceAllocator final: public CudaAllocatorBase {
 
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

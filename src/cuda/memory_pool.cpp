@@ -3,7 +3,7 @@
 #include "kmm/cuda/memory_pool.hpp"
 #include "kmm/panic.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -259,4 +259,4 @@ std::unique_ptr<MemoryPool::BlockRange> MemoryPool::remove_free_range_from_block
 
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

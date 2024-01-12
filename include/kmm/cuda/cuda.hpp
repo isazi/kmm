@@ -1,13 +1,13 @@
 #pragma once
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
     #include <vector_types.h>
 #endif
 
 #include "kmm/cuda/executor.hpp"
 #include "kmm/task_serialize.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -96,4 +96,4 @@ struct CudaKernel {
 
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

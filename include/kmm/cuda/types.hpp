@@ -4,21 +4,20 @@
 #include <string>
 #include <vector>
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
     #include <cuda.h>
 #endif
 
 #include "kmm/types.hpp"
 
-<<<<<<< HEAD
-#ifdef USE_CUDA
-#define KMM_CUDA_CHECK(...)                                                        \
-    do {                                                                           \
-        auto __code = (__VA_ARGS__);                                               \
-        if (__code != decltype(__code)(0)) {                                       \
-            ::kmm::cuda_throw_exception(__code, __FILE__, __LINE__, #__VA_ARGS__); \
-        }                                                                          \
-    } while (0);
+#ifdef KMM_USE_CUDA
+    #define KMM_CUDA_CHECK(...)                                                        \
+        do {                                                                           \
+            auto __code = (__VA_ARGS__);                                               \
+            if (__code != decltype(__code)(0)) {                                       \
+                ::kmm::cuda_throw_exception(__code, __FILE__, __LINE__, #__VA_ARGS__); \
+            }                                                                          \
+        } while (0);
 
 namespace kmm {
 
@@ -83,4 +82,4 @@ class CudaContextGuard {
 
 }  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

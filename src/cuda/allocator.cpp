@@ -3,7 +3,7 @@
 #include "kmm/cuda/allocator.hpp"
 #include "kmm/panic.hpp"
 
-#ifdef USE_CUDA
+#ifdef KMM_USE_CUDA
 
 namespace kmm {
 
@@ -174,4 +174,4 @@ void CudaDeviceAllocator::deallocate_impl(void* addr) {
 }
 };  // namespace kmm
 
-#endif  // USE_CUDA
+#endif  // KMM_USE_CUDA

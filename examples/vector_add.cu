@@ -11,13 +11,13 @@
 
 #define SIZE 65536000
 
- __global__ void vector_add(const float* A, const float* B, float* C, unsigned int size) {
-     unsigned int item = (blockDim.x * blockIdx.x) + threadIdx.x;
+__global__ void vector_add(const float* A, const float* B, float* C, unsigned int size) {
+    unsigned int item = (blockDim.x * blockIdx.x) + threadIdx.x;
 
-     if (item < size) {
-         C[item] = A[item] + B[item];
-     }
- }
+    if (item < size) {
+        C[item] = A[item] + B[item];
+    }
+}
 
 void initialize(float* A, float* B) {
 #pragma omp parallel for
