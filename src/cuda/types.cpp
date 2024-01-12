@@ -1,6 +1,7 @@
 #include <utility>
 
 #include "fmt/format.h"
+#include "spdlog/spdlog.h"
 
 #include "kmm/cuda/types.hpp"
 #include "kmm/panic.hpp"
@@ -27,6 +28,32 @@ CudaException::CudaException(const std::string& message, CUresult result) : m_st
 CudaContextHandle::CudaContextHandle(CUcontext context, std::shared_ptr<void> lifetime) :
     m_context(context),
     m_lifetime(std::move(lifetime)) {}
+
+std::vector<CUdevice> get_cuda_devices() {
+    try {
+        auto result = cuInit(0);
+        if (result == CUDA_ERROR_NO_DEVICE) {
+            return {};
+        }
+
+        if (result != CUDA_SUCCESS) {
+            throw CudaException("cuInit failed", result);
+        }
+
+        int count = 0;
+        KMM_CUDA_CHECK(cuDeviceGetCount(&count));
+
+        std::vector<CUdevice> devices {count};
+        for (int i = 0; i < count; i++) {
+            KMM_CUDA_CHECK(cuDeviceGet(&devices[static_cast<size_t>(i)], i));
+        }
+
+        return devices;
+    } catch (const CudaException& e) {
+        spdlog::warn("ignored error while initializing CUDA: {}", e.what());
+        return {};
+    }
+}
 
 CudaContextHandle CudaContextHandle::from_new_context(CUdevice device) {
     int flags = CU_CTX_MAP_HOST;

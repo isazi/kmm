@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #ifdef USE_CUDA
     #include <cuda.h>
@@ -9,15 +10,15 @@
 
 #include "kmm/types.hpp"
 
+<<<<<<< HEAD
 #ifdef USE_CUDA
-
-    #define KMM_CUDA_CHECK(...)                                                               \
-        do {                                                                                  \
-            auto code = (__VA_ARGS__);                                                        \
-            if (code != decltype(code)(0)) {                                                  \
-                ::kmm::cuda_throw_exception((__VA_ARGS__), __FILE__, __LINE__, #__VA_ARGS__); \
-            }                                                                                 \
-        } while (0);
+#define KMM_CUDA_CHECK(...)                                                        \
+    do {                                                                           \
+        auto __code = (__VA_ARGS__);                                               \
+        if (__code != decltype(__code)(0)) {                                       \
+            ::kmm::cuda_throw_exception(__code, __FILE__, __LINE__, #__VA_ARGS__); \
+        }                                                                          \
+    } while (0);
 
 namespace kmm {
 
@@ -41,6 +42,8 @@ class CudaException: public std::exception {
     CUresult m_status;
     std::string m_message;
 };
+
+std::vector<CUdevice> get_cuda_devices();
 
 class CudaContextHandle {
     CudaContextHandle() = delete;

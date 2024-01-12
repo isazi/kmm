@@ -12,7 +12,7 @@
 namespace kmm {
 
 struct CudaLauncher {
-    static constexpr ExecutionSpace execution_space = ExecutionSpace::Host;
+    static constexpr ExecutionSpace execution_space = ExecutionSpace::Cuda;
 
     template<typename F, typename... Args>
     void operator()(kmm::Executor& executor, kmm::TaskContext&, F&& fun, Args&&... args) const {
@@ -51,7 +51,7 @@ struct Cuda {
 };
 
 struct CudaKernelLauncher {
-    static constexpr ExecutionSpace execution_space = ExecutionSpace::Host;
+    static constexpr ExecutionSpace execution_space = ExecutionSpace::Cuda;
 
     CudaKernelLauncher(dim3 grid_dim, dim3 block_dim, unsigned int shared_memory = 0) :
         m_grid_dim(grid_dim),
