@@ -1,5 +1,8 @@
 #include <future>
 
+#include "kmm/cuda/executor.hpp"
+#include "kmm/cuda/memory.hpp"
+#include "kmm/cuda/types.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/host/executor.hpp"
 #include "kmm/host/memory.hpp"
@@ -51,8 +54,27 @@ void Runtime::synchronize() const {
 
 Runtime build_runtime() {
     auto host_executor = std::make_shared<ParallelExecutorHandle>();
+
     std::vector<std::shared_ptr<ExecutorHandle>> executors = {host_executor};
-    std::unique_ptr<Memory> memory = std::make_unique<HostMemory>(host_executor);
+    std::unique_ptr<Memory> memory;
+
+    auto devices = get_cuda_devices();
+    if (!devices.empty()) {
+        auto contexts = std::vector<CudaContextHandle> {};
+        uint8_t memory_id = 1;
+
+        for (auto device : devices) {
+            auto context = CudaContextHandle::from_new_context(device);
+            contexts.push_back(context);
+
+            executors.push_back(std::make_shared<CudaExecutorHandle>(context, MemoryId(memory_id)));
+            memory_id++;
+        }
+
+        memory = std::make_unique<CudaMemory>(host_executor, contexts);
+    } else {
+        memory = std::make_unique<HostMemory>(host_executor);
+    }
 
     return std::make_shared<RuntimeImpl>(std::move(executors), std::move(memory));
 }
