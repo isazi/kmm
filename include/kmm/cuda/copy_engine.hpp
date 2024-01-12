@@ -74,10 +74,12 @@ class CudaCopyEngine {
     std::mutex m_mutex;
     std::vector<std::unique_ptr<Device>> m_devices;
 
-    std::mutex m_queue_mutex;
-    bool m_queue_closed = false;
-    std::condition_variable m_queue_cond;
-    std::deque<CopyJob> m_queue;
+    struct Queue {
+        std::mutex mutex;
+        bool closed = false;
+        std::condition_variable cond;
+        std::deque<CopyJob> jobs;
+    } m_queue;
 };
 }  // namespace kmm
 

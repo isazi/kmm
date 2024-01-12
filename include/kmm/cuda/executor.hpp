@@ -88,7 +88,7 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
             grid_dim,
             block_dim,
             shared_mem,
-            reinterpret_cast<CUfunction>(kernel_function),
+            reinterpret_cast<const void*>(kernel_function),
             void_args);
     }
 
@@ -96,7 +96,7 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
         std::array<unsigned int, 3> grid_dim,
         std::array<unsigned int, 3> block_dim,
         unsigned int shared_mem,
-        CUfunction fun,
+        const void* fun,
         void** kernel_args) const;
 
   private:
@@ -107,6 +107,13 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
 
 class CudaExecutorHandle: public ExecutorHandle {
   public:
+    CudaExecutorHandle(CudaContextHandle context, MemoryId affinity_id, size_t num_streams = 4);
+    ~CudaExecutorHandle() noexcept;
+
+    std::unique_ptr<ExecutorInfo> info() const override;
+    void submit(std::shared_ptr<Task> task, TaskContext context, Completion completion)
+        const override;
+
     class Job: public WorkQueue<Job>::JobBase {
       public:
         Job(std::shared_ptr<Task> task, TaskContext context, Completion completion);
@@ -115,13 +122,6 @@ class CudaExecutorHandle: public ExecutorHandle {
         TaskContext context;
         Completion completion;
     };
-
-    CudaExecutorHandle(CudaContextHandle context, MemoryId affinity_id, size_t num_streams = 1);
-    ~CudaExecutorHandle() noexcept;
-
-    std::unique_ptr<ExecutorInfo> info() const override;
-    void submit(std::shared_ptr<Task> task, TaskContext context, Completion completion)
-        const override;
 
   private:
     CudaExecutorInfo m_info;

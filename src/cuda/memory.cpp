@@ -27,7 +27,7 @@ CudaMemory::CudaMemory(
     m_copy_engine = std::make_shared<CudaCopyEngine>(contexts);
     m_copy_thread = std::thread([engine = m_copy_engine]() { engine->run_forever(); });
 
-    m_host_allocator = std::make_unique<CudaPinnedAllocator>(contexts[0], 524'288'000);
+    m_host_allocator = std::make_unique<CudaPinnedAllocator>(contexts[0], 40L * 524'288'000);
 
     for (const auto& context : contexts) {
         m_device_allocators.emplace_back(std::make_unique<CudaDeviceAllocator>(context));
@@ -73,6 +73,7 @@ void CudaMemory::deallocate(MemoryId id, std::unique_ptr<MemoryAllocation> alloc
         KMM_ASSERT(alloc != nullptr);
 
         m_host_allocator->deallocate(alloc->data());
+        return;
     }
 
     auto index = memory_id_to_device_index(id);

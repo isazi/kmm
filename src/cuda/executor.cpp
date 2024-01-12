@@ -1,3 +1,5 @@
+#include <cuda_runtime_api.h>
+
 #include "kmm/cuda/executor.hpp"
 
 #ifdef USE_CUDA
@@ -62,7 +64,7 @@ CudaExecutor::CudaExecutor(CudaContextHandle context, MemoryId affinity_id) :
     KMM_CUDA_CHECK(cuEventCreate(&m_event, flags));
 }
 
-CudaExecutor::~CudaExecutor() {
+CudaExecutor::~CudaExecutor() noexcept {
     KMM_CUDA_CHECK(cuStreamDestroy(m_stream));
     KMM_CUDA_CHECK(cuEventDestroy(m_event));
 }
@@ -70,16 +72,24 @@ CudaExecutor::~CudaExecutor() {
 void CudaExecutor::synchronize() const {
     CudaContextGuard guard {m_context};
     KMM_CUDA_CHECK(cuStreamSynchronize(m_stream));
+    KMM_CUDA_CHECK(cuStreamSynchronize(CUDA_DEFAULT_STREAM));
 }
 
 void CudaExecutor::launch_raw(
     std::array<unsigned int, 3> grid_dim,
     std::array<unsigned int, 3> block_dim,
     unsigned int shared_mem,
-    CUfunction fun,
+    const void* fun,
     void** kernel_args) const {
+    CUfunction fun_ptr;
+
+    auto result = cudaGetFuncBySymbol(&fun_ptr, fun);
+    if (result != cudaSuccess) {
+        throw CudaException(cudaGetErrorString(result));
+    }
+
     KMM_CUDA_CHECK(cuLaunchKernel(
-        fun,
+        fun_ptr,
         grid_dim[0],
         grid_dim[1],
         grid_dim[2],

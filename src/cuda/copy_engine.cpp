@@ -1,3 +1,5 @@
+#include <array>
+
 #include "kmm/cuda/copy_engine.hpp"
 
 #ifdef USE_CUDA
@@ -277,28 +279,28 @@ bool CudaCopyEngine::submit_job_and_make_progress(std::optional<CopyJob> new_job
 std::optional<CudaCopyEngine::CopyJob> CudaCopyEngine::wait_for_new_job(
     std::chrono::system_clock::time_point deadline,
     bool& shutdown_requested) {
-    std::unique_lock guard {m_queue_mutex};
-    shutdown_requested = m_queue_closed;
+    std::unique_lock guard {m_queue.mutex};
+    shutdown_requested = m_queue.closed;
 
-    if (m_queue.empty()) {
-        m_queue_cond.wait_until(guard, deadline);
+    if (m_queue.jobs.empty()) {
+        m_queue.cond.wait_until(guard, deadline);
         return std::nullopt;
     }
 
-    auto new_job = std::move(this->m_queue.front());
-    m_queue.pop_front();
+    auto new_job = std::move(this->m_queue.jobs.front());
+    m_queue.jobs.pop_front();
     return new_job;
 }
 
 void CudaCopyEngine::submit_job(CopyJob&& job) {
-    std::unique_lock queue_guard {m_queue_mutex};
-    if (m_queue_closed) {
+    std::unique_lock queue_guard {m_queue.mutex};
+    if (m_queue.closed) {
         queue_guard.unlock();
         job.completion.complete_error("copy failed since system is shutting down");
         return;
     }
 
-    m_queue_cond.notify_all();
+    m_queue.cond.notify_all();
 
     if (std::unique_lock g = {m_mutex, std::try_to_lock}) {
         queue_guard.unlock();
@@ -306,13 +308,13 @@ void CudaCopyEngine::submit_job(CopyJob&& job) {
         return;
     }
 
-    m_queue.push_back(std::move(job));
+    m_queue.jobs.push_back(std::move(job));
 }
 
 void CudaCopyEngine::shutdown() {
-    std::lock_guard guard {m_queue_mutex};
-    m_queue_closed = true;
-    m_queue_cond.notify_all();
+    std::lock_guard guard {m_queue.mutex};
+    m_queue.closed = true;
+    m_queue.cond.notify_all();
 }
 
 }  // namespace kmm
