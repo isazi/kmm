@@ -4,6 +4,25 @@
 
 namespace kmm {
 
+void HostAllocation::copy_from_host_sync(
+    const void* src_addr,
+    size_t dst_offset,
+    size_t num_bytes) {
+    KMM_ASSERT(num_bytes <= size());
+    KMM_ASSERT(dst_offset <= size() - num_bytes);
+    void* dst_addr = reinterpret_cast<char*>(data()) + dst_offset;
+
+    ::memcpy(dst_addr, src_addr, num_bytes);
+}
+
+void HostAllocation::copy_to_host_sync(size_t src_offset, void* dst_addr, size_t num_bytes) const {
+    KMM_ASSERT(num_bytes <= size());
+    KMM_ASSERT(src_offset <= size() - num_bytes);
+    const void* src_addr = reinterpret_cast<const char*>(data()) + src_offset;
+
+    ::memcpy(dst_addr, src_addr, num_bytes);
+}
+
 class HostAllocationImpl: public HostAllocation {
   public:
     explicit HostAllocationImpl(size_t nbytes);
@@ -79,8 +98,7 @@ void HostMemory::copy_async(
     const auto& src_host = dynamic_cast<const HostAllocation&>(*src_alloc);
     const auto& dst_host = dynamic_cast<const HostAllocation&>(*dst_alloc);
 
-    KMM_ASSERT(src_id == 0);
-    KMM_ASSERT(dst_id == 0);
+    KMM_ASSERT(src_id == 0 && dst_id == 0);
     KMM_ASSERT(num_bytes <= src_host.size());
     KMM_ASSERT(num_bytes <= dst_host.size());
     KMM_ASSERT(src_offset <= src_host.size() - num_bytes);

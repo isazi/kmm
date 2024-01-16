@@ -4,7 +4,7 @@
 #include "kmm/memory.hpp"
 #include "kmm/panic.hpp"
 #include "kmm/result.hpp"
-#include "kmm/types.hpp"
+#include "kmm/utils.hpp"
 #include "kmm/worker/memory_manager.hpp"
 
 namespace kmm {
@@ -399,7 +399,7 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     return req;
 }
 
-const MemoryAllocation* MemoryManager::view_buffer(const std::shared_ptr<Request>& req) {
+MemoryAllocation* MemoryManager::view_buffer(const std::shared_ptr<Request>& req) {
     std::lock_guard guard {m_mutex};
     if (req->status == Request::Status::Error) {
         req->error.rethrow();

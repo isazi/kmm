@@ -18,6 +18,27 @@ static constexpr size_t memory_id_to_device_index(MemoryId id) {
     return id.get() - 1;
 }
 
+void CudaAllocation::copy_from_host_sync(
+    const void* src_addr,
+    size_t dst_offset,
+    size_t num_bytes) {
+    void* dst_addr = reinterpret_cast<char*>(m_data) + dst_offset;
+
+    KMM_CUDA_CHECK(cuMemcpyHtoD(  //
+        reinterpret_cast<CUdeviceptr>(dst_addr),
+        src_addr,
+        num_bytes));
+}
+
+void CudaAllocation::copy_to_host_sync(size_t src_offset, void* dst_addr, size_t num_bytes) const {
+    const void* src_addr = reinterpret_cast<const char*>(m_data) + src_offset;
+
+    KMM_CUDA_CHECK(cuMemcpyDtoH(  //
+        dst_addr,
+        reinterpret_cast<CUdeviceptr>(src_addr),
+        num_bytes));
+}
+
 CudaMemory::CudaMemory(
     std::shared_ptr<ThreadPool> host_thread,
     std::vector<CudaContextHandle> contexts) :

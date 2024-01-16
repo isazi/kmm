@@ -16,6 +16,14 @@ class MockAllocation: public MemoryAllocation {
         num_bytes(num_bytes),
         memory_id(memory_id) {}
 
+    void copy_from_host_sync(const void* src_addr, size_t dst_offset, size_t num_bytes) override {
+        throw std::runtime_error("`copy_from_host_sync` is not supported");
+    }
+
+    void copy_to_host_sync(size_t src_offset, void* dst_addr, size_t num_bytes) const override {
+        throw std::runtime_error("`copy_to_host_sync` is not supported");
+    }
+
     int id;
     size_t num_bytes;
     MemoryId memory_id;

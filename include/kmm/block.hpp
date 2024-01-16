@@ -1,8 +1,12 @@
 #pragma once
 
-#include "kmm/runtime.hpp"
+#include "kmm/identifiers.hpp"
+#include "kmm/runtime_impl.hpp"
+#include "kmm/utils.hpp"
 
 namespace kmm {
+
+class Runtime;
 
 /**
  * Represents a memory buffer within the runtime system. It provides functionalities to prefetch
@@ -15,6 +19,19 @@ class Block {
     Block(std::shared_ptr<RuntimeImpl> runtime, BlockId id);
     ~Block();
 
+    static std::shared_ptr<Block> create(
+        std::shared_ptr<RuntimeImpl> runtime,
+        std::unique_ptr<BlockHeader> header,
+        const void* data_ptr,
+        size_t num_bytes,
+        MemoryId memory_id = MemoryId(0));
+
+    static std::shared_ptr<Block> create(
+        std::shared_ptr<RuntimeImpl> runtime,
+        std::unique_ptr<BlockHeader> header) {
+        return create(std::move(runtime), std::move(header), nullptr, 0);
+    }
+
     /**
      * Returns the unique identifier of this buffer.
      */
@@ -25,9 +42,7 @@ class Block {
     /**
      * Returns the runtime associated with this buffer.
      */
-    Runtime runtime() const {
-        return m_runtime;
-    }
+    Runtime runtime() const;
 
     /**
      * Prefetch this buffer in the provided memory.
@@ -55,6 +70,20 @@ class Block {
      * Release this block.
      */
     BlockId release();
+
+    /**
+     * Fetch the header of this block.
+     *
+     * @return The block header.
+     */
+    std::shared_ptr<BlockHeader> header() const;
+
+    /**
+     * Read the content of this block.
+     *
+     * @return The block content.
+     */
+    std::shared_ptr<BlockHeader> read(void* dst_ptr, size_t nbytes) const;
 
   private:
     BlockId m_id;

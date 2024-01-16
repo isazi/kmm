@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "kmm/types.hpp"
+#include "kmm/utils.hpp"
 
 namespace kmm {
 
@@ -49,11 +49,9 @@ class ArrayHeader final: public BlockHeader {
     }
 
     BlockLayout layout() const final {
-        auto element = element_layout();
-
-        return BlockLayout {
-            .num_bytes = element.num_bytes * length_,
-            .alignment = element.alignment,
+        return {
+            element_size_ * length_,
+            element_align_,
         };
     }
 

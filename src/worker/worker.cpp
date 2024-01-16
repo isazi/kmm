@@ -164,4 +164,115 @@ void Worker::stop_job(Job& job) {
     m_job_completion.notify_all();
 }
 
+class LocalWaker: public Waker {
+  public:
+    void trigger_wakeup(bool allow_progress) const override {
+        std::lock_guard guard {m_mutex};
+        m_updated = true;
+        m_cond.notify_all();
+    }
+
+    void wait() const {
+        std::unique_lock guard {m_mutex};
+        while (!m_updated) {
+            m_cond.wait(guard);
+        }
+
+        m_updated = false;
+    }
+
+  private:
+    mutable std::mutex m_mutex;
+    mutable std::condition_variable m_cond;
+    mutable bool m_updated = false;
+};
+
+void Worker::create_block(
+    BlockId block_id,
+    MemoryId memory_id,
+    std::unique_ptr<BlockHeader> header,
+    const void* src_data,
+    size_t num_bytes) {
+    std::unique_lock guard {m_lock};
+
+    auto layout = header->layout();
+    auto waker = std::make_shared<LocalWaker>();
+    auto buffer_id = std::optional<BufferId> {};
+
+    if (layout.num_bytes > 0) {
+        buffer_id = m_state.memory_manager->create_buffer(layout);
+
+        try {
+            auto transaction = m_state.memory_manager->create_transaction(waker);
+            auto request = m_state.memory_manager->create_request(  //
+                *buffer_id,
+                memory_id,
+                AccessMode::Write,
+                transaction);
+
+            ScopeGuard delete_on_exit = [&] { m_state.memory_manager->delete_request(request); };
+
+            guard.unlock();
+
+            while (m_state.memory_manager->poll_request(request) == PollResult::Pending) {
+                waker->wait();
+            }
+
+            auto* alloc = m_state.memory_manager->view_buffer(request);
+            alloc->copy_from_host_sync(src_data, 0, num_bytes);
+        } catch (...) {
+            m_state.memory_manager->delete_buffer(*buffer_id);
+            throw;
+        }
+    }
+
+    m_state.block_manager.insert_block(block_id, std::move(header), memory_id, buffer_id);
+}
+
+std::shared_ptr<BlockHeader> Worker::read_block_header(BlockId block_id) {
+    std::lock_guard guard {m_lock};
+    const auto& meta = m_state.block_manager.get_block(block_id);
+    return meta.header;
+}
+
+std::shared_ptr<BlockHeader> Worker::read_block(
+    BlockId block_id,
+    std::optional<MemoryId> preferred_memory_id,
+    void* dst_data,
+    size_t num_bytes) {
+    std::unique_lock guard {m_lock};
+    const auto& meta = m_state.block_manager.get_block(block_id);
+    auto header = meta.header;
+    auto buffer_id = meta.buffer_id;
+    size_t buffer_size = buffer_id.has_value() ? buffer_id->num_bytes() : 0;
+
+    if (buffer_size != num_bytes) {
+        throw std::invalid_argument("invalid buffer size");
+    }
+
+    if (buffer_size == 0) {
+        return header;
+    }
+
+    auto memory_id = preferred_memory_id.has_value() ? *preferred_memory_id : meta.home_memory;
+
+    auto waker = std::make_shared<LocalWaker>();
+    auto transaction = m_state.memory_manager->create_transaction(waker);
+    auto request = m_state.memory_manager
+                       ->create_request(*buffer_id, memory_id, AccessMode::Read, transaction);
+
+    ScopeGuard delete_on_exit = [&] { m_state.memory_manager->delete_request(request); };
+
+    guard.unlock();
+
+    while (m_state.memory_manager->poll_request(request) == PollResult::Pending) {
+        waker->wait();
+    }
+
+    const auto* alloc = m_state.memory_manager->view_buffer(request);
+    alloc->copy_to_host_sync(0, dst_data, num_bytes);
+
+    return header;
+}
+
 }  // namespace kmm

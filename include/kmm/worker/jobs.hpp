@@ -4,7 +4,7 @@
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/result.hpp"
-#include "kmm/types.hpp"
+#include "kmm/utils.hpp"
 #include "kmm/worker/command.hpp"
 #include "kmm/worker/worker.hpp"
 

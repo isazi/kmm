@@ -33,17 +33,4 @@ template<typename... Args>
     panic(filename, line, stream.str().c_str());
 }
 
-template<typename T>
-T checked_product(const T* begin, const T* end) {
-    T result = 1;
-    bool overflowed = false;
-
-    for (auto it = begin; it != end; it++) {
-        overflowed |= __builtin_mul_overflow(*it, result, &result);
-    }
-
-    KMM_ASSERT(overflowed == false);
-    return result;
-}
-
 }  // namespace kmm

@@ -8,7 +8,7 @@
     #include <cuda.h>
 #endif
 
-#include "kmm/types.hpp"
+#include "kmm/utils.hpp"
 
 #ifdef KMM_USE_CUDA
     #define KMM_CUDA_CHECK(...)                                                        \

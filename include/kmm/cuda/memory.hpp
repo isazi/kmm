@@ -26,6 +26,10 @@ class CudaAllocation final: public MemoryAllocation {
   public:
     CudaAllocation(void* data, size_t size) : m_data(data), m_size(size) {}
 
+    void copy_from_host_sync(const void* src_addr, size_t dst_offset, size_t num_bytes) override;
+
+    void copy_to_host_sync(size_t src_offset, void* dst_addr, size_t num_bytes) const override;
+
     void* data() const {
         return m_data;
     }

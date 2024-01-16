@@ -1,24 +1,28 @@
+#pragma once
+
 #include <array>
 #include <memory>
 #include <utility>
 
-#include "block.hpp"
+#include "checked_math.hpp"
 
+#include "kmm/block.hpp"
 #include "kmm/block_header.hpp"
 #include "kmm/cuda/memory.hpp"
 #include "kmm/event_list.hpp"
 #include "kmm/host/memory.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/runtime.hpp"
 #include "kmm/task_serialize.hpp"
-#include "kmm/types.hpp"
+#include "kmm/utils.hpp"
 
 namespace kmm {
 
+class Runtime;
+
 class ArrayBase {
   public:
-    ArrayBase(std::shared_ptr<Block> buffer = nullptr) : m_buffer(std::move(buffer)) {}
+    ArrayBase(std::shared_ptr<Block> block = nullptr) : m_buffer(std::move(block)) {}
     virtual ~ArrayBase() = default;
 
     virtual ArrayHeader header() const = 0;
@@ -38,9 +42,7 @@ class ArrayBase {
         return block()->id();
     }
 
-    Runtime runtime() const {
-        return block()->runtime();
-    }
+    Runtime runtime() const;
 
     void synchronize() const {
         if (m_buffer) {
@@ -51,7 +53,7 @@ class ArrayBase {
     index_t size() const {
         index_t volume = 1;
         for (size_t i = 0; i < rank(); i++) {
-            volume *= size(i);
+            volume = checked_mul(volume, size(i));
         }
 
         return volume;
@@ -109,6 +111,19 @@ class Array: public ArrayBase {
 
     ArrayHeader header() const final {
         return ArrayHeader::for_type<T>(size());
+    }
+
+    void read(T* dst_ptr, size_t length) const {
+        m_buffer->read(dst_ptr, length * sizeof(T));
+    }
+
+    std::vector<T> read() const {
+        auto length = checked_cast<size_t>(size());
+        std::vector<T> buffer;
+        buffer.resize(length);
+
+        read(buffer.data(), buffer.size());
+        return buffer;
     }
 
   private:

@@ -36,6 +36,12 @@ template<typename T>
 class Future: public FutureAny {
   public:
     Future(std::shared_ptr<Block> block = nullptr) : FutureAny(&typeid(T), block) {}
+
+    std::shared_ptr<const T> wait() const {
+        auto header = std::dynamic_pointer_cast<ScalarHeader<T>>(block()->header());
+        const T* ptr = header->get();
+        return {std::move(header), ptr};
+    }
 };
 
 template<typename T>

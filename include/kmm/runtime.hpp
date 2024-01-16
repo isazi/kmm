@@ -4,6 +4,8 @@
 #include <memory>
 #include <utility>
 
+#include "kmm/array.hpp"
+#include "kmm/checked_math.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/identifiers.hpp"
 
@@ -32,8 +34,30 @@ class Runtime {
      * @return The event identifier of the submitted task.
      */
     template<typename Launcher, typename... Args>
-    EventId submit(const Launcher& launcher, Args&&... args) {
+    EventId submit(const Launcher& launcher, Args&&... args) const {
         return launcher(*m_impl, std::forward<Args>(args)...);
+    }
+
+    template<typename T, typename... Sizes, size_t N = sizeof...(Sizes)>
+    Array<T, N> allocate(const T* data_ptr, Sizes... sizes) const {
+        std::array<index_t, N> shape = {checked_cast<index_t>(sizes)...};
+        index_t num_elements = checked_product(shape.begin(), shape.end());
+        size_t num_bytes = checked_mul(static_cast<size_t>(num_elements), sizeof(T));
+
+        auto header = std::make_unique<ArrayHeader>(ArrayHeader::for_type<T>(num_elements));
+
+        auto block = Block::create(m_impl, std::move(header), data_ptr, num_bytes);
+        return {shape, block};
+    }
+
+    template<typename T>
+    Array<T> allocate(const std::vector<T>& vector) const {
+        return allocate(vector.data(), vector.size());
+    }
+
+    template<typename T>
+    Array<T> allocate(std::initializer_list<T> list) const {
+        return allocate(list.begin(), list.size());
     }
 
     /**

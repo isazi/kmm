@@ -98,7 +98,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
 
             for (const auto& output : m_outputs) {
                 const auto& req = m_memory_requests[index++];
-                const auto* allocation = req ? worker.memory_manager->view_buffer(req) : nullptr;
+                auto* allocation = req ? worker.memory_manager->view_buffer(req) : nullptr;
 
                 context.outputs.push_back(BlockAccessorMut {
                     .block_id = BlockId(m_id, static_cast<uint8_t>(output_index++)),

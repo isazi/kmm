@@ -65,7 +65,7 @@ struct BlockAccessor {
 struct BlockAccessorMut {
     BlockId block_id;
     BlockHeader* header;
-    const MemoryAllocation* allocation = nullptr;
+    MemoryAllocation* allocation = nullptr;
 };
 
 /**

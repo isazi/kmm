@@ -15,6 +15,24 @@ namespace kmm {
 class MemoryAllocation {
   public:
     virtual ~MemoryAllocation() = default;
+
+    /**
+     * Copy from host memory to this allocation.
+     *
+     * @param dst_addr The host memory source address.
+     * @param dst_offset The offset within the destination memory.
+     * @param num_bytes The number of bytes to copy.
+     */
+    virtual void copy_from_host_sync(const void* src_addr, size_t dst_offset, size_t num_bytes) = 0;
+
+    /**
+     * Copy from this memory allocation to host memory.
+     *
+     * @param src_offset The offset within the this allocation.
+     * @param dst_addr The host memory destination address.
+     * @param num_bytes The number of bytes to copy.
+     */
+    virtual void copy_to_host_sync(size_t src_offset, void* dst_addr, size_t num_bytes) const = 0;
 };
 
 class Memory {
@@ -39,7 +57,7 @@ class Memory {
     virtual void deallocate(MemoryId id, std::unique_ptr<MemoryAllocation> allocation) = 0;
 
     /**
-     * @brief Asynchronously copies memory from source to destination.
+     * @brief Asynchronously copies data from source to destination.
      * @param completion Callback function to be called upon completion.
      */
     virtual void copy_async(

@@ -21,10 +21,20 @@ class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
         std::unique_ptr<Memory> memory);
     ~RuntimeImpl();
 
-    EventId submit_task(std::shared_ptr<Task> task, TaskRequirements reqs) const;
+    BlockId create_block(
+        MemoryId memory_id,
+        std::unique_ptr<BlockHeader> header,
+        const void* src_data,
+        size_t num_bytes) const;
+    std::shared_ptr<BlockHeader> read_block_header(BlockId block_id) const;
+    std::shared_ptr<BlockHeader> read_block(BlockId block_id, void* dst_data, size_t num_bytes)
+        const;
     EventId delete_block(BlockId block_id, EventList deps = {}) const;
+
     EventId join_events(EventList deps) const;
+
     EventId submit_barrier() const;
+    EventId submit_task(std::shared_ptr<Task> task, TaskRequirements reqs) const;
     EventId submit_block_barrier(BlockId block_id) const;
     EventId submit_block_prefetch(BlockId block_id, MemoryId memory_id, EventList deps = {}) const;
 

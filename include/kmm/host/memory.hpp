@@ -9,6 +9,10 @@ class HostAllocation: public MemoryAllocation {
   public:
     virtual void* data() const = 0;
     virtual size_t size() const = 0;
+
+    void copy_from_host_sync(const void* src_addr, size_t dst_offset, size_t num_bytes) override;
+
+    void copy_to_host_sync(size_t src_offset, void* dst_addr, size_t num_bytes) const override;
 };
 
 class HostMemory final: public Memory {

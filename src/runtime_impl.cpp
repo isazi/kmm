@@ -22,6 +22,29 @@ RuntimeImpl::~RuntimeImpl() {
     m_thread.join();
 }
 
+BlockId RuntimeImpl::create_block(
+    MemoryId memory_id,
+    std::unique_ptr<BlockHeader> header,
+    const void* src_data,
+    size_t num_bytes) const {
+    BlockId block_id = BlockId(EventId(m_next_event++), 0);
+    m_worker->create_block(block_id, memory_id, std::move(header), src_data, num_bytes);
+    return block_id;
+}
+
+std::shared_ptr<BlockHeader> RuntimeImpl::read_block_header(BlockId block_id) const {
+    query_event(block_id.event(), std::chrono::system_clock::time_point::max());
+    return m_worker->read_block_header(block_id);
+}
+
+std::shared_ptr<BlockHeader> RuntimeImpl::read_block(
+    BlockId block_id,
+    void* dst_data,
+    size_t num_bytes) const {
+    query_event(block_id.event(), std::chrono::system_clock::time_point::max());
+    return m_worker->read_block(block_id, std::nullopt, dst_data, num_bytes);
+}
+
 EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements reqs) const {
     std::lock_guard guard {m_mutex};
 

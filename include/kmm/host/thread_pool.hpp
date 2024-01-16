@@ -9,7 +9,7 @@
 
 namespace kmm {
 
-class ParallelExecutor final: public Executor {};
+class ParallelExecutor;
 
 class ThreadPool {
     class FillJob;

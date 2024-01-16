@@ -5,7 +5,7 @@
 
 #include "kmm/panic.hpp"
 #include "kmm/result.hpp"
-#include "kmm/types.hpp"
+#include "kmm/utils.hpp"
 
 namespace kmm {
 

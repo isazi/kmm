@@ -14,6 +14,8 @@ class HostExecutorInfo final: public ExecutorInfo {
     MemoryId memory_affinity() const override;
 };
 
+class ParallelExecutor final: public Executor {};
+
 class ParallelExecutorHandle: public ExecutorHandle, public ThreadPool {
   public:
     std::unique_ptr<ExecutorInfo> info() const override;
