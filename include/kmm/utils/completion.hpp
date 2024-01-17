@@ -4,8 +4,8 @@
 #include <utility>
 
 #include "kmm/panic.hpp"
-#include "kmm/result.hpp"
-#include "kmm/utils.hpp"
+#include "kmm/utils/macros.hpp"
+#include "kmm/utils/result.hpp"
 
 namespace kmm {
 

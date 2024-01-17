@@ -17,16 +17,20 @@ struct HostLauncher {
 struct Host {
     template<typename Fun, typename... Args>
     EventId operator()(RuntimeImpl& rt, Fun&& fun, Args&&... args) const {
+        return TaskLauncher<HostLauncher, Fun, Args...>::call(
+            HostLauncher {},
+            find_executor(rt),
+            rt,
+            fun,
+            args...);
+    }
+
+    ExecutorId find_executor(RuntimeImpl& rt) const {
         for (size_t i = 0, n = rt.num_executors(); i < n; i++) {
             auto id = ExecutorId(i);
 
             if (dynamic_cast<const HostExecutorInfo*>(&rt.executor_info(id)) != nullptr) {
-                return TaskLauncher<HostLauncher, Fun, Args...>::call(
-                    HostLauncher {},
-                    id,
-                    rt,
-                    fun,
-                    args...);
+                return id;
             }
         }
 

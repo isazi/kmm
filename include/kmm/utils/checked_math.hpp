@@ -87,7 +87,7 @@ T checked_add(const T& lhs, const T& rhs) {
 }
 
 template<typename T>
-T checked_add(const T* begin, const T* end) {
+T checked_sum(const T* begin, const T* end) {
     T result = static_cast<T>(0);
     bool is_valid = true;
 

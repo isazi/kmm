@@ -6,6 +6,7 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/panic.hpp"
+#include "kmm/utils/scope_guard.hpp"
 #include "kmm/worker/jobs.hpp"
 #include "kmm/worker/memory_manager.hpp"
 #include "kmm/worker/worker.hpp"
@@ -164,12 +165,12 @@ void Worker::stop_job(Job& job) {
     m_job_completion.notify_all();
 }
 
-class LocalWaker: public Waker {
+class ThreadNotifier: public Waker {
   public:
     void trigger_wakeup(bool allow_progress) const override {
         std::lock_guard guard {m_mutex};
         m_updated = true;
-        m_cond.notify_all();
+        m_cond.notify_one();
     }
 
     void wait() const {
@@ -196,7 +197,7 @@ void Worker::create_block(
     std::unique_lock guard {m_lock};
 
     auto layout = header->layout();
-    auto waker = std::make_shared<LocalWaker>();
+    auto waker = std::make_shared<ThreadNotifier>();
     auto buffer_id = std::optional<BufferId> {};
 
     if (layout.num_bytes > 0) {
@@ -256,7 +257,7 @@ std::shared_ptr<BlockHeader> Worker::read_block(
 
     auto memory_id = preferred_memory_id.has_value() ? *preferred_memory_id : meta.home_memory;
 
-    auto waker = std::make_shared<LocalWaker>();
+    auto waker = std::make_shared<ThreadNotifier>();
     auto transaction = m_state.memory_manager->create_transaction(waker);
     auto request = m_state.memory_manager
                        ->create_request(*buffer_id, memory_id, AccessMode::Read, transaction);

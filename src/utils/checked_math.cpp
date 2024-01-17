@@ -1,6 +1,6 @@
 #include <stdexcept>
 
-#include "kmm/checked_math.hpp"
+#include "kmm/utils/checked_math.hpp"
 
 namespace kmm {
 

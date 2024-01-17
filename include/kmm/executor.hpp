@@ -14,6 +14,7 @@ namespace kmm {
 
 // Forward decl
 class RuntimeImpl;
+class Executor;
 
 /**
  * Represents an input for a task specifying the memory and block identifier.
@@ -79,6 +80,27 @@ struct TaskContext {
 };
 
 /**
+ * Abstract class representing a task to be executed.
+ */
+class Task {
+  public:
+    virtual ~Task() = default;
+    virtual void execute(Executor&, TaskContext&) = 0;
+};
+
+/**
+ * Exception throw if
+ */
+class InvalidExecutorException: public std::exception {
+  public:
+    InvalidExecutorException(const std::type_info& expected, const std::type_info& gotten);
+    const char* what() const noexcept override;
+
+  private:
+    std::string m_message;
+};
+
+/**
  * Represents information of an executor.
  */
 class ExecutorInfo {
@@ -101,18 +123,6 @@ class ExecutorInfo {
     virtual bool is_memory_accessible(MemoryId id) const {
         return id == memory_affinity();
     }
-};
-
-/**
- * Exception throw if
- */
-class InvalidExecutorException: public std::exception {
-  public:
-    InvalidExecutorException(const std::type_info& expected, const std::type_info& gotten);
-    const char* what() const noexcept override;
-
-  private:
-    std::string m_message;
 };
 
 /**
@@ -149,15 +159,6 @@ class Executor {
 
         throw InvalidExecutorException(typeid(T), typeid(*this));
     }
-};
-
-/**
- * Abstract class representing a task to be executed.
- */
-class Task {
-  public:
-    virtual ~Task() = default;
-    virtual void execute(Executor&, TaskContext&) = 0;
 };
 
 /**

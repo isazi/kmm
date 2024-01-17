@@ -58,8 +58,8 @@ int main(void) {
     auto manager = kmm::build_runtime();
     std::deque<kmm::EventId> events;
 
-    auto x = manager.allocate({1, 2, 3});
-    spdlog::warn("x: {}\n", x.read().front());
+    kmm::Array<int> x = manager.allocate({1, 2, 3});
+    spdlog::warn("x: {}\n", x.read()[0]);
 
     for (size_t i = 0; i < 20; i++) {
         // Request 3 memory areas of a certain size

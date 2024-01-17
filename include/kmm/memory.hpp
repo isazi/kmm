@@ -5,10 +5,10 @@
 
 #include "fmt/format.h"
 
-#include "kmm/completion.hpp"
 #include "kmm/event_list.hpp"
 #include "kmm/identifiers.hpp"
-#include "kmm/result.hpp"
+#include "kmm/utils/completion.hpp"
+#include "kmm/utils/result.hpp"
 
 namespace kmm {
 

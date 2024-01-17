@@ -2,7 +2,7 @@
 
 #include "kmm/identifiers.hpp"
 #include "kmm/runtime_impl.hpp"
-#include "kmm/utils.hpp"
+#include "kmm/utils/macros.hpp"
 
 namespace kmm {
 

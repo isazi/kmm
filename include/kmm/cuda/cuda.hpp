@@ -26,10 +26,11 @@ struct Cuda {
     ExecutorId find_executor(RuntimeImpl& rt) const {
         for (size_t i = 0, n = rt.num_executors(); i < n; i++) {
             auto id = ExecutorId(uint8_t(i));
-            auto* info = dynamic_cast<const CudaExecutorInfo*>(&rt.executor_info(id));
 
-            if (info != nullptr && info->device() == m_device) {
-                return id;
+            if (auto* info = dynamic_cast<const CudaExecutorInfo*>(&rt.executor_info(id))) {
+                if (info->device() == m_device) {
+                    return id;
+                }
             }
         }
 
