@@ -33,8 +33,6 @@ void execute(kmm::CudaExecutor& executor, float* C, const float* A, const float*
     int block_size = 256;
     int num_blocks = (SIZE + block_size - 1) / block_size;
     vector_add<<<num_blocks, block_size, 0, executor.stream()>>>(A, B, C, SIZE);
-
-    executor.launch(num_blocks, block_size, 0, vector_add, A, B, C, SIZE);
 }
 
 void verify(const float* C) {
@@ -52,7 +50,7 @@ void verify(const float* C) {
 int main(void) {
     spdlog::set_level(spdlog::level::debug);
 
-    unsigned int threads_per_block = 1024 * 1024;
+    unsigned int threads_per_block = 256;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
     int n = SIZE;
 
@@ -74,8 +72,8 @@ int main(void) {
         manager.submit(kmm::Host(), initialize, write(A), write(B));
 
         // Execute the function on the device.
-        manager.submit(kmm::Cuda(), execute, write(C), A, B);
-        manager.submit(kmm::CudaKernel(grid_dim, block_dim), vector_add, write(C), A, B);
+        //manager.submit(kmm::Cuda(), execute, write(C), A, B);
+        manager.submit(kmm::CudaKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), SIZE);
 
         // Verify the result on the host.
         auto verify_id = manager.submit(kmm::Host(), verify, C);
