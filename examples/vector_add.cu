@@ -73,7 +73,8 @@ int main(void) {
 
         // Execute the function on the device.
         //manager.submit(kmm::Cuda(), execute, write(C), A, B);
-        manager.submit(kmm::CudaKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), SIZE);
+        manager
+            .submit(kmm::CudaKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), SIZE);
 
         // Verify the result on the host.
         auto verify_id = manager.submit(kmm::Host(), verify, C);
