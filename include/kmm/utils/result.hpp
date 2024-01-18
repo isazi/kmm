@@ -174,7 +174,7 @@ class Result final {
         m_storage.initialize_value(std::move(value));
     }
 
-    Result(ErrorPtr error) : m_has_value(false) {
+    Result(error_type error) : m_has_value(false) {
         m_storage.initialize_error(std::move(error));
     }
 
@@ -384,7 +384,7 @@ class Result final {
     /**
      * Returns the error contained within. Throws `EmptyException` if the result contains no error.
      */
-    const ErrorPtr& error() const {
+    const error_type& error() const {
         if (!has_error()) {
             throw EmptyException();
         }
@@ -395,12 +395,12 @@ class Result final {
     /**
      * Returns a pointer to the error contained within, or `nullptr` if this result has no error.
      */
-    const ErrorPtr* error_if_present() const {
+    const error_type* error_if_present() const {
         return has_error() ? &m_storage.error : nullptr;
     }
 
-    template<typename T2, typename U>
-    friend bool operator==(const Result<T2>& lhs, const Result<U>& rhs) {
+    template<typename R, typename U>
+    friend bool operator==(const Result<R>& lhs, const Result<U>& rhs) {
         if (lhs.m_has_value && rhs.m_has_value) {
             return lhs.m_storage.value == rhs.m_storage.value;
         } else if (lhs.has_error() && rhs.has_error()) {
@@ -437,8 +437,8 @@ class Result final {
             this->error.~ErrorPtr();
         }
 
-        T value;
-        ErrorPtr error;
+        value_type value;
+        error_type error;
     };
 
     storage_type m_storage;
@@ -453,7 +453,7 @@ class Result<void> final {
 
     Result() = default;
 
-    Result(ErrorPtr error) : m_error(std::move(error)) {}
+    Result(error_type error) : m_error(std::move(error)) {}
 
     Result(Result&) = default;
     Result(const Result&) = default;
@@ -486,7 +486,7 @@ class Result<void> final {
     }
 
     static Result from_empty() noexcept {
-        return ErrorPtr();
+        return ErrorPtr(EmptyException());
     }
 
     static Result from_current_exception() noexcept {
@@ -542,7 +542,7 @@ class Result<void> final {
     /**
      * Rethrows the exception if the result contains an error.
      */
-    void value() const& {
+    void value() const {
         rethrow_if_error();
     }
 
@@ -578,7 +578,7 @@ class Result<void> final {
     /**
      * Returns the error contained within. Throws `EmptyException` if the result contains no error.
      */
-    const ErrorPtr& error() const {
+    const error_type& error() const {
         if (!has_error()) {
             throw EmptyException();
         }
@@ -589,7 +589,7 @@ class Result<void> final {
     /**
      * Returns a pointer to the error contained within, or `nullptr` if this result has no error.
      */
-    const ErrorPtr* error_if_present() const {
+    const error_type* error_if_present() const {
         return has_error() ? &m_error : nullptr;
     }
 
@@ -598,7 +598,7 @@ class Result<void> final {
     }
 
   private:
-    ErrorPtr m_error;
+    error_type m_error;
 };
 
 template<typename T, typename U>

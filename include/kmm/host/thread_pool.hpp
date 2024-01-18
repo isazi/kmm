@@ -3,9 +3,9 @@
 #include <memory>
 #include <thread>
 
-#include "kmm/completion.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/host/work_queue.hpp"
+#include "kmm/utils/completion.hpp"
 
 namespace kmm {
 

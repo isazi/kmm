@@ -22,6 +22,8 @@
 
 namespace kmm {
 
+using index_t = int;
+
 class EventId {
   public:
     explicit constexpr EventId(uint64_t value) : m_value(value) {}

@@ -3,8 +3,7 @@
 #include "kmm/event_list.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
-#include "kmm/result.hpp"
-#include "kmm/utils.hpp"
+#include "kmm/utils/result.hpp"
 #include "kmm/worker/command.hpp"
 #include "kmm/worker/worker.hpp"
 

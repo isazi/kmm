@@ -7,8 +7,8 @@
 #include <mutex>
 #include <vector>
 
-#include "kmm/completion.hpp"
 #include "kmm/cuda/types.hpp"
+#include "kmm/utils/completion.hpp"
 
 #ifdef KMM_USE_CUDA
 

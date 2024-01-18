@@ -5,9 +5,9 @@
 
 namespace kmm {
 
-class FutureAny {
+class FutureBase {
   public:
-    FutureAny(const std::type_info* type = nullptr, std::shared_ptr<Block> block = nullptr) :
+    FutureBase(const std::type_info* type = nullptr, std::shared_ptr<Block> block = nullptr) :
         m_type(type),
         m_block(std::move(block)) {}
 
@@ -33,9 +33,9 @@ class FutureAny {
 };
 
 template<typename T>
-class Future: public FutureAny {
+class Future: public FutureBase {
   public:
-    Future(std::shared_ptr<Block> block = nullptr) : FutureAny(&typeid(T), block) {}
+    Future(std::shared_ptr<Block> block = nullptr) : FutureBase(&typeid(T), block) {}
 
     std::shared_ptr<const T> wait() const {
         auto header = std::dynamic_pointer_cast<ScalarHeader<T>>(block()->header());

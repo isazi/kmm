@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "kmm/utils.hpp"
+#include "kmm/utils/waker.hpp"
 
 namespace kmm {
 

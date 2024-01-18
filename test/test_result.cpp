@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "kmm/result.hpp"
+#include "kmm/utils/result.hpp"
 
 using namespace kmm;
 

@@ -58,16 +58,11 @@ class TaskImpl final: public Task {
 };
 
 template<typename Launcher, typename... Args>
-struct TaskLauncher {
+struct TaskLaunchHelper {
     static constexpr ExecutionSpace execution_space = Launcher::execution_space;
 
-    static EventId call(Launcher launcher, ExecutorId executor_id, RuntimeImpl& rt, Args... args) {
-        return call_impl(std::index_sequence_for<Args...>(), launcher, executor_id, rt, args...);
-    }
-
-  private:
     template<size_t... Is>
-    static EventId call_impl(
+    static EventId call(
         std::index_sequence<Is...>,
         Launcher launcher,
         ExecutorId executor_id,
@@ -89,6 +84,20 @@ struct TaskLauncher {
         return event_id;
     }
 };
+
+template<typename Launcher, typename... Args>
+EventId submit_task_with_launcher(
+    RuntimeImpl& rt,
+    ExecutorId executor_id,
+    Launcher launcher,
+    Args... args) {
+    return TaskLaunchHelper<Launcher, Args...>::call(
+        std::index_sequence_for<Args...>(),
+        launcher,
+        executor_id,
+        rt,
+        args...);
+}
 
 template<typename T>
 struct Write {

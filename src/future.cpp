@@ -2,11 +2,11 @@
 
 namespace kmm {
 
-bool FutureAny::has_block() const {
+bool FutureBase::has_block() const {
     return bool(m_block);
 }
 
-std::shared_ptr<Block> FutureAny::block() const {
+std::shared_ptr<Block> FutureBase::block() const {
     if (!m_block) {
         throw std::runtime_error("cannot access future that has not been initialized yet");
     }
@@ -14,19 +14,19 @@ std::shared_ptr<Block> FutureAny::block() const {
     return m_block;
 }
 
-BlockId FutureAny::id() const {
+BlockId FutureBase::id() const {
     return block()->id();
 }
 
-Runtime FutureAny::runtime() const {
+Runtime FutureBase::runtime() const {
     return block()->runtime();
 }
 
-bool FutureAny::is(const std::type_info& that) const {
+bool FutureBase::is(const std::type_info& that) const {
     return m_type != nullptr && *m_type == that;
 }
 
-void FutureAny::synchronize() const {
+void FutureBase::synchronize() const {
     if (m_block) {
         m_block->synchronize();
     }

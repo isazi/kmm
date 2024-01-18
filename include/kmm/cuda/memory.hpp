@@ -8,12 +8,12 @@
     #include <cuda.h>
 #endif
 
-#include "kmm/completion.hpp"
 #include "kmm/cuda/allocator.hpp"
 #include "kmm/cuda/types.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/host/memory.hpp"
 #include "kmm/host/thread_pool.hpp"
+#include "kmm/utils/completion.hpp"
 
 #ifdef KMM_USE_CUDA
 

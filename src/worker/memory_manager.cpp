@@ -3,8 +3,7 @@
 #include "kmm/block_header.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/panic.hpp"
-#include "kmm/result.hpp"
-#include "kmm/utils.hpp"
+#include "kmm/utils/result.hpp"
 #include "kmm/worker/memory_manager.hpp"
 
 namespace kmm {

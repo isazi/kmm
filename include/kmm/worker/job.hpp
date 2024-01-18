@@ -8,7 +8,7 @@
 #include <optional>
 
 #include "kmm/identifiers.hpp"
-#include "kmm/utils.hpp"
+#include "kmm/utils/waker.hpp"
 #include "kmm/worker/scheduler.hpp"
 
 namespace kmm {

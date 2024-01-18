@@ -5,9 +5,10 @@
 #include <utility>
 
 #include "kmm/array.hpp"
-#include "kmm/checked_math.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/identifiers.hpp"
+#include "kmm/task_serialize.hpp"
+#include "kmm/utils/checked_math.hpp"
 
 namespace kmm {
 
@@ -34,27 +35,51 @@ class Runtime {
      * @return The event identifier of the submitted task.
      */
     template<typename Launcher, typename... Args>
-    EventId submit(const Launcher& launcher, Args&&... args) const {
-        return launcher(*m_impl, std::forward<Args>(args)...);
+    EventId submit(Launcher launcher, Args&&... args) const {
+        ExecutorId executor_id = launcher.find_executor(*m_impl);
+
+        return submit_task_with_launcher(
+            *m_impl,
+            executor_id,
+            std::move(launcher),
+            std::forward<Args>(args)...);
     }
 
+    /**
+     * Create a new array where the data is provided by memory stored on the host. The dimensions
+     * of the new array will be `{sizes[0], sizes[1], ...}`. The provided buffer must contain
+     * exactly `sizes[0] * sizes[1] * ...` elements.
+     *
+     * @param data_ptr The provided data elements.
+     * @param sizes The dimensions of the new array.
+     * @return The new array.
+     */
     template<typename T, typename... Sizes, size_t N = sizeof...(Sizes)>
     Array<T, N> allocate(const T* data_ptr, Sizes... sizes) const {
         std::array<index_t, N> shape = {checked_cast<index_t>(sizes)...};
         index_t num_elements = checked_product(shape.begin(), shape.end());
-        size_t num_bytes = checked_mul(static_cast<size_t>(num_elements), sizeof(T));
+        size_t num_bytes = checked_mul(checked_cast<size_t>(num_elements), sizeof(T));
 
+        auto memory_id = MemoryId(0);
         auto header = std::make_unique<ArrayHeader>(ArrayHeader::for_type<T>(num_elements));
 
-        auto block = Block::create(m_impl, std::move(header), data_ptr, num_bytes);
+        auto block_id = m_impl->create_block(memory_id, std::move(header), data_ptr, num_bytes);
+        auto block = std::make_shared<Block>(m_impl, block_id);
+
         return {shape, block};
     }
 
+    /**
+     * This is an alias for `allocate(vector.data(), vector.size())`
+     */
     template<typename T>
     Array<T> allocate(const std::vector<T>& vector) const {
         return allocate(vector.data(), vector.size());
     }
 
+    /**
+     * This is an alias for `allocate(list.data(), list.size())`
+     */
     template<typename T>
     Array<T> allocate(std::initializer_list<T> list) const {
         return allocate(list.begin(), list.size());

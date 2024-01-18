@@ -6,7 +6,8 @@
 
 #include "kmm/block_header.hpp"
 #include "kmm/identifiers.hpp"
-#include "kmm/result.hpp"
+#include "kmm/utils/macros.hpp"
+#include "kmm/utils/result.hpp"
 
 namespace kmm {
 
