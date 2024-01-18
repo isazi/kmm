@@ -73,33 +73,6 @@ void CudaExecutor::synchronize() const {
     KMM_CUDA_CHECK(cuStreamSynchronize(CUDA_DEFAULT_STREAM));
 }
 
-void CudaExecutor::launch_raw(
-    dim3 grid_dim,
-    dim3 block_dim,
-    unsigned int shared_mem,
-    const void* fun,
-    void** kernel_args) const {
-    CUfunction fun_ptr;
-
-    auto result = cudaGetFuncBySymbol(&fun_ptr, fun);
-    if (result != cudaSuccess) {
-        throw CudaException(cudaGetErrorString(result));
-    }
-
-    KMM_CUDA_CHECK(cuLaunchKernel(
-        fun_ptr,
-        grid_dim.x,
-        grid_dim.y,
-        grid_dim.z,
-        block_dim.x,
-        block_dim.y,
-        block_dim.z,
-        shared_mem,
-        m_stream,
-        kernel_args,
-        nullptr));
-}
-
 class CudaExecutorThread {
   public:
     CudaExecutorThread(

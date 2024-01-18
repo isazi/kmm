@@ -78,8 +78,7 @@ Runtime build_runtime() {
     }
 #else
     memory = std::make_unique<HostMemory>(host_executor);
-#endif // KMM_USE_CUDA
-
+#endif  // KMM_USE_CUDA
 
     return std::make_shared<RuntimeImpl>(std::move(executors), std::move(memory));
 }

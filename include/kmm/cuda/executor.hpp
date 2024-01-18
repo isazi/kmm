@@ -85,20 +85,14 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
         void* void_args[sizeof...(Args) + 1] = {static_cast<void*>(&args)..., nullptr};
 
         // Launch the kernel!
-        launch_raw(
+        KMM_CUDA_CHECK(cudaLaunchKernel(
+            reinterpret_cast<const void*>(kernel_function),
             grid_dim,
             block_dim,
+            void_args,
             shared_mem,
-            reinterpret_cast<const void*>(kernel_function),
-            void_args);
+            m_stream));
     }
-
-    void launch_raw(
-        dim3 grid_dim,
-        dim3 block_dim,
-        unsigned int shared_mem,
-        const void* fun,
-        void** kernel_args) const;
 
   private:
     CudaContextHandle m_context;

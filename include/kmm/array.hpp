@@ -281,6 +281,6 @@ struct TaskArgumentDeserializer<ExecutionSpace::Cuda, SerializedArray<const T, N
         return reinterpret_cast<const T*>(alloc.data()) + array.offset;
     }
 };
-#endif // KMM_USE_CUDA
+#endif  // KMM_USE_CUDA
 
 }  // namespace kmm
