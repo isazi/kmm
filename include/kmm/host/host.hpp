@@ -1,7 +1,6 @@
 #pragma once
-#include "device.hpp"
 
-#include "kmm/device.hpp"
+#include "kmm/host/device.hpp"
 
 namespace kmm {
 

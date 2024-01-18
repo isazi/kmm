@@ -2,7 +2,7 @@
 
 #ifdef KMM_USE_CUDA
 
-    #include "kmm/cuda/memory_pool.hpp"
+    #include "kmm/utils/memory_pool.hpp"
 
 using namespace kmm;
 

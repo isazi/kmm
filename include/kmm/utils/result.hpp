@@ -5,8 +5,6 @@
 #include <stdexcept>
 #include <utility>
 
-#include "kmm/panic.hpp"
-
 namespace kmm {
 
 /**

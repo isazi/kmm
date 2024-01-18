@@ -4,8 +4,8 @@
 #include <thread>
 
 #include "kmm/device.hpp"
-#include "kmm/host/work_queue.hpp"
 #include "kmm/utils/completion.hpp"
+#include "kmm/utils/work_queue.hpp"
 
 namespace kmm {
 

@@ -14,8 +14,8 @@
 
 #include "kmm/cuda/types.hpp"
 #include "kmm/device.hpp"
-#include "kmm/host/work_queue.hpp"
 #include "kmm/identifiers.hpp"
+#include "kmm/utils/work_queue.hpp"
 
 #ifdef KMM_USE_CUDA
 

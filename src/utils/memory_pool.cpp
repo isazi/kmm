@@ -1,7 +1,7 @@
 #include <set>
 
-#include "kmm/cuda/memory_pool.hpp"
 #include "kmm/panic.hpp"
+#include "kmm/utils/memory_pool.hpp"
 
 #ifdef KMM_USE_CUDA
 
