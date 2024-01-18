@@ -6,7 +6,7 @@
 
 #ifdef KMM_USE_CUDA
     #include <cuda.h>
-    #include <driver_types.h>
+    #include <cuda_runtime_api.h>
 #endif
 
 #include "kmm/utils/macros.hpp"
