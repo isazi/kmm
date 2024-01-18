@@ -131,7 +131,7 @@ class BlockId {
     }
 
     constexpr size_t hash() const {
-        return m_event.get() * 256 * m_index;
+        return m_event.get() * 256 + m_index;
     }
 
     std::string to_string() const {
