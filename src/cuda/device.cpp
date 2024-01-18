@@ -1,30 +1,10 @@
 #include <cuda_runtime_api.h>
+
 #include "kmm/cuda/device.hpp"
 
 #ifdef KMM_USE_CUDA
 
 namespace kmm {
-
-CUdevice_attribute CudaDeviceInfo::ATTRIBUTES[] = {
-    CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-    CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
-    CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
-    CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
-    CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
-    CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
-    CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
-    CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
-    CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-    CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
-    CU_DEVICE_ATTRIBUTE_CLOCK_RATE,
-    CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT,
-    CU_DEVICE_ATTRIBUTE_COMPUTE_MODE,
-    CU_DEVICE_ATTRIBUTE_CONCURRENT_KERNELS,
-    CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR,
-    CU_DEVICE_ATTRIBUTE_ASYNC_ENGINE_COUNT,
-    CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-    CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
-    CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_MULTIPROCESSOR};
 
 CudaDeviceInfo::CudaDeviceInfo(CudaContextHandle context, MemoryId affinity_id) :
     m_affinity_id(affinity_id) {
@@ -37,15 +17,44 @@ CudaDeviceInfo::CudaDeviceInfo(CudaContextHandle context, MemoryId affinity_id) 
     m_name = std::string(name);
 
     for (size_t i = 0; i < NUM_ATTRIBUTES; i++) {
-        KMM_CUDA_CHECK(cuDeviceGetAttribute(&m_attributes[i], ATTRIBUTES[i], m_device_id));
+        auto attr = CUdevice_attribute(i);
+        KMM_CUDA_CHECK(cuDeviceGetAttribute(&m_attributes[i], attr, m_device_id));
     }
+
+    size_t ignore_free_memory;
+    KMM_CUDA_CHECK(cuMemGetInfo(&ignore_free_memory, &m_memory_capacity));
+}
+
+dim3 CudaDeviceInfo::max_block_dim() const {
+    return dim3(
+        attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
+        attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
+        attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z));
+}
+
+dim3 CudaDeviceInfo::max_grid_dim() const {
+    return dim3(
+        attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X),
+        attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y),
+        attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z));
+}
+
+int CudaDeviceInfo::compute_capability() const {
+    return attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) * 10
+        + attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
+}
+
+int CudaDeviceInfo::max_threads_per_block() const {
+    return attribute(CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK);
+}
+
+size_t CudaDeviceInfo::total_memory_size() const {
+    return m_memory_capacity;
 }
 
 int CudaDeviceInfo::attribute(CUdevice_attribute attrib) const {
-    for (size_t i = 0; i < NUM_ATTRIBUTES; i++) {
-        if (ATTRIBUTES[i] == attrib) {
-            return m_attributes[i];
-        }
+    if (attrib < NUM_ATTRIBUTES) {
+        return m_attributes[attrib];
     }
 
     throw std::runtime_error("unsupported attribute requested");
