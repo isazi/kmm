@@ -76,8 +76,8 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
 
     template<typename... Args>
     void launch(
-        std::array<unsigned int, 3> grid_dim,
-        std::array<unsigned int, 3> block_dim,
+        dim3 grid_dim,
+        dim3 block_dim,
         unsigned int shared_mem,
         void (*const kernel_function)(Args...),
         Args... args) const {
@@ -94,8 +94,8 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
     }
 
     void launch_raw(
-        std::array<unsigned int, 3> grid_dim,
-        std::array<unsigned int, 3> block_dim,
+        dim3 grid_dim,
+        dim3 block_dim,
         unsigned int shared_mem,
         const void* fun,
         void** kernel_args) const;

@@ -74,8 +74,8 @@ void CudaExecutor::synchronize() const {
 }
 
 void CudaExecutor::launch_raw(
-    std::array<unsigned int, 3> grid_dim,
-    std::array<unsigned int, 3> block_dim,
+    dim3 grid_dim,
+    dim3 block_dim,
     unsigned int shared_mem,
     const void* fun,
     void** kernel_args) const {
@@ -88,12 +88,12 @@ void CudaExecutor::launch_raw(
 
     KMM_CUDA_CHECK(cuLaunchKernel(
         fun_ptr,
-        grid_dim[0],
-        grid_dim[1],
-        grid_dim[2],
-        block_dim[0],
-        block_dim[1],
-        block_dim[2],
+        grid_dim.x,
+        grid_dim.y,
+        grid_dim.z,
+        block_dim.x,
+        block_dim.y,
+        block_dim.z,
         shared_mem,
         m_stream,
         kernel_args,
