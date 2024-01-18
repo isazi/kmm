@@ -14,6 +14,10 @@ void cuda_throw_exception(CUresult result, const char* file, int line, const cha
     throw CudaException(fmt::format("{} ({}:{})", expression, file, line), result);
 }
 
+void cuda_throw_exception(cudaError_t result, const char* file, int line, const char* expression) {
+    throw CudaException(fmt::format("{} ({}:{})", expression, file, line), result);
+}
+
 CudaException::CudaException(const std::string& message, CUresult result) : m_status(result) {
     const char* name = "???";
     const char* description = "???";
@@ -23,6 +27,18 @@ CudaException::CudaException(const std::string& message, CUresult result) : m_st
     cuGetErrorString(result, &description);
 
     m_message = fmt::format("CUDA error: {} ({}): {}", description, name, message);
+}
+
+CudaException::CudaException(const std::string& message, cudaError_t result) {
+    const char* name = "???";
+    const char* description = "???";
+
+    // Ignore the return code from these functions
+    name = cudaGetErrorName(result);
+    description = cudaGetErrorString(result);
+
+    m_message = fmt::format("CUDA error: {} ({}): {}", description, name, message);
+    m_status = CUDA_ERROR_UNKNOWN;
 }
 
 CudaContextHandle::CudaContextHandle(CUcontext context, std::shared_ptr<void> lifetime) :

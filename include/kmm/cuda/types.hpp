@@ -6,6 +6,7 @@
 
 #ifdef KMM_USE_CUDA
     #include <cuda.h>
+    #include <driver_types.h>
 #endif
 
 #include "kmm/utils/macros.hpp"
@@ -25,9 +26,12 @@ static constexpr CUstream_st* const CUDA_DEFAULT_STREAM = nullptr;
 
 void cuda_throw_exception(CUresult result, const char* file, int line, const char* expression);
 
+void cuda_throw_exception(cudaError_t result, const char* file, int line, const char* expression);
+
 class CudaException: public std::exception {
   public:
     CudaException(const std::string& message, CUresult result = CUDA_ERROR_UNKNOWN);
+    CudaException(const std::string& message, cudaError_t result = cudaErrorUnknown);
 
     CUresult status() const {
         return m_status;
