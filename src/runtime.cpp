@@ -58,6 +58,7 @@ Runtime build_runtime() {
     std::vector<std::shared_ptr<ExecutorHandle>> executors = {host_executor};
     std::unique_ptr<Memory> memory;
 
+#ifdef KMM_USE_CUDA
     auto devices = get_cuda_devices();
     if (!devices.empty()) {
         auto contexts = std::vector<CudaContextHandle> {};
@@ -75,6 +76,10 @@ Runtime build_runtime() {
     } else {
         memory = std::make_unique<HostMemory>(host_executor);
     }
+#else
+    memory = std::make_unique<HostMemory>(host_executor);
+#endif // KMM_USE_CUDA
+
 
     return std::make_shared<RuntimeImpl>(std::move(executors), std::move(memory));
 }

@@ -1,5 +1,3 @@
-#include <cuda_runtime_api.h>
-
 #include "kmm/cuda/executor.hpp"
 
 #ifdef KMM_USE_CUDA

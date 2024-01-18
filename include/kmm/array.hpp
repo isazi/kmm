@@ -206,6 +206,7 @@ struct TaskArgumentDeserializer<ExecutionSpace::Host, SerializedArray<const T, N
     }
 };
 
+#ifdef KMM_USE_CUDA
 template<typename T, size_t N>
 struct TaskArgumentDeserializer<ExecutionSpace::Cuda, SerializedArray<T, N>> {
     using type = T*;
@@ -233,5 +234,6 @@ struct TaskArgumentDeserializer<ExecutionSpace::Cuda, SerializedArray<const T, N
         return reinterpret_cast<const T*>(alloc.data());
     }
 };
+#endif // KMM_USE_CUDA
 
 }  // namespace kmm

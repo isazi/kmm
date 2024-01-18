@@ -9,6 +9,7 @@
 
 #ifdef KMM_USE_CUDA
     #include <cuda.h>
+    #include <cuda_runtime_api.h>
 #endif
 
 #include "kmm/cuda/types.hpp"
