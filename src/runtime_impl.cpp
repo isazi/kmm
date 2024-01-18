@@ -98,6 +98,7 @@ EventId RuntimeImpl::join_events(EventList deps) const {
 }
 
 EventId RuntimeImpl::submit_barrier() const {
+    std::lock_guard guard {m_mutex};
     auto id = EventId(m_next_event++);
     m_worker->submit_barrier(id);
     return id;
@@ -121,6 +122,7 @@ EventId RuntimeImpl::submit_block_barrier(BlockId block_id) const {
 
 EventId RuntimeImpl::submit_block_prefetch(BlockId block_id, MemoryId memory_id, EventList deps)
     const {
+    std::lock_guard guard {m_mutex};
     auto id = EventId(m_next_event++);
 
     // Add the event that created the block as a dependency
