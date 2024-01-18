@@ -14,7 +14,7 @@ namespace kmm {
 
 // Forward decl
 class RuntimeImpl;
-class Executor;
+class Device;
 
 /**
  * Represents an input for a task specifying the memory and block identifier.
@@ -33,10 +33,10 @@ struct TaskOutput {
 };
 
 /**
- * Encapsulates the requirements for a task, including the executor identifier and lists of inputs and outputs.
+ * Encapsulates the requirements for a task, including the device identifier and lists of inputs and outputs.
  */
 struct TaskRequirements {
-    TaskRequirements(ExecutorId id) : executor_id(id) {}
+    TaskRequirements(DeviceId id) : device_id(id) {}
 
     size_t add_input(BlockId block_id);
     size_t add_input(BlockId block_id, MemoryId memory_id);
@@ -45,7 +45,7 @@ struct TaskRequirements {
     size_t add_output(std::unique_ptr<BlockHeader> header, MemoryId memory_id);
     size_t add_output(std::unique_ptr<BlockHeader> header, RuntimeImpl& rt);
 
-    ExecutorId executor_id;
+    DeviceId device_id;
     EventList dependencies;
     std::vector<TaskInput> inputs = {};
     std::vector<TaskOutput> outputs = {};
@@ -85,15 +85,15 @@ struct TaskContext {
 class Task {
   public:
     virtual ~Task() = default;
-    virtual void execute(Executor&, TaskContext&) = 0;
+    virtual void execute(Device&, TaskContext&) = 0;
 };
 
 /**
  * Exception throw if
  */
-class InvalidExecutorException: public std::exception {
+class InvalidDeviceException: public std::exception {
   public:
-    InvalidExecutorException(const std::type_info& expected, const std::type_info& gotten);
+    InvalidDeviceException(const std::type_info& expected, const std::type_info& gotten);
     const char* what() const noexcept override;
 
   private:
@@ -101,24 +101,24 @@ class InvalidExecutorException: public std::exception {
 };
 
 /**
- * Represents information of an executor.
+ * Represents information of an device.
  */
-class ExecutorInfo {
+class DeviceInfo {
   public:
-    virtual ~ExecutorInfo() = default;
+    virtual ~DeviceInfo() = default;
 
     /**
-     * The name of the executor. Useful for debugging.
+     * The name of the device. Useful for debugging.
      */
     virtual std::string name() const = 0;
 
     /**
-     * Which memory does this executor has the strongest affinity to.
+     * Which memory does this device has the strongest affinity to.
      */
     virtual MemoryId memory_affinity() const = 0;
 
     /**
-     * Can the compute units from this executor access the specified memory?
+     * Can the compute units from this device access the specified memory?
      */
     virtual bool is_memory_accessible(MemoryId id) const {
         return id == memory_affinity();
@@ -126,11 +126,21 @@ class ExecutorInfo {
 };
 
 /**
- * Represents the context in which an executor operates.
+ * Abstract class that allows to submit tasks onto a device.
  */
-class Executor {
+class DeviceHandle {
   public:
-    virtual ~Executor() = default;
+    virtual ~DeviceHandle() = default;
+    virtual std::unique_ptr<DeviceInfo> info() const = 0;
+    virtual void submit(std::shared_ptr<Task>, TaskContext, Completion) const = 0;
+};
+
+/**
+ * Represents the context in which an device operates.
+ */
+class Device {
+  public:
+    virtual ~Device() = default;
 
     template<typename T>
     T* cast_if() {
@@ -148,7 +158,7 @@ class Executor {
             return *ptr;
         }
 
-        throw InvalidExecutorException(typeid(T), typeid(*this));
+        throw InvalidDeviceException(typeid(T), typeid(*this));
     }
 
     template<typename T>
@@ -157,18 +167,7 @@ class Executor {
             return *ptr;
         }
 
-        throw InvalidExecutorException(typeid(T), typeid(*this));
+        throw InvalidDeviceException(typeid(T), typeid(*this));
     }
 };
-
-/**
- * Abstract class representing a compute unit that can process tasks.
- */
-class ExecutorHandle {
-  public:
-    virtual ~ExecutorHandle() = default;
-    virtual std::unique_ptr<ExecutorInfo> info() const = 0;
-    virtual void submit(std::shared_ptr<Task>, TaskContext, Completion) const = 0;
-};
-
 }  // namespace kmm

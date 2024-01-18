@@ -1,27 +1,27 @@
 #pragma once
-#include "executor.hpp"
+#include "device.hpp"
 
-#include "kmm/executor.hpp"
+#include "kmm/device.hpp"
 
 namespace kmm {
 
 struct Host {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Host;
 
-    ExecutorId find_executor(RuntimeImpl& rt) const {
-        for (size_t i = 0, n = rt.num_executors(); i < n; i++) {
-            auto id = ExecutorId(i);
+    DeviceId find_device(RuntimeImpl& rt) const {
+        for (size_t i = 0, n = rt.num_devices(); i < n; i++) {
+            auto id = DeviceId(i);
 
-            if (dynamic_cast<const HostExecutorInfo*>(&rt.executor_info(id)) != nullptr) {
+            if (dynamic_cast<const HostDeviceInfo*>(&rt.device_info(id)) != nullptr) {
                 return id;
             }
         }
 
-        throw std::runtime_error("could not find host executor");
+        throw std::runtime_error("could not find host device");
     }
 
     template<typename F, typename... Args>
-    void operator()(Executor&, TaskContext&, F&& fun, Args&&... args) const {
+    void operator()(Device&, TaskContext&, F&& fun, Args&&... args) const {
         std::forward<F>(fun)(std::forward<Args>(args)...);
     }
 };

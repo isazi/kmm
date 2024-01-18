@@ -14,7 +14,7 @@ class ExecuteJob: public Job {
     ExecuteJob(EventId id, ExecuteCommand command) :
         Job(id),
         m_id(id),
-        m_device_id(command.executor_id),
+        m_device_id(command.device_id),
         m_task(std::move(command.task)),
         m_inputs(std::move(command.inputs)),
         m_outputs(std::move(command.outputs)) {}
@@ -26,7 +26,7 @@ class ExecuteJob: public Job {
     Status m_status = Status::Created;
 
     EventId m_id;
-    ExecutorId m_device_id;
+    DeviceId m_device_id;
     std::shared_ptr<Task> m_task;
     std::vector<TaskInput> m_inputs;
     std::vector<TaskOutput> m_outputs;

@@ -1,4 +1,4 @@
-#include "kmm/host/executor.hpp"
+#include "kmm/host/device.hpp"
 #include "kmm/host/thread_pool.hpp"
 
 namespace kmm {
@@ -6,7 +6,7 @@ namespace kmm {
 ThreadPool::ThreadPool() :
     m_queue(std::make_shared<WorkQueue<Job>>()),
     m_thread([q = m_queue] {
-        ParallelExecutor context {};
+        ParallelDevice context {};
 
         while (auto popped = q->pop()) {
             (*popped)->execute(context);
@@ -25,9 +25,9 @@ class ThreadPool::ExecutionJob: public ThreadPool::Job {
         m_context(std::move(context)),
         m_completion(std::move(completion)) {}
 
-    void execute(ParallelExecutor& executor) override {
+    void execute(ParallelDevice& device) override {
         try {
-            m_task->execute(executor, m_context);
+            m_task->execute(device, m_context);
             m_completion.complete_ok();
         } catch (...) {
             m_completion.complete(ErrorPtr::from_current_exception());
@@ -75,7 +75,7 @@ class ThreadPool::FillJob: public ThreadPool::Job {
         }
     }
 
-    void execute(ParallelExecutor&) override {
+    void execute(ParallelDevice&) override {
         size_t k = fill_bytes.size();
 
         if (k == 1) {
@@ -124,7 +124,7 @@ class ThreadPool::CopyJob: public ThreadPool::Job {
         num_bytes(num_bytes),
         completion(std::move(completion)) {}
 
-    void execute(ParallelExecutor&) override {
+    void execute(ParallelDevice&) override {
         std::memcpy(dst_ptr, src_ptr, num_bytes);
         completion.complete_ok();
     }

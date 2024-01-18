@@ -1,10 +1,11 @@
-#include "kmm/cuda/executor.hpp"
+#include <cuda_runtime_api.h>
+#include "kmm/cuda/device.hpp"
 
 #ifdef KMM_USE_CUDA
 
 namespace kmm {
 
-CUdevice_attribute CudaExecutorInfo::ATTRIBUTES[] = {
+CUdevice_attribute CudaDeviceInfo::ATTRIBUTES[] = {
     CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
     CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
     CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
@@ -25,7 +26,7 @@ CUdevice_attribute CudaExecutorInfo::ATTRIBUTES[] = {
     CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
     CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_MULTIPROCESSOR};
 
-CudaExecutorInfo::CudaExecutorInfo(CudaContextHandle context, MemoryId affinity_id) :
+CudaDeviceInfo::CudaDeviceInfo(CudaContextHandle context, MemoryId affinity_id) :
     m_affinity_id(affinity_id) {
     CudaContextGuard guard {context};
 
@@ -40,7 +41,7 @@ CudaExecutorInfo::CudaExecutorInfo(CudaContextHandle context, MemoryId affinity_
     }
 }
 
-int CudaExecutorInfo::attribute(CUdevice_attribute attrib) const {
+int CudaDeviceInfo::attribute(CUdevice_attribute attrib) const {
     for (size_t i = 0; i < NUM_ATTRIBUTES; i++) {
         if (ATTRIBUTES[i] == attrib) {
             return m_attributes[i];
@@ -50,8 +51,8 @@ int CudaExecutorInfo::attribute(CUdevice_attribute attrib) const {
     throw std::runtime_error("unsupported attribute requested");
 }
 
-CudaExecutor::CudaExecutor(CudaContextHandle context, MemoryId affinity_id) :
-    CudaExecutorInfo(context, affinity_id),
+CudaDevice::CudaDevice(CudaContextHandle context, MemoryId affinity_id) :
+    CudaDeviceInfo(context, affinity_id),
     m_context(context) {
     CudaContextGuard guard {context};
 
@@ -62,39 +63,39 @@ CudaExecutor::CudaExecutor(CudaContextHandle context, MemoryId affinity_id) :
     KMM_CUDA_CHECK(cuEventCreate(&m_event, flags));
 }
 
-CudaExecutor::~CudaExecutor() noexcept {
+CudaDevice::~CudaDevice() noexcept {
     KMM_CUDA_CHECK(cuStreamDestroy(m_stream));
     KMM_CUDA_CHECK(cuEventDestroy(m_event));
 }
 
-void CudaExecutor::synchronize() const {
+void CudaDevice::synchronize() const {
     CudaContextGuard guard {m_context};
     KMM_CUDA_CHECK(cuStreamSynchronize(m_stream));
     KMM_CUDA_CHECK(cuStreamSynchronize(CUDA_DEFAULT_STREAM));
 }
 
-class CudaExecutorThread {
+class CudaDeviceThread {
   public:
-    CudaExecutorThread(
-        std::shared_ptr<WorkQueue<CudaExecutorHandle::Job>> queue,
-        std::vector<std::unique_ptr<CudaExecutor>> streams);
-    ~CudaExecutorThread();
+    CudaDeviceThread(
+        std::shared_ptr<WorkQueue<CudaDeviceHandle::Job>> queue,
+        std::vector<std::unique_ptr<CudaDevice>> streams);
+    ~CudaDeviceThread();
 
     void run_forever();
 
   private:
     PollResult poll_stream(size_t slot);
-    void submit_job(size_t slot, std::unique_ptr<CudaExecutorHandle::Job> job);
+    void submit_job(size_t slot, std::unique_ptr<CudaDeviceHandle::Job> job);
 
-    std::shared_ptr<WorkQueue<CudaExecutorHandle::Job>> m_queue;
-    std::vector<std::unique_ptr<CudaExecutor>> m_streams;
+    std::shared_ptr<WorkQueue<CudaDeviceHandle::Job>> m_queue;
+    std::vector<std::unique_ptr<CudaDevice>> m_streams;
     std::vector<Completion> m_running_jobs;
     std::vector<CUevent> m_events;
 };
 
-CudaExecutorThread::CudaExecutorThread(
-    std::shared_ptr<WorkQueue<CudaExecutorHandle::Job>> queue,
-    std::vector<std::unique_ptr<CudaExecutor>> streams) :
+CudaDeviceThread::CudaDeviceThread(
+    std::shared_ptr<WorkQueue<CudaDeviceHandle::Job>> queue,
+    std::vector<std::unique_ptr<CudaDevice>> streams) :
     m_queue(std::move(queue)),
     m_streams(std::move(streams)) {
     KMM_ASSERT(m_streams.empty() == false);
@@ -110,7 +111,7 @@ CudaExecutorThread::CudaExecutorThread(
     }
 }
 
-CudaExecutorThread::~CudaExecutorThread() {
+CudaDeviceThread::~CudaDeviceThread() {
     for (const auto& event : m_events) {
         KMM_CUDA_CHECK(cuEventDestroy(event));
     }
@@ -119,7 +120,7 @@ CudaExecutorThread::~CudaExecutorThread() {
     m_queue->shutdown();
 }
 
-void CudaExecutorThread::run_forever() {
+void CudaDeviceThread::run_forever() {
     CudaContextGuard guard {m_streams[0]->context_handle()};
 
     bool shutdown = false;
@@ -166,7 +167,7 @@ void CudaExecutorThread::run_forever() {
     }
 }
 
-PollResult CudaExecutorThread::poll_stream(size_t slot) {
+PollResult CudaDeviceThread::poll_stream(size_t slot) {
     // no job on this slot, return `Ready`
     if (!m_running_jobs[slot]) {
         return PollResult::Ready;
@@ -193,7 +194,7 @@ PollResult CudaExecutorThread::poll_stream(size_t slot) {
     return PollResult::Ready;
 }
 
-void CudaExecutorThread::submit_job(size_t slot, std::unique_ptr<CudaExecutorHandle::Job> job) {
+void CudaDeviceThread::submit_job(size_t slot, std::unique_ptr<CudaDeviceHandle::Job> job) {
     KMM_ASSERT(!m_running_jobs[slot]);
 
     try {
@@ -210,41 +211,38 @@ void CudaExecutorThread::submit_job(size_t slot, std::unique_ptr<CudaExecutorHan
     }
 }
 
-CudaExecutorHandle::Job::Job(
-    std::shared_ptr<Task> task,
-    TaskContext context,
-    Completion completion) :
+CudaDeviceHandle::Job::Job(std::shared_ptr<Task> task, TaskContext context, Completion completion) :
     task(std::move(task)),
     context(std::move(context)),
     completion(std::move(completion)) {
 
     };
 
-CudaExecutorHandle::CudaExecutorHandle(
+CudaDeviceHandle::CudaDeviceHandle(
     CudaContextHandle context,
     MemoryId affinity_id,
     size_t num_streams) :
     m_info(context, affinity_id),
     m_queue(std::make_shared<WorkQueue<Job>>()) {
-    std::vector<std::unique_ptr<CudaExecutor>> streams;
+    std::vector<std::unique_ptr<CudaDevice>> streams;
 
     for (size_t i = 0; i < num_streams; i++) {
-        streams.push_back(std::make_unique<CudaExecutor>(context, affinity_id));
+        streams.push_back(std::make_unique<CudaDevice>(context, affinity_id));
     }
 
-    auto state = std::make_unique<CudaExecutorThread>(m_queue, std::move(streams));
+    auto state = std::make_unique<CudaDeviceThread>(m_queue, std::move(streams));
     m_thread = std::thread([state = std::move(state)] { state->run_forever(); });
 }
 
-CudaExecutorHandle::~CudaExecutorHandle() noexcept {
+CudaDeviceHandle::~CudaDeviceHandle() noexcept {
     m_queue->shutdown();
     m_thread.join();
 }
 
-std::unique_ptr<ExecutorInfo> CudaExecutorHandle::info() const {
-    return std::make_unique<CudaExecutorInfo>(m_info);
+std::unique_ptr<DeviceInfo> CudaDeviceHandle::info() const {
+    return std::make_unique<CudaDeviceInfo>(m_info);
 }
-void CudaExecutorHandle::submit(
+void CudaDeviceHandle::submit(
     std::shared_ptr<Task> task,
     TaskContext context,
     Completion completion) const {

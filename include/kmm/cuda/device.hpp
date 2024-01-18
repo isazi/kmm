@@ -13,7 +13,7 @@
 #endif
 
 #include "kmm/cuda/types.hpp"
-#include "kmm/executor.hpp"
+#include "kmm/device.hpp"
 #include "kmm/host/work_queue.hpp"
 #include "kmm/identifiers.hpp"
 
@@ -21,12 +21,12 @@
 
 namespace kmm {
 
-class CudaExecutorInfo: public ExecutorInfo {
+class CudaDeviceInfo: public DeviceInfo {
   public:
     static constexpr size_t NUM_ATTRIBUTES = 19;
     static CUdevice_attribute ATTRIBUTES[NUM_ATTRIBUTES];
 
-    CudaExecutorInfo(CudaContextHandle context, MemoryId affinity_id);
+    CudaDeviceInfo(CudaContextHandle context, MemoryId affinity_id);
 
     std::string name() const override {
         return m_name;
@@ -49,12 +49,12 @@ class CudaExecutorInfo: public ExecutorInfo {
     std::array<int, NUM_ATTRIBUTES> m_attributes;
 };
 
-class CudaExecutor final: public Executor, public CudaExecutorInfo {
-    KMM_NOT_COPYABLE_OR_MOVABLE(CudaExecutor);
+class CudaDevice final: public CudaDeviceInfo, public Device {
+    KMM_NOT_COPYABLE_OR_MOVABLE(CudaDevice);
 
   public:
-    CudaExecutor(CudaContextHandle, MemoryId affinity_id);
-    ~CudaExecutor() noexcept final;
+    CudaDevice(CudaContextHandle, MemoryId affinity_id);
+    ~CudaDevice() noexcept final;
 
     CudaContextHandle context_handle() const {
         return m_context;
@@ -100,12 +100,12 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
     CUevent m_event;
 };
 
-class CudaExecutorHandle: public ExecutorHandle {
+class CudaDeviceHandle: public DeviceHandle {
   public:
-    CudaExecutorHandle(CudaContextHandle context, MemoryId affinity_id, size_t num_streams = 4);
-    ~CudaExecutorHandle() noexcept;
+    CudaDeviceHandle(CudaContextHandle context, MemoryId affinity_id, size_t num_streams = 4);
+    ~CudaDeviceHandle() noexcept;
 
-    std::unique_ptr<ExecutorInfo> info() const override;
+    std::unique_ptr<DeviceInfo> info() const override;
     void submit(std::shared_ptr<Task> task, TaskContext context, Completion completion)
         const override;
 
@@ -119,7 +119,7 @@ class CudaExecutorHandle: public ExecutorHandle {
     };
 
   private:
-    CudaExecutorInfo m_info;
+    CudaDeviceInfo m_info;
     std::shared_ptr<WorkQueue<Job>> m_queue;
     std::thread m_thread;
 };

@@ -31,7 +31,7 @@ class Scheduler {
             unsatisfied_predecessors(predecessors),
             sequence_number(sequence_number) {
             if (const auto* cmd = std::get_if<ExecuteCommand>(&this->command)) {
-                queue_id = cmd->executor_id.get() + 1;
+                queue_id = cmd->device_id.get() + 1;
             } else {
                 queue_id = 0;
             }

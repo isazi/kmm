@@ -13,11 +13,9 @@
 
 namespace kmm {
 
-Worker::Worker(
-    std::vector<std::shared_ptr<ExecutorHandle>> executors,
-    std::unique_ptr<Memory> memory) :
+Worker::Worker(std::vector<std::shared_ptr<DeviceHandle>> devices, std::unique_ptr<Memory> memory) :
     m_shared_poll_queue {std::make_shared<SharedJobQueue>()},
-    m_state {executors, std::make_shared<MemoryManager>(std::move(memory)), BlockManager()} {}
+    m_state {devices, std::make_shared<MemoryManager>(std::move(memory)), BlockManager()} {}
 
 void Worker::make_progress(std::chrono::time_point<std::chrono::system_clock> deadline) {
     while (true) {

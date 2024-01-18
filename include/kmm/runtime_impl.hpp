@@ -5,8 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "kmm/device.hpp"
 #include "kmm/event_list.hpp"
-#include "kmm/executor.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/worker/runner.hpp"
 
@@ -16,9 +16,7 @@ class Worker;
 
 class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
   public:
-    RuntimeImpl(
-        std::vector<std::shared_ptr<ExecutorHandle>> executors,
-        std::unique_ptr<Memory> memory);
+    RuntimeImpl(std::vector<std::shared_ptr<DeviceHandle>> devices, std::unique_ptr<Memory> memory);
     ~RuntimeImpl();
 
     BlockId create_block(
@@ -41,11 +39,11 @@ class RuntimeImpl: public std::enable_shared_from_this<RuntimeImpl> {
     bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {})
         const;
 
-    size_t num_executors() const;
-    const ExecutorInfo& executor_info(ExecutorId id) const;
+    size_t num_devices() const;
+    const DeviceInfo& device_info(DeviceId id) const;
 
   private:
-    std::vector<std::unique_ptr<ExecutorInfo>> m_executors;
+    std::vector<std::unique_ptr<DeviceInfo>> m_devices;
     std::shared_ptr<Worker> m_worker;
     WorkerRunner m_thread;
 

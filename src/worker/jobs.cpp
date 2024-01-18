@@ -107,8 +107,7 @@ PollResult ExecuteJob::poll(WorkerState& worker) {
                 });
             }
 
-            worker.executors.at(m_device_id)
-                ->submit(m_task, std::move(context), Completion(result));
+            worker.devices.at(m_device_id)->submit(m_task, std::move(context), Completion(result));
             m_result = std::move(result);
         } catch (...) {
             m_result = std::make_shared<TaskResult>(ErrorPtr::from_current_exception());

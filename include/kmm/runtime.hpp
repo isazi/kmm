@@ -5,7 +5,7 @@
 #include <utility>
 
 #include "kmm/array.hpp"
-#include "kmm/executor.hpp"
+#include "kmm/device.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/task_serialize.hpp"
 #include "kmm/utils/checked_math.hpp"
@@ -36,11 +36,11 @@ class Runtime {
      */
     template<typename Launcher, typename... Args>
     EventId submit(Launcher launcher, Args&&... args) const {
-        ExecutorId executor_id = launcher.find_executor(*m_impl);
+        DeviceId device_id = launcher.find_device(*m_impl);
 
         return submit_task_with_launcher(
             *m_impl,
-            executor_id,
+            device_id,
             std::move(launcher),
             std::forward<Args>(args)...);
     }

@@ -3,13 +3,13 @@
 #include <memory>
 #include <thread>
 
-#include "kmm/executor.hpp"
+#include "kmm/device.hpp"
 #include "kmm/host/work_queue.hpp"
 #include "kmm/utils/completion.hpp"
 
 namespace kmm {
 
-class ParallelExecutor;
+class ParallelDevice;
 
 class ThreadPool {
     class FillJob;
@@ -20,7 +20,7 @@ class ThreadPool {
     class Job: public WorkQueue<Job>::JobBase {
       public:
         virtual ~Job() = default;
-        virtual void execute(ParallelExecutor&) = 0;
+        virtual void execute(ParallelDevice&) = 0;
     };
 
     ThreadPool();
