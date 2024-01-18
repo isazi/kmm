@@ -46,6 +46,14 @@ class Runtime {
     }
 
     /**
+     * Find the device identifier that would be used by the provided task launcher.
+     */
+    template<typename Launcher>
+    DeviceId find_device(const Launcher& launcher) const {
+        return launcher.find_device(*m_impl);
+    }
+
+    /**
      * Create a new array where the data is provided by memory stored on the host. The dimensions
      * of the new array will be `{sizes[0], sizes[1], ...}`. The provided buffer must contain
      * exactly `sizes[0] * sizes[1] * ...` elements.

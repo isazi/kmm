@@ -75,7 +75,7 @@ Runtime build_runtime() {
 
         memory = std::make_unique<CudaMemory>(host_device, contexts);
     } else
-#endif // KMM_USE_CUDA
+#endif  // KMM_USE_CUDA
     {
         memory = std::make_unique<HostMemory>(host_device);
     }
