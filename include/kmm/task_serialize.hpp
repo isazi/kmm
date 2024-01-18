@@ -13,6 +13,11 @@ enum struct ExecutionSpace { Host, Cuda };
 
 template<ExecutionSpace Space, typename T, typename = void>
 struct TaskArgumentSerializer {
+    // T cannot be a pointer except for function pointers.
+    static_assert(
+        !std::is_pointer<T>() || std::is_function<std::remove_pointer_t<T>>(),
+        "It is not possible to serialize raw pointers");
+
     using type = std::decay_t<T>;
 
     type serialize(RuntimeImpl& rt, T value, TaskRequirements& requirements) {

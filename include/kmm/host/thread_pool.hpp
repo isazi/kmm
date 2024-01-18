@@ -9,7 +9,7 @@
 
 namespace kmm {
 
-class ParallelDevice;
+class HostDevice;
 
 class ThreadPool {
     class FillJob;
@@ -20,7 +20,7 @@ class ThreadPool {
     class Job: public WorkQueue<Job>::JobBase {
       public:
         virtual ~Job() = default;
-        virtual void execute(ParallelDevice&) = 0;
+        virtual void execute(HostDevice&) = 0;
     };
 
     ThreadPool();

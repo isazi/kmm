@@ -14,7 +14,7 @@ class HostDeviceInfo final: public DeviceInfo {
     MemoryId memory_affinity() const override;
 };
 
-class ParallelDevice final: public Device {};
+class HostDevice final: public Device {};
 
 class ParallelDeviceHandle: public DeviceHandle, public ThreadPool {
   public:
