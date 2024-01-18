@@ -7,6 +7,7 @@
 #include "kmm/array.hpp"
 #include "kmm/executor.hpp"
 #include "kmm/identifiers.hpp"
+#include "kmm/task_serialize.hpp"
 #include "kmm/utils/checked_math.hpp"
 
 namespace kmm {
@@ -34,8 +35,14 @@ class Runtime {
      * @return The event identifier of the submitted task.
      */
     template<typename Launcher, typename... Args>
-    EventId submit(const Launcher& launcher, Args&&... args) const {
-        return launcher(*m_impl, std::forward<Args>(args)...);
+    EventId submit(Launcher launcher, Args&&... args) const {
+        ExecutorId executor_id = launcher.find_executor(*m_impl);
+
+        return submit_task_with_launcher(
+            *m_impl,
+            executor_id,
+            std::move(launcher),
+            std::forward<Args>(args)...);
     }
 
     /**
