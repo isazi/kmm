@@ -64,45 +64,49 @@ if(DEFINED CMAKE_CUDA_COMPILER)
 endif()
 
 # Unit testing
-enable_testing()
-find_package(GTest)
+if(${TESTING})
+  enable_testing()
+  find_package(GTest)
 
-add_executable(
-  kmmTestCxx
-  test/test_memory_manager.cpp
-  test/test_result.cpp
-  test/test_memory_pool.cpp
-)
-target_include_directories(
-    kmmTestCxx
-    PRIVATE
-    ${GTEST_INCLUDE_DIRS}
-    ${PROJECT_SOURCE_DIR}/include
-)
-target_link_libraries(
-  kmmTestCxx
-  PRIVATE
-  kmm
-  GTest::gtest_main
-)
-
-include(GoogleTest)
-gtest_discover_tests(kmmTestCxx)
-
-# Examples
-if(DEFINED CMAKE_CUDA_COMPILER)
   add_executable(
-    vector_add
-    examples/vector_add.cu
+    kmmTestCxx
+    test/test_memory_manager.cpp
+    test/test_result.cpp
+    test/test_memory_pool.cpp
   )
   target_include_directories(
-      vector_add
+      kmmTestCxx
       PRIVATE
+      ${GTEST_INCLUDE_DIRS}
       ${PROJECT_SOURCE_DIR}/include
   )
   target_link_libraries(
-    vector_add
+    kmmTestCxx
     PRIVATE
     kmm
+    GTest::gtest_main
   )
+
+  include(GoogleTest)
+  gtest_discover_tests(kmmTestCxx)
+endif()
+
+# Compile examples
+if(${EXAMPLES})
+  if(DEFINED CMAKE_CUDA_COMPILER)
+    add_executable(
+      vector_add
+      examples/vector_add.cu
+    )
+    target_include_directories(
+        vector_add
+        PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+    )
+    target_link_libraries(
+      vector_add
+      PRIVATE
+      kmm
+    )
+  endif()
 endif()
