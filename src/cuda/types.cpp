@@ -38,7 +38,7 @@ CudaException::CudaException(const std::string& message, cudaError_t result) {
     description = cudaGetErrorString(result);
 
     m_message = fmt::format("CUDA error: {} ({}): {}", description, name, message);
-    m_status = CUDA_ERROR_UNKNOWN;
+    m_status = (CUresult)(result);
 }
 
 CudaContextHandle::CudaContextHandle(CUcontext context, std::shared_ptr<void> lifetime) :
