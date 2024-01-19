@@ -8,11 +8,9 @@
     #include <cublas_v2.h>
     #include <cuda.h>
     #include <cuda_runtime_api.h>
-#endif
 
-#include "kmm/utils/macros.hpp"
+    #include "kmm/utils/macros.hpp"
 
-#ifdef KMM_USE_CUDA
     #define KMM_CUDA_CHECK(...)                                                        \
         do {                                                                           \
             auto __code = (__VA_ARGS__);                                               \
