@@ -1,10 +1,10 @@
 #include <future>
 
-#include "kmm/cuda/executor.hpp"
+#include "kmm/cuda/device.hpp"
 #include "kmm/cuda/memory.hpp"
 #include "kmm/cuda/types.hpp"
-#include "kmm/executor.hpp"
-#include "kmm/host/executor.hpp"
+#include "kmm/device.hpp"
+#include "kmm/host/device.hpp"
 #include "kmm/host/memory.hpp"
 #include "kmm/runtime.hpp"
 #include "kmm/runtime_impl.hpp"
@@ -53,34 +53,34 @@ void Runtime::synchronize() const {
 }
 
 Runtime build_runtime() {
-    auto host_executor = std::make_shared<ParallelExecutorHandle>();
+    auto host_device = std::make_shared<ParallelDeviceHandle>();
 
-    std::vector<std::shared_ptr<ExecutorHandle>> executors = {host_executor};
+    std::vector<std::shared_ptr<DeviceHandle>> handles = {host_device};
     std::unique_ptr<Memory> memory;
 
 #ifdef KMM_USE_CUDA
-    auto devices = get_cuda_devices();
-    if (!devices.empty()) {
+    auto cuda_devices = get_cuda_devices();
+
+    if (!cuda_devices.empty()) {
         auto contexts = std::vector<CudaContextHandle> {};
         uint8_t memory_id = 1;
 
-        for (auto device : devices) {
-            auto context = CudaContextHandle::from_new_context(device);
+        for (auto cuda_device : cuda_devices) {
+            auto context = CudaContextHandle::from_new_context(cuda_device);
             contexts.push_back(context);
 
-            executors.push_back(std::make_shared<CudaExecutorHandle>(context, MemoryId(memory_id)));
+            handles.push_back(std::make_shared<CudaDeviceHandle>(context, MemoryId(memory_id)));
             memory_id++;
         }
 
-        memory = std::make_unique<CudaMemory>(host_executor, contexts);
-    } else {
-        memory = std::make_unique<HostMemory>(host_executor);
-    }
-#else
-    memory = std::make_unique<HostMemory>(host_executor);
+        memory = std::make_unique<CudaMemory>(host_device, contexts);
+    } else
 #endif  // KMM_USE_CUDA
+    {
+        memory = std::make_unique<HostMemory>(host_device);
+    }
 
-    return std::make_shared<RuntimeImpl>(std::move(executors), std::move(memory));
+    return std::make_shared<RuntimeImpl>(std::move(handles), std::move(memory));
 }
 
 }  // namespace kmm

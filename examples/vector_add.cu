@@ -29,10 +29,10 @@ void initialize(float* A, float* B) {
     std::cout << "initialize\n";
 }
 
-void execute(kmm::CudaExecutor& executor, float* C, const float* A, const float* B) {
+void execute(kmm::CudaDevice& device, float* C, const float* A, const float* B) {
     int block_size = 256;
     int num_blocks = (SIZE + block_size - 1) / block_size;
-    vector_add<<<num_blocks, block_size, 0, executor.stream()>>>(A, B, C, SIZE);
+    vector_add<<<num_blocks, block_size, 0, device.stream()>>>(A, B, C, SIZE);
 }
 
 void verify(const float* C) {

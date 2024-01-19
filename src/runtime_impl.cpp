@@ -8,12 +8,12 @@
 namespace kmm {
 
 RuntimeImpl::RuntimeImpl(
-    std::vector<std::shared_ptr<ExecutorHandle>> executors,
+    std::vector<std::shared_ptr<DeviceHandle>> devices,
     std::unique_ptr<Memory> memory) :
-    m_worker(std::make_shared<Worker>(executors, std::move(memory))),
+    m_worker(std::make_shared<Worker>(devices, std::move(memory))),
     m_thread(m_worker) {
-    for (const auto& executor : executors) {
-        m_executors.push_back(executor->info());
+    for (const auto& device : devices) {
+        m_devices.push_back(device->info());
     }
 }
 
@@ -66,7 +66,7 @@ EventId RuntimeImpl::submit_task(std::shared_ptr<Task> task, TaskRequirements re
     m_worker->submit_command(
         event_id,
         ExecuteCommand {
-            .executor_id = reqs.executor_id,
+            .device_id = reqs.device_id,
             .task = std::move(task),
             .inputs = std::move(reqs.inputs),
             .outputs = std::move(reqs.outputs),
@@ -98,6 +98,7 @@ EventId RuntimeImpl::join_events(EventList deps) const {
 }
 
 EventId RuntimeImpl::submit_barrier() const {
+    std::lock_guard guard {m_mutex};
     auto id = EventId(m_next_event++);
     m_worker->submit_barrier(id);
     return id;
@@ -121,6 +122,7 @@ EventId RuntimeImpl::submit_block_barrier(BlockId block_id) const {
 
 EventId RuntimeImpl::submit_block_prefetch(BlockId block_id, MemoryId memory_id, EventList deps)
     const {
+    std::lock_guard guard {m_mutex};
     auto id = EventId(m_next_event++);
 
     // Add the event that created the block as a dependency
@@ -151,12 +153,12 @@ bool RuntimeImpl::query_event(
     return m_worker->query_event(id, deadline);
 }
 
-size_t RuntimeImpl::num_executors() const {
-    return m_executors.size();
+size_t RuntimeImpl::num_devices() const {
+    return m_devices.size();
 }
 
-const ExecutorInfo& RuntimeImpl::executor_info(ExecutorId id) const {
-    return *m_executors.at(id);
+const DeviceInfo& RuntimeImpl::device_info(DeviceId id) const {
+    return *m_devices.at(id);
 }
 
 }  // namespace kmm

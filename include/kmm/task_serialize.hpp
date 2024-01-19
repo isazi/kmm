@@ -13,6 +13,11 @@ enum struct ExecutionSpace { Host, Cuda };
 
 template<ExecutionSpace Space, typename T, typename = void>
 struct TaskArgumentSerializer {
+    // T cannot be a pointer except for function pointers.
+    static_assert(
+        !std::is_pointer<T>() || std::is_function<std::remove_pointer_t<T>>(),
+        "It is not possible to serialize raw pointers");
+
     using type = std::decay_t<T>;
 
     type serialize(RuntimeImpl& rt, T value, TaskRequirements& requirements) {
@@ -38,15 +43,15 @@ class TaskImpl final: public Task {
         m_launcher(std::move(launcher)),
         m_args(std::move(args)...) {}
 
-    void execute(Executor& executor, TaskContext& context) override {
-        return execute_impl(executor, context, std::index_sequence_for<Args...>());
+    void execute(Device& device, TaskContext& context) override {
+        return execute_impl(device, context, std::index_sequence_for<Args...>());
     }
 
   private:
     template<size_t... Is>
-    void execute_impl(Executor& executor, TaskContext& context, std::index_sequence<Is...>) {
+    void execute_impl(Device& device, TaskContext& context, std::index_sequence<Is...>) {
         m_launcher(
-            executor,
+            device,
             context,
             TaskArgumentDeserializer<execution_space, Args>().deserialize(  //
                 std::get<Is>(m_args),
@@ -65,10 +70,10 @@ struct TaskLaunchHelper {
     static EventId call(
         std::index_sequence<Is...>,
         Launcher launcher,
-        ExecutorId executor_id,
+        DeviceId device_id,
         RuntimeImpl& rt,
         Args... args) {
-        auto reqs = TaskRequirements(executor_id);
+        auto reqs = TaskRequirements(device_id);
         auto serializers =
             std::tuple<TaskArgumentSerializer<execution_space, std::decay_t<Args>>...>();
 
@@ -88,13 +93,13 @@ struct TaskLaunchHelper {
 template<typename Launcher, typename... Args>
 EventId submit_task_with_launcher(
     RuntimeImpl& rt,
-    ExecutorId executor_id,
+    DeviceId device_id,
     Launcher launcher,
     Args... args) {
     return TaskLaunchHelper<Launcher, Args...>::call(
         std::index_sequence_for<Args...>(),
         launcher,
-        executor_id,
+        device_id,
         rt,
         args...);
 }

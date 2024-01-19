@@ -1,5 +1,7 @@
-#include "memory_pool.hpp"
-#include "types.hpp"
+#pragma once
+
+#include "kmm/cuda/types.hpp"
+#include "kmm/utils/memory_pool.hpp"
 
 #ifdef KMM_USE_CUDA
 

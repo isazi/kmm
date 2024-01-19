@@ -1,24 +1,24 @@
 #include <algorithm>
 #include <utility>
 
-#include "kmm/host/executor.hpp"
+#include "kmm/host/device.hpp"
 #include "kmm/panic.hpp"
 
 namespace kmm {
 
-std::string HostExecutorInfo::name() const {
+std::string HostDeviceInfo::name() const {
     return "CPU";
 }
 
-MemoryId HostExecutorInfo::memory_affinity() const {
+MemoryId HostDeviceInfo::memory_affinity() const {
     return MemoryId(0);
 }
 
-std::unique_ptr<ExecutorInfo> ParallelExecutorHandle::info() const {
-    return std::make_unique<HostExecutorInfo>();
+std::unique_ptr<DeviceInfo> ParallelDeviceHandle::info() const {
+    return std::make_unique<HostDeviceInfo>();
 }
 
-void ParallelExecutorHandle::submit(
+void ParallelDeviceHandle::submit(
     std::shared_ptr<Task> task,
     TaskContext context,
     Completion completion) const {

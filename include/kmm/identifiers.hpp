@@ -84,12 +84,12 @@ class MemoryId {
     uint8_t m_value;
 };
 
-class ExecutorId {
+class DeviceId {
   public:
-    explicit constexpr ExecutorId(uint8_t value) : m_value(value) {}
+    explicit constexpr DeviceId(uint8_t value) : m_value(value) {}
 
-    static constexpr ExecutorId invalid() {
-        return ExecutorId(~uint8_t(0));
+    static constexpr DeviceId invalid() {
+        return DeviceId(~uint8_t(0));
     }
 
     constexpr uint8_t get() const {
@@ -100,15 +100,15 @@ class ExecutorId {
         return get();
     }
 
-    constexpr bool operator==(const ExecutorId& that) const {
+    constexpr bool operator==(const DeviceId& that) const {
         return m_value == that.m_value;
     }
 
-    constexpr bool operator<(const ExecutorId& that) const {
+    constexpr bool operator<(const DeviceId& that) const {
         return m_value < that.m_value;
     }
 
-    KMM_IMPL_COMPARISON_OPS(ExecutorId)
+    KMM_IMPL_COMPARISON_OPS(DeviceId)
 
   private:
     uint8_t m_value;
@@ -131,7 +131,7 @@ class BlockId {
     }
 
     constexpr size_t hash() const {
-        return m_event.get() * 256 * m_index;
+        return m_event.get() * 256 + m_index;
     }
 
     std::string to_string() const {
@@ -201,7 +201,7 @@ template<>
 struct formatter<kmm::MemoryId>: formatter<uint8_t> {};
 
 template<>
-struct formatter<kmm::ExecutorId>: formatter<uint8_t> {};
+struct formatter<kmm::DeviceId>: formatter<uint8_t> {};
 
 template<>
 struct formatter<kmm::BufferId>: formatter<uint64_t> {};
@@ -223,7 +223,7 @@ template<>
 struct hash<kmm::MemoryId>: hash<uint8_t> {};
 
 template<>
-struct hash<kmm::ExecutorId>: hash<uint8_t> {};
+struct hash<kmm::DeviceId>: hash<uint8_t> {};
 
 template<>
 struct hash<kmm::BufferId>: hash<uint64_t> {};

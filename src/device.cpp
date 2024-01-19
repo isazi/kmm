@@ -1,4 +1,4 @@
-#include "kmm/executor.hpp"
+#include "kmm/device.hpp"
 #include "kmm/runtime_impl.hpp"
 
 namespace kmm {
@@ -32,7 +32,7 @@ size_t TaskRequirements::add_input(BlockId block_id, MemoryId memory_id) {
 }
 
 size_t TaskRequirements::add_input(BlockId block_id, RuntimeImpl& rt) {
-    auto memory_id = rt.executor_info(executor_id).memory_affinity();
+    auto memory_id = rt.device_info(device_id).memory_affinity();
     return add_input(block_id, memory_id);
 }
 
@@ -44,20 +44,20 @@ size_t TaskRequirements::add_output(std::unique_ptr<BlockHeader> header, MemoryI
 }
 
 size_t TaskRequirements::add_output(std::unique_ptr<BlockHeader> header, RuntimeImpl& rt) {
-    auto memory_id = rt.executor_info(executor_id).memory_affinity();
+    auto memory_id = rt.device_info(device_id).memory_affinity();
     return add_output(std::move(header), memory_id);
 }
 
-InvalidExecutorException::InvalidExecutorException(
+InvalidDeviceException::InvalidDeviceException(
     const std::type_info& expected,
     const std::type_info& gotten) {
     m_message = fmt::format(
-        "invalid executor: expecting an executor of type `{}`, but gotten an executor of type `{}`",
+        "invalid device: expecting an device of type `{}`, but gotten an device of type `{}`",
         expected.name(),
         gotten.name());
 }
 
-const char* InvalidExecutorException::what() const noexcept {
+const char* InvalidDeviceException::what() const noexcept {
     return m_message.c_str();
 }
 }  // namespace kmm

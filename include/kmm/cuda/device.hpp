@@ -13,48 +13,92 @@
 #endif
 
 #include "kmm/cuda/types.hpp"
-#include "kmm/executor.hpp"
-#include "kmm/host/work_queue.hpp"
+#include "kmm/device.hpp"
 #include "kmm/identifiers.hpp"
+#include "kmm/utils/work_queue.hpp"
 
 #ifdef KMM_USE_CUDA
 
 namespace kmm {
 
-class CudaExecutorInfo: public ExecutorInfo {
+/**
+ * Stores the information on a CUDA device.
+ */
+class CudaDeviceInfo: public DeviceInfo {
   public:
-    static constexpr size_t NUM_ATTRIBUTES = 19;
-    static CUdevice_attribute ATTRIBUTES[NUM_ATTRIBUTES];
+    static constexpr size_t NUM_ATTRIBUTES = CU_DEVICE_ATTRIBUTE_MAX;
 
-    CudaExecutorInfo(CudaContextHandle context, MemoryId affinity_id);
+    CudaDeviceInfo(CudaContextHandle context, MemoryId affinity_id);
 
+    /**
+     * Returns the name of the CUDA device as provided by `cuDeviceGetName`.
+     */
     std::string name() const override {
         return m_name;
     }
 
+    /**
+     * Returns which memory this device has affinity to.
+     */
     MemoryId memory_affinity() const override {
         return m_affinity_id;
     }
 
+    /**
+     * Return this device as a `CUdevice`.
+     */
     CUdevice device() const {
         return m_device_id;
     }
 
+    /**
+     * Returns the maximum block size supported by this device.
+     */
+    dim3 max_block_dim() const;
+
+    /**
+     * Returns the maximum grid size supported by this device.
+     */
+    dim3 max_grid_dim() const;
+
+    /**
+     * Returns the compute capability of this device as integer `MAJOR * 10 + MINOR` (For example,
+     * `86` means capability 8.6)
+     */
+    int compute_capability() const;
+
+    /**
+     * Returns the maximum number of threads per block supported by this device.
+     */
+    int max_threads_per_block() const;
+
+    /**
+     * Returns the total memory size of this device.
+     */
+    size_t total_memory_size() const;
+
+    /**
+     * Returns the value of the provided attribute.
+     */
     int attribute(CUdevice_attribute attrib) const;
 
   private:
     std::string m_name;
     CUdevice m_device_id;
+    size_t m_memory_capacity;
     MemoryId m_affinity_id;
     std::array<int, NUM_ATTRIBUTES> m_attributes;
 };
 
-class CudaExecutor final: public Executor, public CudaExecutorInfo {
-    KMM_NOT_COPYABLE_OR_MOVABLE(CudaExecutor);
+/**
+ * Contains the state of a CUDA device, such as the CUDA context and the CUDA stream.
+ */
+class CudaDevice final: public CudaDeviceInfo, public Device {
+    KMM_NOT_COPYABLE_OR_MOVABLE(CudaDevice);
 
   public:
-    CudaExecutor(CudaContextHandle, MemoryId affinity_id);
-    ~CudaExecutor() noexcept final;
+    CudaDevice(CudaContextHandle, MemoryId affinity_id);
+    ~CudaDevice() noexcept final;
 
     CudaContextHandle context_handle() const {
         return m_context;
@@ -100,12 +144,15 @@ class CudaExecutor final: public Executor, public CudaExecutorInfo {
     CUevent m_event;
 };
 
-class CudaExecutorHandle: public ExecutorHandle {
+/**
+ * Contains a handle to the CUDA device thread and allows tasks to be submitted onto the thread.
+ */
+class CudaDeviceHandle: public DeviceHandle {
   public:
-    CudaExecutorHandle(CudaContextHandle context, MemoryId affinity_id, size_t num_streams = 4);
-    ~CudaExecutorHandle() noexcept;
+    CudaDeviceHandle(CudaContextHandle context, MemoryId affinity_id, size_t num_streams = 4);
+    ~CudaDeviceHandle() noexcept;
 
-    std::unique_ptr<ExecutorInfo> info() const override;
+    std::unique_ptr<DeviceInfo> info() const override;
     void submit(std::shared_ptr<Task> task, TaskContext context, Completion completion)
         const override;
 
@@ -119,7 +166,7 @@ class CudaExecutorHandle: public ExecutorHandle {
     };
 
   private:
-    CudaExecutorInfo m_info;
+    CudaDeviceInfo m_info;
     std::shared_ptr<WorkQueue<Job>> m_queue;
     std::thread m_thread;
 };

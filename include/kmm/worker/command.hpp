@@ -2,7 +2,7 @@
 
 #include <variant>
 
-#include "kmm/executor.hpp"
+#include "kmm/device.hpp"
 #include "kmm/identifiers.hpp"
 
 namespace kmm {
@@ -10,7 +10,7 @@ namespace kmm {
 struct EmptyCommand {};
 
 struct ExecuteCommand {
-    ExecutorId executor_id;
+    DeviceId device_id;
     std::shared_ptr<Task> task;
     std::vector<TaskInput> inputs;
     std::vector<TaskOutput> outputs;
