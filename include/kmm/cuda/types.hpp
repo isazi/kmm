@@ -59,7 +59,7 @@ class CudaRuntimeException: public CudaException {
 
 class CudaBlasException: public CudaException {
   public:
-    CudaBlasException(const std::string& message, cublasStatus_t status);
+    CudaBlasException(const std::string& message, cublasStatus_t result);
     cublasStatus_t status;
 };
 
