@@ -95,6 +95,69 @@ cublasHandle_t CudaDevice::cublas() {
     return m_cublas_handle;
 }
 
+static bool is_fill_pattern_repetitive(
+    size_t k,
+    const void* fill_pattern,
+    size_t fill_pattern_size) {
+    if (fill_pattern_size % k != 0) {
+        return false;
+    }
+
+    for (size_t i = 1; i < fill_pattern_size / k; i++) {
+        for (size_t j = 0; j < k; j++) {
+            if (static_cast<const char*>(fill_pattern)[i * k + j]
+                != static_cast<const char*>(fill_pattern)[j]) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+void CudaDevice::fill_raw(
+    void* dest_buffer,
+    size_t nbytes,
+    const void* fill_pattern,
+    size_t fill_pattern_size) const {
+    if (is_fill_pattern_repetitive(1, fill_pattern, fill_pattern_size)) {
+        uint8_t fill_value;
+        ::memcpy(&fill_value, fill_pattern, sizeof(uint8_t));
+
+        KMM_CUDA_CHECK(cuMemsetD8Async(CUdeviceptr(dest_buffer), fill_value, nbytes, m_stream));
+
+    } else if (is_fill_pattern_repetitive(2, fill_pattern, fill_pattern_size)) {
+        uint16_t fill_value;
+        ::memcpy(&fill_value, fill_pattern, sizeof(uint16_t));
+
+        KMM_CUDA_CHECK(cuMemsetD16Async(
+            CUdeviceptr(dest_buffer),
+            fill_value,
+            nbytes / sizeof(uint16_t),
+            m_stream));
+
+    } else if (is_fill_pattern_repetitive(4, fill_pattern, fill_pattern_size)) {
+        uint32_t fill_value;
+        ::memcpy(&fill_value, fill_pattern, sizeof(uint32_t));
+
+        KMM_CUDA_CHECK(cuMemsetD32Async(
+            CUdeviceptr(dest_buffer),
+            fill_value,
+            nbytes / sizeof(uint32_t),
+            m_stream));
+
+    } else {
+        throw CudaException(fmt::format(
+            "could not fill buffer, value is {} bit, but only 8, 16, or 32 bit is supported",
+            fill_pattern_size * 8));
+    }
+}
+
+void CudaDevice::copy_raw(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
+    KMM_CUDA_CHECK(
+        cuMemcpyDtoDAsync(CUdeviceptr(dest_buffer), CUdeviceptr(source_buffer), nbytes, m_stream));
+}
+
 class CudaDeviceThread {
   public:
     CudaDeviceThread(

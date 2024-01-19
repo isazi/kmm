@@ -16,6 +16,7 @@
 #include "kmm/cuda/types.hpp"
 #include "kmm/device.hpp"
 #include "kmm/identifiers.hpp"
+#include "kmm/utils/view.hpp"
 #include "kmm/utils/work_queue.hpp"
 
 #ifdef KMM_USE_CUDA
@@ -139,6 +140,25 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
             void_args,
             shared_mem,
             m_stream));
+    }
+
+    void fill_raw(
+        void* dest_buffer,
+        size_t nbytes,
+        const void* fill_pattern,
+        size_t fill_pattern_size) const;
+
+    template<typename T, size_t N>
+    void fill(cuda_view_mut<T, N> dest, T value) const {
+        fill_raw(dest.data(), dest.size_in_bytes(), &value, sizeof(T));
+    }
+
+    void copy_raw(const void* source_buffer, void* dest_buffer, size_t nbytes) const;
+
+    template<typename T, size_t N>
+    void copy(cuda_view<T, N> source, cuda_view_mut<T, N> dest) const {
+        KMM_ASSERT(source.sizes() == dest.sizes());
+        copy_raw(source.data(), dest.data(), source.size_in_bytes());
     }
 
   private:

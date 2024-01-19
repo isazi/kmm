@@ -179,7 +179,7 @@ struct remove_axis_impl<bounds<N, I>, Axis> {
     static type call(bounds<N, I> source) {
         fixed_array<I, N - 1> new_sizes;
         for (size_t i = 0; i < N - 1; i++) {
-            result[i] = source.size(i + size_t(i >= Axis));
+            new_sizes[i] = source.size(i + size_t(i >= Axis));
         }
         return new_sizes;
     }
@@ -206,7 +206,7 @@ using remove_axis_type = typename remove_axis_impl<D, Axis>::type;
 }  // namespace domains
 
 namespace layouts {
-template<typename D, typename S = ptrdiff_t>
+template<typename D, typename S>
 struct right_to_left: private D {
     static constexpr size_t rank = D::rank;
     using domain_type = D;
@@ -240,7 +240,7 @@ struct right_to_left: private D {
             stride *= stride_type(domain().size(i - 1));
         }
 
-        return result;
+        return offset + linear;
     }
 
     index_type required_span() const {
@@ -252,7 +252,7 @@ struct right_to_left: private D {
     }
 };
 
-template<typename D, typename S = default_stride_type>
+template<typename D, typename S>
 struct left_to_right: private D {
     static constexpr size_t rank = D::rank;
     using domain_type = D;
@@ -297,7 +297,7 @@ struct left_to_right: private D {
     }
 };
 
-template<typename D, typename S = default_stride_type>
+template<typename D, typename S>
 struct strided: private D {
     static constexpr size_t rank = D::rank;
     using domain_type = D;
@@ -387,7 +387,7 @@ struct convert<L, L> {
 
 template<typename From, typename D, typename S>
 struct convert<From, strided<D, S>> {
-    static strided<D> call(const From& from) {
+    static strided<D, S> call(const From& from) {
         D new_domain = domains::convert<typename From::domain_type, D>::call(from.domain());
 
         fixed_array<S, D::rank> new_strides;
@@ -444,6 +444,32 @@ template<typename L, size_t Axis>
 using remove_axis_type = typename remove_axis_impl<L, Axis>::type;
 
 }  // namespace layouts
+
+namespace mappings {
+template<typename S = default_stride_type>
+struct right_to_left {
+    template<typename D>
+    using layout_type = layouts::right_to_left<D, S>;
+};
+
+template<typename S = default_stride_type>
+struct left_to_right {
+    template<typename D>
+    using layout_type = layouts::left_to_right<D, S>;
+};
+
+template<typename S = default_stride_type>
+struct strided {
+    template<typename D>
+    using layout_type = layouts::strided<D, S>;
+};
+
+template<typename S, S... Strides>
+struct static_strided {
+    template<typename D>
+    using layout_type = layouts::static_strided<D, S, Strides...>;
+};
+}  // namespace mappings
 
 namespace accessors {
 struct host {
@@ -608,6 +634,10 @@ struct basic_view: private L, private A, public basic_view_base<basic_view<T, L,
         return domain().size(axis);
     }
 
+    size_t size_in_bytes() const {
+        return size() * sizeof(T);
+    }
+
     ndstride_type strides() const {
         ndstride_type result;
         for (size_t i = 0; i < rank; i++) {
@@ -704,27 +734,27 @@ struct basic_view: private L, private A, public basic_view_base<basic_view<T, L,
 template<
     typename T,
     size_t N = 1,
-    template<class D> typename L = layouts::right_to_left,
+    typename M = mappings::right_to_left<>,
     typename A = accessors::host>
-using view = basic_view<const T, L<domains::bounds<N>>, A>;
+using view = basic_view<const T, typename M::template layout_type<domains::bounds<N>>, A>;
 
 template<
     typename T,
     size_t N = 1,
-    template<class D> typename L = layouts::right_to_left,
+    typename M = mappings::right_to_left<>,
     typename A = accessors::host>
-using view_mut = basic_view<T, L<domains::bounds<N>>, A>;
+using view_mut = basic_view<T, typename M::template layout_type<domains::bounds<N>>, A>;
 
 template<typename T, size_t N = 1, typename A = accessors::host>
-using strided_view = view<T, N, layouts::strided, A>;
+using strided_view = view<T, N, mappings::strided<>, A>;
 
 template<typename T, size_t N = 1, typename A = accessors::host>
-using strided_view_mut = view_mut<T, N, layouts::strided, A>;
+using strided_view_mut = view_mut<T, N, mappings::strided<>, A>;
 
-template<typename T, size_t N = 1, template<class D> typename L = layouts::right_to_left>
+template<typename T, size_t N = 1, typename L = mappings::right_to_left<>>
 using cuda_view = view<T, N, L, accessors::cuda_device>;
 
-template<typename T, size_t N = 1, template<class D> typename L = layouts::right_to_left>
+template<typename T, size_t N = 1, typename L = mappings::right_to_left<>>
 using cuda_view_mut = view_mut<T, N, L, accessors::cuda_device>;
 
 template<typename T, size_t N = 1>
