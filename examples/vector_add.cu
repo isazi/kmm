@@ -22,8 +22,8 @@ __global__ void vector_add(const float* A, const float* B, float* C, int size) {
 void initialize(float* A, float* B) {
 #pragma omp parallel for
     for (unsigned int item = 0; item < SIZE; item++) {
-        reinterpret_cast<float*>(A)[item] = 1.0;
-        reinterpret_cast<float*>(B)[item] = 2.0;
+        A[item] = 1.0;
+        B[item] = 2.0;
     }
 
     std::cout << "initialize\n";

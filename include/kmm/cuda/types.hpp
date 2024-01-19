@@ -5,6 +5,7 @@
 #include <vector>
 
 #ifdef KMM_USE_CUDA
+    #include <cublas_v2.h>
     #include <cuda.h>
     #include <cuda_runtime_api.h>
 #endif
@@ -25,25 +26,41 @@ namespace kmm {
 static constexpr CUstream_st* const CUDA_DEFAULT_STREAM = nullptr;
 
 void cuda_throw_exception(CUresult result, const char* file, int line, const char* expression);
-
 void cuda_throw_exception(cudaError_t result, const char* file, int line, const char* expression);
+void cuda_throw_exception(
+    cublasStatus_t result,
+    const char* file,
+    int line,
+    const char* expression);
 
 class CudaException: public std::exception {
   public:
-    CudaException(const std::string& message, CUresult result = CUDA_ERROR_UNKNOWN);
-    CudaException(const std::string& message, cudaError_t result = cudaErrorUnknown);
-
-    CUresult status() const {
-        return m_status;
-    }
+    CudaException(const std::string& message = "") : m_message(message) {}
 
     const char* what() const noexcept override {
         return m_message.c_str();
     }
 
-  private:
-    CUresult m_status;
+  protected:
     std::string m_message;
+};
+
+class CudaDriverException: public CudaException {
+  public:
+    CudaDriverException(const std::string& message, CUresult result);
+    CUresult status;
+};
+
+class CudaRuntimeException: public CudaException {
+  public:
+    CudaRuntimeException(const std::string& message, cudaError_t result);
+    cudaError_t status;
+};
+
+class CudaBlasException: public CudaException {
+  public:
+    CudaBlasException(const std::string& message, cublasStatus_t status);
+    cublasStatus_t status;
 };
 
 std::vector<CUdevice> get_cuda_devices();
@@ -53,8 +70,8 @@ class CudaContextHandle {
     CudaContextHandle(CUcontext context, std::shared_ptr<void> lifetime);
 
   public:
-    static CudaContextHandle from_new_context(CUdevice device);
-    static CudaContextHandle from_primary_context(CUdevice device);
+    static CudaContextHandle create_context_for_device(CUdevice device);
+    static CudaContextHandle retain_primary_context_for_device(CUdevice device);
 
     operator CUcontext() const {
         return m_context;

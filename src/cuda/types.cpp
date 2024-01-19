@@ -11,14 +11,23 @@
 namespace kmm {
 
 void cuda_throw_exception(CUresult result, const char* file, int line, const char* expression) {
-    throw CudaException(fmt::format("{} ({}:{})", expression, file, line), result);
+    throw CudaDriverException(fmt::format("{} ({}:{})", expression, file, line), result);
 }
 
 void cuda_throw_exception(cudaError_t result, const char* file, int line, const char* expression) {
-    throw CudaException(fmt::format("{} ({}:{})", expression, file, line), result);
+    throw CudaRuntimeException(fmt::format("{} ({}:{})", expression, file, line), result);
 }
 
-CudaException::CudaException(const std::string& message, CUresult result) : m_status(result) {
+void cuda_throw_exception(
+    cublasStatus_t result,
+    const char* file,
+    int line,
+    const char* expression) {
+    throw CudaBlasException(fmt::format("{} ({}:{})", expression, file, line), result);
+}
+
+CudaDriverException::CudaDriverException(const std::string& message, CUresult result) :
+    status(result) {
     const char* name = "???";
     const char* description = "???";
 
@@ -26,10 +35,11 @@ CudaException::CudaException(const std::string& message, CUresult result) : m_st
     cuGetErrorName(result, &name);
     cuGetErrorString(result, &description);
 
-    m_message = fmt::format("CUDA error: {} ({}): {}", description, name, message);
+    m_message = fmt::format("CUDA driver error: {} ({}): {}", description, name, message);
 }
 
-CudaException::CudaException(const std::string& message, cudaError_t result) {
+CudaRuntimeException::CudaRuntimeException(const std::string& message, cudaError_t result) :
+    status(result) {
     const char* name = "???";
     const char* description = "???";
 
@@ -37,8 +47,39 @@ CudaException::CudaException(const std::string& message, cudaError_t result) {
     name = cudaGetErrorName(result);
     description = cudaGetErrorString(result);
 
-    m_message = fmt::format("CUDA error: {} ({}): {}", description, name, message);
-    m_status = (CUresult)(result);
+    m_message = fmt::format("CUDA runtime error: {} ({}): {}", description, name, message);
+}
+
+CudaBlasException::CudaBlasException(const std::string& message, cublasStatus_t result) :
+    status(result) {
+    const char* name = [&]() {
+        switch (result) {
+            case CUBLAS_STATUS_SUCCESS:
+                return "CUBLAS_STATUS_SUCCESS";
+            case CUBLAS_STATUS_NOT_INITIALIZED:
+                return "CUBLAS_STATUS_NOT_INITIALIZED";
+            case CUBLAS_STATUS_ALLOC_FAILED:
+                return "CUBLAS_STATUS_ALLOC_FAILED";
+            case CUBLAS_STATUS_INVALID_VALUE:
+                return "CUBLAS_STATUS_INVALID_VALUE";
+            case CUBLAS_STATUS_ARCH_MISMATCH:
+                return "CUBLAS_STATUS_ARCH_MISMATCH";
+            case CUBLAS_STATUS_MAPPING_ERROR:
+                return "CUBLAS_STATUS_MAPPING_ERROR";
+            case CUBLAS_STATUS_EXECUTION_FAILED:
+                return "CUBLAS_STATUS_EXECUTION_FAILED";
+            case CUBLAS_STATUS_INTERNAL_ERROR:
+                return "CUBLAS_STATUS_INTERNAL_ERROR";
+            case CUBLAS_STATUS_NOT_SUPPORTED:
+                return "CUBLAS_STATUS_NOT_SUPPORTED";
+            case CUBLAS_STATUS_LICENSE_ERROR:
+                return "CUBLAS_STATUS_LICENSE_ERROR";
+            default:
+                return "???";
+        }
+    }();
+
+    m_message = fmt::format("CUDA BLAS error: {}: {}", name, message);
 }
 
 CudaContextHandle::CudaContextHandle(CUcontext context, std::shared_ptr<void> lifetime) :
@@ -53,7 +94,7 @@ std::vector<CUdevice> get_cuda_devices() {
         }
 
         if (result != CUDA_SUCCESS) {
-            throw CudaException("cuInit failed", result);
+            throw CudaDriverException("cuInit failed", result);
         }
 
         int count = 0;
@@ -66,12 +107,12 @@ std::vector<CUdevice> get_cuda_devices() {
 
         return devices;
     } catch (const CudaException& e) {
-        spdlog::warn("ignored error while initializing CUDA: {}", e.what());
+        spdlog::warn("ignored error while initializing: {}", e.what());
         return {};
     }
 }
 
-CudaContextHandle CudaContextHandle::from_new_context(CUdevice device) {
+CudaContextHandle CudaContextHandle::create_context_for_device(CUdevice device) {
     int flags = CU_CTX_MAP_HOST;
     CUcontext context;
     KMM_CUDA_CHECK(cuCtxCreate(&context, flags, device));
@@ -83,7 +124,7 @@ CudaContextHandle CudaContextHandle::from_new_context(CUdevice device) {
     return {context, lifetime};
 }
 
-CudaContextHandle CudaContextHandle::from_primary_context(CUdevice device) {
+CudaContextHandle CudaContextHandle::retain_primary_context_for_device(CUdevice device) {
     CUcontext context;
     KMM_CUDA_CHECK(cuDevicePrimaryCtxRetain(&context, device));
 

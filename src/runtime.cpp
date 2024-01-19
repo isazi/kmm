@@ -66,7 +66,7 @@ Runtime build_runtime() {
         uint8_t memory_id = 1;
 
         for (auto cuda_device : cuda_devices) {
-            auto context = CudaContextHandle::from_new_context(cuda_device);
+            auto context = CudaContextHandle::create_context_for_device(cuda_device);
             contexts.push_back(context);
 
             handles.push_back(std::make_shared<CudaDeviceHandle>(context, MemoryId(memory_id)));

@@ -8,6 +8,7 @@
 #include <thread>
 
 #ifdef KMM_USE_CUDA
+    #include <cublas_v2.h>
     #include <cuda.h>
     #include <cuda_runtime_api.h>
 #endif
@@ -116,6 +117,8 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
         return m_event;
     }
 
+    cublasHandle_t cublas();
+
     void synchronize() const;
 
     template<typename... Args>
@@ -142,6 +145,7 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
     CudaContextHandle m_context;
     CUstream m_stream;
     CUevent m_event;
+    cublasHandle_t m_cublas_handle = nullptr;
 };
 
 /**

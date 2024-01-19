@@ -6,7 +6,7 @@ namespace kmm {
 ThreadPool::ThreadPool() :
     m_queue(std::make_shared<WorkQueue<Job>>()),
     m_thread([q = m_queue] {
-        ParallelDevice context {};
+        HostDevice context {};
 
         while (auto popped = q->pop()) {
             (*popped)->execute(context);
@@ -25,7 +25,7 @@ class ThreadPool::ExecutionJob: public ThreadPool::Job {
         m_context(std::move(context)),
         m_completion(std::move(completion)) {}
 
-    void execute(ParallelDevice& device) override {
+    void execute(HostDevice& device) override {
         try {
             m_task->execute(device, m_context);
             m_completion.complete_ok();
@@ -75,7 +75,7 @@ class ThreadPool::FillJob: public ThreadPool::Job {
         }
     }
 
-    void execute(ParallelDevice&) override {
+    void execute(HostDevice&) override {
         size_t k = fill_bytes.size();
 
         if (k == 1) {
@@ -124,7 +124,7 @@ class ThreadPool::CopyJob: public ThreadPool::Job {
         num_bytes(num_bytes),
         completion(std::move(completion)) {}
 
-    void execute(ParallelDevice&) override {
+    void execute(HostDevice&) override {
         std::memcpy(dst_ptr, src_ptr, num_bytes);
         completion.complete_ok();
     }

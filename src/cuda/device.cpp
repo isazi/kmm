@@ -1,3 +1,4 @@
+#include <cublas_v2.h>
 #include <cuda_runtime_api.h>
 
 #include "kmm/cuda/device.hpp"
@@ -75,12 +76,25 @@ CudaDevice::CudaDevice(CudaContextHandle context, MemoryId affinity_id) :
 CudaDevice::~CudaDevice() noexcept {
     KMM_CUDA_CHECK(cuStreamDestroy(m_stream));
     KMM_CUDA_CHECK(cuEventDestroy(m_event));
+
+    if (m_cublas_handle != nullptr) {
+        cublasDestroy(m_cublas_handle);
+    }
 }
 
 void CudaDevice::synchronize() const {
     CudaContextGuard guard {m_context};
     KMM_CUDA_CHECK(cuStreamSynchronize(m_stream));
     KMM_CUDA_CHECK(cuStreamSynchronize(CUDA_DEFAULT_STREAM));
+}
+
+cublasHandle_t CudaDevice::cublas() {
+    if (m_cublas_handle == nullptr) {
+        KMM_CUDA_CHECK(cublasCreate(&m_cublas_handle));
+        KMM_CUDA_CHECK(cublasSetStream(m_cublas_handle, m_stream));
+    }
+
+    return m_cublas_handle;
 }
 
 class CudaDeviceThread {
@@ -197,7 +211,7 @@ PollResult CudaDeviceThread::poll_stream(size_t slot) {
     if (status == CUDA_SUCCESS) {
         completion.complete_ok();
     } else {
-        completion.complete_error(CudaException("execution failed", status));
+        completion.complete_error(CudaDriverException("execution failed", status));
     }
 
     return PollResult::Ready;

@@ -56,7 +56,7 @@ struct CudaCopyEngine::TransferQueue {
             if (result == CUDA_SUCCESS) {
                 completion.complete_ok();
             } else {
-                completion.complete_error(CudaException("operation failed", result));
+                completion.complete_error(CudaDriverException("copy operation failed", result));
             }
         }
 
@@ -80,14 +80,14 @@ struct CudaCopyEngine::TransferQueue {
             auto result = job.execute(m_stream);
 
             if (result != CUDA_SUCCESS) {
-                throw CudaException("copy operation failed", result);
+                throw CudaDriverException("copy operation failed", result);
             }
 
             result = cuEventRecord(m_events[slot], m_stream);
 
             if (result != CUDA_SUCCESS) {
                 KMM_ASSERT(cuStreamSynchronize(m_stream) == CUDA_SUCCESS);
-                throw CudaException("`cuEventRecord` failed", result);
+                throw CudaDriverException("`cuEventRecord` failed", result);
             }
 
             m_running_jobs[slot] = std::move(job.completion);
