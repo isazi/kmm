@@ -3,9 +3,14 @@ cmake_minimum_required(VERSION 3.10)
 set(PROJECT_NAME "kmm")
 project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
 
-if(${USE_CUDA})
+# User options
+option(USE_CUDA "Build the CUDA backend" OFF)
+option(BUILD_TESTS "Build tests" OFF)
+option(BUILD_EXAMPLES "Build examples" OFF)
+
+if(USE_CUDA)
   enable_language(CUDA)
-  add_definitions(-DKMM_USE_CUDA=${USE_CUDA})
+  add_definitions(-DKMM_USE_CUDA=1)
   set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
@@ -64,7 +69,7 @@ if(DEFINED CMAKE_CUDA_COMPILER)
 endif()
 
 # Unit testing
-if(${TESTING})
+if(BUILD_TESTS)
   enable_testing()
   find_package(GTest)
 
@@ -92,7 +97,7 @@ if(${TESTING})
 endif()
 
 # Compile examples
-if(${EXAMPLES})
+if(BUILD_EXAMPLES)
   if(DEFINED CMAKE_CUDA_COMPILER)
     add_executable(
       vector_add
