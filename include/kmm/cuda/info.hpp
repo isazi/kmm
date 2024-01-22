@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "kmm/cuda/types.hpp"
 #include "kmm/device.hpp"
 
