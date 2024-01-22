@@ -47,12 +47,12 @@ install(TARGETS ${PROJECT_NAME}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-target_compile_options(${PROJECT_NAME} PRIVATE ${CXXFLAGS})
+target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
 
 # Enable C++17 support
 set(CXX_STANDARD 17)
 set(CXX_STANDARD_REQUIRED ON)
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
 # Enable PIC
 set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
