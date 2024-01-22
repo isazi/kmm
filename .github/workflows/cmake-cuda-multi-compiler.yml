@@ -33,7 +33,7 @@ jobs:
             cpp_compiler: clang++
 
     steps:
-      - uses: Jimver/cuda-toolkit
+      - uses: Jimver/cuda-toolkit@v0.2.14
         id: cuda-toolkit
       - uses: actions/checkout@v3
         with:
