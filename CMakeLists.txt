@@ -4,11 +4,11 @@ set(PROJECT_NAME "kmm")
 project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
 
 # User options
-option(USE_CUDA "Build the CUDA backend" OFF)
-option(BUILD_TESTS "Build tests" OFF)
-option(BUILD_EXAMPLES "Build examples" OFF)
+option(KMM_USE_CUDA "Build the CUDA backend" OFF)
+option(KMM_BUILD_TESTS "Build tests" OFF)
+option(KMM_BUILD_EXAMPLES "Build examples" OFF)
 
-if(USE_CUDA)
+if(KMM_USE_CUDA)
   enable_language(CUDA)
   add_definitions(-DKMM_USE_CUDA=1)
   set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
@@ -70,7 +70,7 @@ if(DEFINED CMAKE_CUDA_COMPILER)
 endif()
 
 # Unit testing
-if(BUILD_TESTS)
+if(KMM_BUILD_TESTS)
   enable_testing()
   find_package(GTest)
 
@@ -99,7 +99,7 @@ if(BUILD_TESTS)
 endif()
 
 # Compile examples
-if(BUILD_EXAMPLES)
+if(KMM_BUILD_EXAMPLES)
   if(DEFINED CMAKE_CUDA_COMPILER)
     add_executable(
       vector_add
