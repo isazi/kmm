@@ -51,7 +51,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE ${CXXFLAGS})
 
 # Enable C++17 support
 set(CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CXX_STANDARD_REQUIRED ON)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 # Enable PIC
@@ -75,26 +75,27 @@ if(BUILD_TESTS)
   find_package(GTest)
 
   add_executable(
-    kmmTestCxx
+    kmmTest
     test/test_memory_manager.cpp
     test/test_result.cpp
     test/test_memory_pool.cpp
   )
   target_include_directories(
-      kmmTestCxx
+      kmmTest
       PRIVATE
       ${GTEST_INCLUDE_DIRS}
       ${PROJECT_SOURCE_DIR}/include
   )
   target_link_libraries(
-    kmmTestCxx
+    kmmTest
     PRIVATE
     kmm
     GTest::gtest_main
   )
+  target_compile_features(kmmTest PRIVATE cxx_std_17)
 
   include(GoogleTest)
-  gtest_discover_tests(kmmTestCxx)
+  gtest_discover_tests(kmmTest)
 endif()
 
 # Compile examples
