@@ -5,7 +5,7 @@
 
 #include "kmm/device.hpp"
 #include "kmm/host/thread_pool.hpp"
-#include "kmm/task_serialize.hpp"
+#include "kmm/task_argument.hpp"
 
 namespace kmm {
 

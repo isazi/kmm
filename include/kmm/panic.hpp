@@ -17,7 +17,7 @@
     } while (0)
 
 #define KMM_DEBUG_ASSERT(...) KMM_ASSERT(__VA_ARGS__)
-#define KMM_TODO()            KMM_PANIC("not implemented")
+#define KMM_TODO() KMM_PANIC("not implemented")
 
 namespace kmm {
 

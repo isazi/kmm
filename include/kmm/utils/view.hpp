@@ -1,3 +1,4 @@
+#pragma once
 #include <cstddef>
 
 namespace kmm {
@@ -514,11 +515,11 @@ struct convert<T, const T> {
 };
 }  // namespace accessors
 
-template<typename V, size_t I = 0, size_t N = V::rank>
+template<typename V, typename T, size_t N, typename I, size_t K = 0>
 struct view_subscript {
     using type = view_subscript;
-    using subscript_type = typename view_subscript<V, I + 1>::type;
-    using index_type = typename V::index_type;
+    using subscript_type = typename view_subscript<V, T, N, I, K + 1>::type;
+    using index_type = I;
     using ndindex_type = fixed_array<index_type, N>;
 
     static type instantiate(const V* base, ndindex_type index = {}) {
@@ -528,8 +529,8 @@ struct view_subscript {
     view_subscript(const V* base, ndindex_type index) : base_(base), index_(index) {}
 
     subscript_type operator[](index_type index) {
-        index_[I] = index;
-        return view_subscript<V, I + 1>::instantiate(base_, index_);
+        index_[K] = index;
+        return view_subscript<V, T, N, I, K + 1>::instantiate(base_, index_);
     }
 
   private:
@@ -537,10 +538,10 @@ struct view_subscript {
     ndindex_type index_;
 };
 
-template<typename V, size_t N>
-struct view_subscript<V, N, N> {
-    using type = typename V::reference;
-    using index_type = typename V::index_type;
+template<typename V, typename T, size_t N, typename I>
+struct view_subscript<V, T, N, I, N> {
+    using type = T&;
+    using index_type = I;
     using ndindex_type = fixed_array<index_type, N>;
 
     static type instantiate(V* base, ndindex_type index) {
@@ -548,19 +549,19 @@ struct view_subscript<V, N, N> {
     }
 };
 
-template<typename Derived, size_t N>
+template<typename Derived, typename T, size_t N, typename I>
 struct basic_view_base {
-    using index_type = typename Derived::index_type;
-    using subscript_type = typename view_subscript<Derived>::subscript_type;
+    using index_type = I;
+    using subscript_type = typename view_subscript<Derived, T, N, I>::subscript_type;
 
     subscript_type operator[](index_type index) const {
-        return view_subscript<Derived> {static_cast<const Derived*>(this)}[index];
+        return view_subscript<Derived, T, N, I> {static_cast<const Derived*>(this)}[index];
     }
 };
 
-template<typename Derived>
-struct basic_view_base<Derived, 0> {
-    using reference = typename Derived::reference;
+template<typename Derived, typename T, typename I>
+struct basic_view_base<Derived, T, 0, I> {
+    using reference = T&;
 
     reference operator*() const {
         return static_cast<const Derived*>(this)->access({});
@@ -568,7 +569,10 @@ struct basic_view_base<Derived, 0> {
 };
 
 template<typename T, typename L, typename A>
-struct basic_view: private L, private A, public basic_view_base<basic_view<T, L, A>, L::rank> {
+struct basic_view:
+    private L,
+    private A,
+    public basic_view_base<basic_view<T, L, A>, T, L::rank, typename L::index_type> {
     using self_type = basic_view;
     using value_type = T;
     using layout_type = L;
@@ -585,10 +589,7 @@ struct basic_view: private L, private A, public basic_view_base<basic_view<T, L,
 
     basic_view(const basic_view&) = default;
 
-    explicit basic_view(
-        pointer data = nullptr,
-        layout_type layout = {},
-        accessor_type accessor = {}) :
+    basic_view(pointer data = nullptr, layout_type layout = {}, accessor_type accessor = {}) :
         m_data(data),
         layout_type(layout),
         accessor_type(accessor) {}
