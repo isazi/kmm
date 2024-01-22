@@ -515,52 +515,52 @@ struct convert<T, const T> {
 };
 }  // namespace accessors
 
-template<typename V, typename T, size_t N, typename I, size_t K = 0>
+template<typename View, typename T, typename L, size_t K = 0, size_t N = L::rank>
 struct view_subscript {
     using type = view_subscript;
-    using subscript_type = typename view_subscript<V, T, N, I, K + 1>::type;
-    using index_type = I;
-    using ndindex_type = fixed_array<index_type, N>;
+    using subscript_type = typename view_subscript<View, T, L, K + 1>::type;
+    using index_type = typename L::index_type;
+    using ndindex_type = fixed_array<index_type, L::rank>;
 
-    static type instantiate(const V* base, ndindex_type index = {}) {
+    static type instantiate(const View* base, ndindex_type index = {}) {
         return type {base, index};
     }
 
-    view_subscript(const V* base, ndindex_type index) : base_(base), index_(index) {}
+    view_subscript(const View* base, ndindex_type index) : base_(base), index_(index) {}
 
     subscript_type operator[](index_type index) {
         index_[K] = index;
-        return view_subscript<V, T, N, I, K + 1>::instantiate(base_, index_);
+        return view_subscript<View, T, L, K + 1>::instantiate(base_, index_);
     }
 
   private:
-    const V* base_;
+    const View* base_;
     ndindex_type index_;
 };
 
-template<typename V, typename T, size_t N, typename I>
-struct view_subscript<V, T, N, I, N> {
+template<typename View, typename T, typename L, size_t N>
+struct view_subscript<View, T, L, N, N> {
     using type = T&;
-    using index_type = I;
+    using index_type = typename L::index_type;
     using ndindex_type = fixed_array<index_type, N>;
 
-    static type instantiate(V* base, ndindex_type index) {
+    static type instantiate(const View* base, ndindex_type index) {
         return base->access(index);
     }
 };
 
-template<typename Derived, typename T, size_t N, typename I>
+template<typename Derived, typename T, typename L, size_t N = L::rank>
 struct basic_view_base {
-    using index_type = I;
-    using subscript_type = typename view_subscript<Derived, T, N, I>::subscript_type;
+    using index_type = typename L::index_type;
+    using subscript_type = typename view_subscript<Derived, T, L>::subscript_type;
 
     subscript_type operator[](index_type index) const {
-        return view_subscript<Derived, T, N, I> {static_cast<const Derived*>(this)}[index];
+        return view_subscript<Derived, T, L> {static_cast<const Derived*>(this)}[index];
     }
 };
 
-template<typename Derived, typename T, typename I>
-struct basic_view_base<Derived, T, 0, I> {
+template<typename Derived, typename T, typename L>
+struct basic_view_base<Derived, T, L, 0> {
     using reference = T&;
 
     reference operator*() const {
@@ -569,10 +569,7 @@ struct basic_view_base<Derived, T, 0, I> {
 };
 
 template<typename T, typename L, typename A>
-struct basic_view:
-    private L,
-    private A,
-    public basic_view_base<basic_view<T, L, A>, T, L::rank, typename L::index_type> {
+struct basic_view: private L, private A, public basic_view_base<basic_view<T, L, A>, T, L> {
     using self_type = basic_view;
     using value_type = T;
     using layout_type = L;

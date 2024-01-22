@@ -17,15 +17,15 @@
                                                      \
   private:
 
-#define KMM_INLINE   __attribute__((always_inline))
+#define KMM_INLINE __attribute__((always_inline))
 #define KMM_NOINLINE __attribute__((noinline))
 
 #ifdef __NVCC__
     #define KMM_HOST_DEVICE __host__ __device__ __forceinline__
-    #define KMM_DEVICE      __device__ __forceinline__
+    #define KMM_DEVICE __device__ __forceinline__
 #else
     #define KMM_HOST_DEVICE KMM_INLINE
-    #define KMM_DEVICE      KMM_INLINE
+    #define KMM_DEVICE KMM_INLINE
 #endif
 
 #define KMM_ASSUME(expr) __builtin_assume(expr)
