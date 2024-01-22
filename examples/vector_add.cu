@@ -58,15 +58,11 @@ int main(void) {
     auto manager = kmm::build_runtime();
     std::deque<kmm::EventId> events;
 
-    kmm::Array<int> x = manager.allocate({1, 2, 3});
-    spdlog::warn("x: {}\n", x.read()[0]);
-
     for (size_t i = 0; i < 20; i++) {
         // Request 3 memory areas of a certain size
         auto A = kmm::Array<float>(n);
         auto B = kmm::Array<float>(n);
         auto C = kmm::Array<float>(n);
-        auto size = kmm::Future<unsigned int>();
 
         // Initialize array A and B on the host
         manager.submit(kmm::Host(), initialize, write(A), write(B));
@@ -78,8 +74,8 @@ int main(void) {
 
         // Verify the result on the host.
         auto verify_id = manager.submit(kmm::Host(), verify, C);
-        events.push_back(verify_id);
 
+        events.push_back(verify_id);
         while (events.size() > 10) {
             manager.wait(events.front());
             events.pop_front();
