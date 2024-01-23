@@ -242,11 +242,11 @@ struct TaskArgumentTrait<ExecutionSpace::Host, Write<Array<T, N>>> {
         RuntimeImpl& rt,
         TaskRequirements& reqs,
         Write<Array<T, N>> array) {
-        auto header = std::make_unique<ArrayHeader>(array.inner.header());
+        auto header = std::make_unique<ArrayHeader>(array->header());
         return {
             .buffer_index = reqs.add_output(std::move(header), rt),
             .offset = 0,
-            .sizes = array.inner.sizes()};
+            .sizes = array->sizes()};
     }
 
     static void post_submission(
@@ -256,7 +256,7 @@ struct TaskArgumentTrait<ExecutionSpace::Host, Write<Array<T, N>>> {
         PackedArray<T, N> arg) {
         auto block_id = BlockId(id, arg.buffer_index);
         auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-        array.inner = Array<T, N>(arg.sizes, block);
+        *array = Array<T, N>(arg.sizes, block);
     }
 
     static view_mut<T, N> unpack(TaskContext& context, PackedArray<T, N> array) {
@@ -313,11 +313,11 @@ struct TaskArgumentTrait<ExecutionSpace::Cuda, Write<Array<T, N>>> {
         RuntimeImpl& rt,
         TaskRequirements& reqs,
         Write<Array<T, N>> array) {
-        auto header = std::make_unique<ArrayHeader>(array.inner.header());
+        auto header = std::make_unique<ArrayHeader>(array->header());
         return {
             .buffer_index = reqs.add_output(std::move(header), rt),
             .offset = 0,
-            .sizes = array.inner.sizes()};
+            .sizes = array->sizes()};
     }
 
     static void post_submission(
@@ -327,7 +327,7 @@ struct TaskArgumentTrait<ExecutionSpace::Cuda, Write<Array<T, N>>> {
         PackedArray<T, N> arg) {
         auto block_id = BlockId(id, uint8_t(arg.buffer_index));
         auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-        array.inner = Array<T, N>(arg.sizes, block);
+        *array = Array<T, N>(arg.sizes, block);
     }
 
     static cuda_view_mut<T, N> unpack(TaskContext& context, PackedArray<T, N> array) {
