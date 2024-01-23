@@ -190,8 +190,8 @@ class Array: public ArrayBase {
     }
 
   private:
-    size_t m_offset = 0;
     std::array<index_t, N> m_sizes;
+    size_t m_offset = 0;
 };
 
 template<typename T, size_t N = 1>

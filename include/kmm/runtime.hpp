@@ -55,6 +55,11 @@ class Runtime {
     }
 
     /**
+     * Returns the memory identifier that has the best affinity for the given memory address.
+     */
+    MemoryId memory_affinity_for_address(const void* address) const;
+
+    /**
      * Create a new array where the data is provided by memory stored on the host. The dimensions
      * of the new array will be `sizes`. The provided buffer must contain exactly
      * `sizes[0] * sizes[1] * ...` elements.
@@ -68,7 +73,7 @@ class Runtime {
         index_t num_elements = checked_product(sizes.begin(), sizes.end());
         size_t num_bytes = checked_mul(checked_cast<size_t>(num_elements), sizeof(T));
 
-        auto memory_id = MemoryId(0);
+        auto memory_id = memory_affinity_for_address(data_ptr);
         auto header = std::make_unique<ArrayHeader>(ArrayHeader::for_type<T>(num_elements));
 
         auto block_id = m_impl->create_block(memory_id, std::move(header), data_ptr, num_bytes);

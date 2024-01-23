@@ -24,17 +24,17 @@ void CudaAllocation::copy_from_host_sync(
     size_t num_bytes) {
     void* dst_addr = reinterpret_cast<char*>(m_data) + dst_offset;
 
-    KMM_CUDA_CHECK(cuMemcpyHtoD(  //
+    KMM_CUDA_CHECK(cuMemcpy(  //
         reinterpret_cast<CUdeviceptr>(dst_addr),
-        src_addr,
+        reinterpret_cast<CUdeviceptr>(src_addr),
         num_bytes));
 }
 
 void CudaAllocation::copy_to_host_sync(size_t src_offset, void* dst_addr, size_t num_bytes) const {
     const void* src_addr = reinterpret_cast<const char*>(m_data) + src_offset;
 
-    KMM_CUDA_CHECK(cuMemcpyDtoH(  //
-        dst_addr,
+    KMM_CUDA_CHECK(cuMemcpy(  //
+        reinterpret_cast<CUdeviceptr>(dst_addr),
         reinterpret_cast<CUdeviceptr>(src_addr),
         num_bytes));
 }

@@ -15,6 +15,28 @@ Runtime::Runtime(std::shared_ptr<RuntimeImpl> impl) : m_impl(std::move(impl)) {
     KMM_ASSERT(m_impl);
 }
 
+MemoryId Runtime::memory_affinity_for_address(const void* address) const {
+    if (address == nullptr) {
+        return MemoryId(0);
+    }
+
+#ifdef KMM_USE_CUDA
+    if (auto device_opt = get_cuda_device_by_address(address)) {
+        for (size_t i = 0; i < m_impl->num_devices(); i++) {
+            auto id = DeviceId(uint8_t(i));
+
+            if (const auto* info = dynamic_cast<const CudaDeviceInfo*>(&m_impl->device_info(id))) {
+                if (info->device() == *device_opt) {
+                    return info->memory_affinity();
+                }
+            }
+        }
+    }
+#endif
+
+    return MemoryId(0);
+}
+
 EventId Runtime::submit_task(std::shared_ptr<Task> task, TaskRequirements reqs) const {
     return m_impl->submit_task(std::move(task), std::move(reqs));
 }
