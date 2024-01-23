@@ -9,7 +9,7 @@ struct Host {
 
     DeviceId find_device(RuntimeImpl& rt) const {
         for (size_t i = 0, n = rt.num_devices(); i < n; i++) {
-            auto id = DeviceId(i);
+            auto id = DeviceId(checked_cast<uint8_t>(i));
 
             if (dynamic_cast<const HostDeviceInfo*>(&rt.device_info(id)) != nullptr) {
                 return id;
