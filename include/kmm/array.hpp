@@ -139,9 +139,10 @@ class Array: public ArrayBase {
      * @param dst_ptr The memory location where the data will be written.
      * @param length The size of the memory location in number of elements. Must equal `size()`.
      */
-    void read(T* dst_ptr, size_t length) const {
+    template<typename I>
+    void read(T* dst_ptr, I length) const {
         if (!is_empty()) {
-            m_block->read(dst_ptr, length * sizeof(T));
+            m_block->read(dst_ptr, checked_mul(checked_cast<size_t>(length), sizeof(T)));
         }
     }
 

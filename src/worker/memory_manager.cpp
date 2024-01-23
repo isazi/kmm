@@ -3,6 +3,7 @@
 #include "kmm/block_header.hpp"
 #include "kmm/memory.hpp"
 #include "kmm/panic.hpp"
+#include "kmm/utils/integer_fun.hpp"
 #include "kmm/utils/result.hpp"
 #include "kmm/worker/memory_manager.hpp"
 
@@ -294,19 +295,6 @@ MemoryManager::~MemoryManager() = default;
 std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
     std::shared_ptr<const Waker> waker) const {
     return std::make_shared<Transaction>(waker);
-}
-
-static size_t round_up_to_power_of_two(size_t align) {
-    for (size_t i = 0; i < 63; i++) {
-        if (align <= (size_t(1) << i)) {
-            return size_t(1) << i;
-        }
-    }
-    return 0;
-}
-
-static size_t round_up_to_multiple(size_t n, size_t k) {
-    return n + ((n % k == 0) ? 0 : (k - n % k));
 }
 
 BufferId MemoryManager::create_buffer(

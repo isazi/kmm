@@ -226,7 +226,7 @@ std::shared_ptr<BlockHeader> Worker::read_block(
         throw std::invalid_argument("invalid buffer size");
     }
 
-    if (buffer_size == 0) {
+    if (!buffer_id.has_value() || buffer_id->num_bytes() == 0) {
         return header;
     }
 
