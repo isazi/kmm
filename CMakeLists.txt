@@ -8,6 +8,12 @@ option(KMM_USE_CUDA "Build the CUDA backend" OFF)
 option(KMM_BUILD_TESTS "Build tests" OFF)
 option(KMM_BUILD_EXAMPLES "Build examples" OFF)
 
+# Enable C++17 support
+set(CXX_STANDARD 17)
+set(CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(KMM_USE_CUDA)
   enable_language(CUDA)
   add_definitions(-DKMM_USE_CUDA=1)
@@ -49,11 +55,6 @@ install(TARGETS ${PROJECT_NAME}
 
 target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
 
-# Enable C++17 support
-set(CXX_STANDARD 17)
-set(CXX_STANDARD_REQUIRED ON)
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
-
 # Enable PIC
 set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
@@ -92,7 +93,6 @@ if(KMM_BUILD_TESTS)
     kmm
     GTest::gtest_main
   )
-  target_compile_features(kmmTest PRIVATE cxx_std_17)
 
   include(GoogleTest)
   gtest_discover_tests(kmmTest)
