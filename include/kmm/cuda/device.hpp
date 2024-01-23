@@ -17,6 +17,7 @@
 #include "kmm/cuda/types.hpp"
 #include "kmm/device.hpp"
 #include "kmm/identifiers.hpp"
+#include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/view.hpp"
 #include "kmm/utils/work_queue.hpp"
 
@@ -67,7 +68,7 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
     /**
      * Returns a handle to the cuBLAS instance associated with this device.
      */
-    cublasHandle_t cublas();
+    cublasHandle_t cublas() const;
 
     /**
      * Block the current thread until all work submitted onto the stream of this device has
@@ -108,7 +109,7 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
      */
     template<typename T, size_t N>
     void fill(cuda_view_mut<T, N> dest, T value) const {
-        fill_raw(dest.data(), dest.size_in_bytes(), &value, sizeof(T));
+        fill_bytes(dest.data(), dest.size_in_bytes(), &value, sizeof(T));
     }
 
     /**
@@ -118,7 +119,31 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
     template<typename T, size_t N>
     void copy(cuda_view<T, N> source, cuda_view_mut<T, N> dest) const {
         KMM_ASSERT(source.sizes() == dest.sizes());
-        copy_raw(source.data(), dest.data(), source.size_in_bytes());
+        copy_bytes(source.data(), dest.data(), source.size_in_bytes());
+    }
+
+    template<typename T, size_t N>
+    void copy(cuda_view<T, N> source, view_mut<T, N> dest) const {
+        KMM_ASSERT(source.sizes() == dest.sizes());
+        copy_bytes(source.data(), dest.data(), source.size_in_bytes());
+    }
+
+    template<typename T, size_t N>
+    void copy(view<T, N> source, cuda_view_mut<T, N> dest) const {
+        KMM_ASSERT(source.sizes() == dest.sizes());
+        copy_bytes(source.data(), dest.data(), source.size_in_bytes());
+    }
+
+    /**
+     * Copy data from the given source view to the given destination view. The copy is performed
+     * asynchronously on the stream of the current device.
+     */
+    template<typename T, typename I>
+    void copy(const T* source_ptr, T* dest_ptr, I num_elements) const {
+        copy_bytes(
+            source_ptr,
+            dest_ptr,
+            checked_mul(checked_cast<size_t>(num_elements), sizeof(T)));
     }
 
     /**
@@ -126,7 +151,7 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
      * The argument `dest_buffer` must be allocated on the device while the `fill_pattern` must
      * be on the host.
      */
-    void fill_raw(
+    void fill_bytes(
         void* dest_buffer,
         size_t nbytes,
         const void* fill_pattern,
@@ -136,13 +161,13 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
      * Copy `nbytes` bytes from the buffer starting at `source_buffer` to the buffer starting at
      * `dest_buffer`. Both buffers must be allocated on the current device.
      */
-    void copy_raw(const void* source_buffer, void* dest_buffer, size_t nbytes) const;
+    void copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const;
 
   private:
     CudaContextHandle m_context;
     CUstream m_stream;
     CUevent m_event;
-    cublasHandle_t m_cublas_handle = nullptr;
+    mutable cublasHandle_t m_cublas_handle = nullptr;
 };
 
 /**

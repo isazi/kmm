@@ -16,7 +16,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(KMM_USE_CUDA)
   enable_language(CUDA)
-  add_definitions(-DKMM_USE_CUDA=1)
   set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
@@ -68,6 +67,9 @@ if(DEFINED CMAKE_CUDA_COMPILER)
   target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cublas)
   target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::nvrtc)
   set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES "80")
+
+  # we must expose the USE_CUDA flag since it is used in the header files
+  target_compile_definitions(${PROJECT_NAME} PUBLIC -DKMM_USE_CUDA=1)
 endif()
 
 # Unit testing

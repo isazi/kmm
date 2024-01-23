@@ -32,7 +32,7 @@ void CudaDevice::synchronize() const {
     KMM_CUDA_CHECK(cuStreamSynchronize(CUDA_DEFAULT_STREAM));
 }
 
-cublasHandle_t CudaDevice::cublas() {
+cublasHandle_t CudaDevice::cublas() const {
     if (m_cublas_handle == nullptr) {
         KMM_CUDA_CHECK(cublasCreate(&m_cublas_handle));
         KMM_CUDA_CHECK(cublasSetStream(m_cublas_handle, m_stream));
@@ -61,7 +61,7 @@ static bool is_fill_pattern_repetitive(
     return true;
 }
 
-void CudaDevice::fill_raw(
+void CudaDevice::fill_bytes(
     void* dest_buffer,
     size_t nbytes,
     const void* fill_pattern,
@@ -99,9 +99,9 @@ void CudaDevice::fill_raw(
     }
 }
 
-void CudaDevice::copy_raw(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
+void CudaDevice::copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
     KMM_CUDA_CHECK(
-        cuMemcpyDtoDAsync(CUdeviceptr(dest_buffer), CUdeviceptr(source_buffer), nbytes, m_stream));
+        cuMemcpyAsync(CUdeviceptr(dest_buffer), CUdeviceptr(source_buffer), nbytes, m_stream));
 }
 
 class CudaDeviceThread {
