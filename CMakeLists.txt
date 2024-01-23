@@ -72,14 +72,14 @@ endif()
 
 # Unit testing
 if(KMM_BUILD_TESTS)
-  enable_testing()
   find_package(GTest)
+  enable_testing()
 
   add_executable(
     kmmTest
-    test/test_memory_manager.cpp
-    test/test_result.cpp
-    test/test_memory_pool.cpp
+    ${PROJECT_SOURCE_DIR}/test/test_memory_manager.cpp
+    ${PROJECT_SOURCE_DIR}/test/test_result.cpp
+    ${PROJECT_SOURCE_DIR}/test/test_memory_pool.cpp
   )
   target_include_directories(
       kmmTest
@@ -89,9 +89,9 @@ if(KMM_BUILD_TESTS)
   )
   target_link_libraries(
     kmmTest
-    PRIVATE
-    kmm
+    PUBLIC
     GTest::gtest_main
+    kmm
   )
 
   include(GoogleTest)
@@ -112,7 +112,7 @@ if(KMM_BUILD_EXAMPLES)
     )
     target_link_libraries(
       vector_add
-      PRIVATE
+      PUBLIC
       kmm
     )
   endif()
