@@ -69,9 +69,9 @@ class Array: public ArrayBase {
         std::array<index_t, N> sizes = {},
         std::shared_ptr<Block> buffer = nullptr,
         size_t offset = 0) :
+        ArrayBase(std::move(buffer)),
         m_sizes(sizes),
-        m_offset(offset),
-        ArrayBase(std::move(buffer)) {}
+        m_offset(offset) {}
 
     template<
         typename... Sizes,
@@ -152,7 +152,9 @@ class Array: public ArrayBase {
      * @param v The host view where the output will be stored.
      */
     void read(view_mut<T, N> v) const {
-        KMM_ASSERT(v.sizes() == m_sizes);
+        for (size_t i = 0; i < N; i++) {
+            KMM_ASSERT(v.size(i) == m_sizes[i]);
+        }
 
         if (!is_empty()) {
             m_block->read(v.data(), v.size_in_bytes());
@@ -172,7 +174,7 @@ class Array: public ArrayBase {
     }
 
     template<typename... Sizes>
-    Array<index_t, sizeof...(Sizes)> reshape(Sizes... sizes) const {
+    Array<T, sizeof...(Sizes)> reshape(Sizes... sizes) const {
         std::array<index_t, sizeof...(Sizes)> new_sizes = {checked_cast<index_t>(sizes)...};
 
         if (size() != checked_product(new_sizes.begin(), new_sizes.end())) {
@@ -182,7 +184,7 @@ class Array: public ArrayBase {
         return {new_sizes, m_block, m_offset};
     }
 
-    Array<index_t> flatten() const {
+    Array<T> flatten() const {
         return {{size()}, m_block, m_offset};
     }
 
@@ -191,19 +193,19 @@ class Array: public ArrayBase {
     std::array<index_t, N> m_sizes;
 };
 
-template<typename T, size_t N>
-struct SerializedArray {
+template<typename T, size_t N = 1>
+struct PackedArray {
     size_t buffer_index;
     size_t offset;
     std::array<index_t, N> sizes;
 };
 
 template<typename T, size_t N>
-struct TaskArgumentDelegate<ExecutionSpace::Host, Array<T, N>> {
-    using packed_type = SerializedArray<const T, N>;
+struct TaskArgumentTrait<ExecutionSpace::Host, Array<T, N>> {
+    using packed_type = PackedArray<const T, N>;
     using unpacked_type = view<T, N>;
 
-    static SerializedArray<const T, N> pack(
+    static PackedArray<const T, N> pack(
         RuntimeImpl& rt,
         TaskRequirements& reqs,
         Array<T, N> array) {
@@ -217,9 +219,9 @@ struct TaskArgumentDelegate<ExecutionSpace::Host, Array<T, N>> {
         RuntimeImpl& rt,
         EventId id,
         const Array<T, N>& array,
-        SerializedArray<const T, N> arg) {}
+        PackedArray<const T, N> arg) {}
 
-    static view<T, N> unpack(TaskContext& context, SerializedArray<const T, N> array) {
+    static view<T, N> unpack(TaskContext& context, PackedArray<const T, N> array) {
         const auto& access = context.inputs.at(array.buffer_index);
         const auto* header = dynamic_cast<const ArrayHeader*>(access.header.get());
         KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
@@ -231,11 +233,11 @@ struct TaskArgumentDelegate<ExecutionSpace::Host, Array<T, N>> {
 };
 
 template<typename T, size_t N>
-struct TaskArgumentDelegate<ExecutionSpace::Host, Write<Array<T, N>>> {
-    using packed_type = SerializedArray<T, N>;
+struct TaskArgumentTrait<ExecutionSpace::Host, Write<Array<T, N>>> {
+    using packed_type = PackedArray<T, N>;
     using unpacked_type = view_mut<T, N>;
 
-    static SerializedArray<T, N> pack(
+    static PackedArray<T, N> pack(
         RuntimeImpl& rt,
         TaskRequirements& reqs,
         Write<Array<T, N>> array) {
@@ -250,13 +252,13 @@ struct TaskArgumentDelegate<ExecutionSpace::Host, Write<Array<T, N>>> {
         RuntimeImpl& rt,
         EventId id,
         const Write<Array<T, N>>& array,
-        SerializedArray<T, N> arg) {
+        PackedArray<T, N> arg) {
         auto block_id = BlockId(id, arg.buffer_index);
         auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
         array.inner = Array<T, N>(arg.sizes, block);
     }
 
-    static view_mut<T, N> unpack(TaskContext& context, SerializedArray<T, N> array) {
+    static view_mut<T, N> unpack(TaskContext& context, PackedArray<T, N> array) {
         const auto& access = context.outputs.at(array.buffer_index);
         const auto* header = dynamic_cast<const ArrayHeader*>(access.header);
         KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
@@ -270,11 +272,11 @@ struct TaskArgumentDelegate<ExecutionSpace::Host, Write<Array<T, N>>> {
 #ifdef KMM_USE_CUDA
 
 template<typename T, size_t N>
-struct TaskArgumentDelegate<ExecutionSpace::Cuda, Array<T, N>> {
-    using packed_type = SerializedArray<const T, N>;
+struct TaskArgumentTrait<ExecutionSpace::Cuda, Array<T, N>> {
+    using packed_type = PackedArray<const T, N>;
     using unpacked_type = cuda_view<T, N>;
 
-    static SerializedArray<const T, N> pack(
+    static PackedArray<const T, N> pack(
         RuntimeImpl& rt,
         TaskRequirements& reqs,
         Array<T, N> array) {
@@ -288,9 +290,9 @@ struct TaskArgumentDelegate<ExecutionSpace::Cuda, Array<T, N>> {
         RuntimeImpl& rt,
         EventId id,
         const Array<T, N>& array,
-        SerializedArray<const T, N> arg) {}
+        PackedArray<const T, N> arg) {}
 
-    static cuda_view<T, N> unpack(TaskContext& context, SerializedArray<const T, N> array) {
+    static cuda_view<T, N> unpack(TaskContext& context, PackedArray<const T, N> array) {
         const auto& access = context.inputs.at(array.buffer_index);
         const auto* header = dynamic_cast<const ArrayHeader*>(access.header.get());
         KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));
@@ -302,11 +304,11 @@ struct TaskArgumentDelegate<ExecutionSpace::Cuda, Array<T, N>> {
 };
 
 template<typename T, size_t N>
-struct TaskArgumentDelegate<ExecutionSpace::Cuda, Write<Array<T, N>>> {
-    using packed_type = SerializedArray<T, N>;
+struct TaskArgumentTrait<ExecutionSpace::Cuda, Write<Array<T, N>>> {
+    using packed_type = PackedArray<T, N>;
     using unpacked_type = cuda_view_mut<T, N>;
 
-    static SerializedArray<T, N> pack(
+    static PackedArray<T, N> pack(
         RuntimeImpl& rt,
         TaskRequirements& reqs,
         Write<Array<T, N>> array) {
@@ -321,13 +323,13 @@ struct TaskArgumentDelegate<ExecutionSpace::Cuda, Write<Array<T, N>>> {
         RuntimeImpl& rt,
         EventId id,
         const Write<Array<T, N>>& array,
-        SerializedArray<T, N> arg) {
-        auto block_id = BlockId(id, arg.buffer_index);
+        PackedArray<T, N> arg) {
+        auto block_id = BlockId(id, uint8_t(arg.buffer_index));
         auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
         array.inner = Array<T, N>(arg.sizes, block);
     }
 
-    static cuda_view_mut<T, N> unpack(TaskContext& context, SerializedArray<T, N> array) {
+    static cuda_view_mut<T, N> unpack(TaskContext& context, PackedArray<T, N> array) {
         const auto& access = context.outputs.at(array.buffer_index);
         const auto* header = dynamic_cast<const ArrayHeader*>(access.header);
         KMM_ASSERT(header != nullptr && header->element_type() == typeid(T));

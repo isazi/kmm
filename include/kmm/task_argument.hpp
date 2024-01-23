@@ -15,27 +15,24 @@ template<ExecutionSpace Space, typename T, typename = void>
 struct TaskArgument {
     using type = T;
 
-    void pack(RuntimeImpl& rt, TaskRequirements& reqs, T value) {
-        m_value = std::move(value);
+    static TaskArgument pack(RuntimeImpl& rt, TaskRequirements& reqs, T value) {
+        return {std::move(value)};
     }
 
     T unpack(TaskContext& context) {
-        return std::move(m_value);
+        return std::move(value);
     }
 
-  private:
-    T m_value;
+    T value;
 };
 
 template<ExecutionSpace Space, typename T, typename = void>
-struct TaskArgumentDelegate {
+struct TaskArgumentTrait {
     using packed_type = TaskArgument<Space, T>;
     using unpacked_type = typename packed_type::type;
 
     static packed_type pack(RuntimeImpl& rt, TaskRequirements& reqs, T value) {
-        TaskArgument<Space, T> arg;
-        arg.pack(rt, reqs, std::move(value));
-        return arg;
+        return packed_type::pack(rt, reqs, std::move(value));
     }
 
     static void post_submission(RuntimeImpl& rt, EventId id, const T& value, packed_type arg) {}
@@ -46,20 +43,29 @@ struct TaskArgumentDelegate {
 };
 
 template<ExecutionSpace Space, typename T>
-using packed_task_argument_type =
-    typename TaskArgumentDelegate<Space, std::decay_t<T>>::packed_type;
+using pack_argument_type = typename TaskArgumentTrait<Space, std::decay_t<T>>::packed_type;
 
 template<ExecutionSpace Space, typename T>
-using task_argument_type = typename TaskArgumentDelegate<Space, std::decay_t<T>>::unpacked_type;
+pack_argument_type<Space, T> pack_argument(RuntimeImpl& rt, TaskRequirements& reqs, T&& value) {
+    return TaskArgumentTrait<Space, std::decay_t<T>>::pack(rt, reqs, std::forward<T>(value));
+}
+
+template<ExecutionSpace Space, typename T>
+using unpack_argument_type = typename TaskArgumentTrait<Space, std::decay_t<T>>::unpacked_type;
+
+template<ExecutionSpace Space, typename T>
+unpack_argument_type<Space, T> unpack_argument(
+    TaskContext& context,
+    pack_argument_type<Space, T>& value) {
+    return TaskArgumentTrait<Space, std::decay_t<T>>::unpack(context, value);
+}
 
 template<typename Launcher, typename... Args>
 class TaskImpl final: public Task {
   public:
     static constexpr ExecutionSpace execution_space = Launcher::execution_space;
 
-    TaskImpl(
-        Launcher launcher,
-        std::tuple<packed_task_argument_type<execution_space, Args>...> args) :
+    TaskImpl(Launcher launcher, std::tuple<pack_argument_type<execution_space, Args>...> args) :
         m_launcher(std::move(launcher)),
         m_args(std::move(args)) {}
 
@@ -73,13 +79,13 @@ class TaskImpl final: public Task {
         m_launcher(
             device,
             context,
-            TaskArgumentDelegate<execution_space, Args>::unpack(
+            TaskArgumentTrait<execution_space, Args>::unpack(
                 context,
                 std::move(std::get<Is>(m_args)))...);
     }
 
     Launcher m_launcher;
-    std::tuple<packed_task_argument_type<execution_space, Args>...> m_args;
+    std::tuple<pack_argument_type<execution_space, Args>...> m_args;
 };
 
 template<typename Launcher, typename... Args>
@@ -94,14 +100,14 @@ struct TaskLaunchHelper {
         RuntimeImpl& rt,
         Args... args) {
         auto reqs = TaskRequirements(device_id);
-        auto packed_args = std::tuple<packed_task_argument_type<execution_space, Args>...> {
-            TaskArgumentDelegate<execution_space, Args>::pack(rt, reqs, args)...};
+        auto packed_args = std::tuple<pack_argument_type<execution_space, Args>...> {
+            TaskArgumentTrait<execution_space, Args>::pack(rt, reqs, args)...};
 
         std::shared_ptr<Task> task =
             std::make_shared<TaskImpl<Launcher, std::decay_t<Args>...>>(launcher, packed_args);
 
         auto event_id = rt.submit_task(std::move(task), std::move(reqs));
-        (TaskArgumentDelegate<execution_space, Args>::post_submission(
+        (TaskArgumentTrait<execution_space, Args>::post_submission(
              rt,
              event_id,
              args,

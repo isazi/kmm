@@ -49,7 +49,7 @@ struct SerializedFuture {
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskArgumentDelegate<Space, Future<T>> {
+struct TaskArgumentTrait<Space, Future<T>> {
     using packed_type = SerializedFuture;
     using unpacked_type = const T&;
 
@@ -73,7 +73,7 @@ struct TaskArgumentDelegate<Space, Future<T>> {
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskArgumentDelegate<Space, Write<Future<T>>> {
+struct TaskArgumentTrait<Space, Write<Future<T>>> {
     using packed_type = SerializedFuture;
     using unpacked_type = T&;
 
