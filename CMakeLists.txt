@@ -47,9 +47,10 @@ set_target_properties(
   PUBLIC_HEADER "${includes}"
 )
 
-install(TARGETS ${PROJECT_NAME}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+install(
+  TARGETS ${PROJECT_NAME}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
@@ -84,14 +85,14 @@ if(KMM_BUILD_TESTS)
     ${PROJECT_SOURCE_DIR}/test/test_memory_pool.cpp
   )
   target_include_directories(
-      kmmTest
-      PRIVATE
-      ${GTEST_INCLUDE_DIRS}
-      ${PROJECT_SOURCE_DIR}/include
+    kmmTest
+    PRIVATE
+    ${GTEST_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/include
   )
   target_link_libraries(
     kmmTest
-    PUBLIC
+    PRIVATE
     GTest::gtest_main
     kmm
   )
@@ -105,16 +106,16 @@ if(KMM_BUILD_EXAMPLES)
   if(DEFINED CMAKE_CUDA_COMPILER)
     add_executable(
       vector_add
-      examples/vector_add.cu
+      ${PROJECT_SOURCE_DIR}/examples/vector_add.cu
     )
     target_include_directories(
-        vector_add
-        PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
+      vector_add
+      PRIVATE
+      ${PROJECT_SOURCE_DIR}/include
     )
     target_link_libraries(
       vector_add
-      PUBLIC
+      PRIVATE
       kmm
     )
   endif()
