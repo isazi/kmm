@@ -7,6 +7,7 @@ project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
 option(KMM_USE_CUDA "Build the CUDA backend" OFF)
 option(KMM_BUILD_TESTS "Build tests" OFF)
 option(KMM_BUILD_EXAMPLES "Build examples" OFF)
+option(KMM_STATIC "Build a static library" OFF)
 
 # Enable C++17 support
 set(CXX_STANDARD 17)
@@ -26,7 +27,11 @@ file(GLOB_RECURSE sources
   "${PROJECT_SOURCE_DIR}/include/kmm/*/*.h")
 
 file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
-add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
+if(KMM_STATIC)
+  add_library(${PROJECT_NAME} STATIC ${sources} ${includes})
+else()
+  add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
+endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
