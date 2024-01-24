@@ -81,8 +81,8 @@ endif()
 # Unit testing
 if(KMM_BUILD_TESTS)
   find_package(GTest)
+  include(GoogleTest)
   enable_testing()
-
   add_executable(
     kmmTest
     ${PROJECT_SOURCE_DIR}/test/test_memory_manager.cpp
@@ -103,9 +103,6 @@ if(KMM_BUILD_TESTS)
     GTest::gtest_main
     kmm
   )
-
-  include(GoogleTest)
-  gtest_discover_tests(kmmTest)
 endif()
 
 # Compile examples

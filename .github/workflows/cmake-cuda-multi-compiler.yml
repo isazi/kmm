@@ -23,6 +23,9 @@ jobs:
     steps:
       - uses: Jimver/cuda-toolkit@v0.2.14
         id: cuda-toolkit
+        with:
+          method: 'network'
+          sub-packages: '["toolkit"]'
       - uses: Bacondish2023/setup-googletest@v1
       - uses: actions/checkout@v3
         with:
