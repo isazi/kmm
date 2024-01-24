@@ -36,10 +36,10 @@ endif()
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+add_subdirectory(external/fmt)
 set(SPDLOG_FMT_EXTERNAL ON)
 set(SPDLOG_BUILD_PIC ON)
-
-add_subdirectory(external/fmt)
 add_subdirectory(external/spdlog)
 target_link_libraries(${PROJECT_NAME} PUBLIC spdlog fmt)
 
