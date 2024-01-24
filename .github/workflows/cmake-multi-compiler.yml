@@ -21,6 +21,7 @@ jobs:
         cpp_compiler: [g++, clang++]
             
     steps:
+    - uses: Bacondish2023/setup-googletest@v1
     - uses: actions/checkout@v3
       with:
         submodules: 'true'
@@ -40,6 +41,8 @@ jobs:
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+        -DSPDLOG_FMT_EXTERNAL:BOOL=ON
+        -DKMM_BUILD_TESTS:BOOL=ON
         -S ${{ github.workspace }}
 
     - name: Build
