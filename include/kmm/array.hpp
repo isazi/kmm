@@ -201,6 +201,15 @@ struct PackedArray {
     std::array<index_t, N> sizes;
 };
 
+template <typename I, size_t N>
+static fixed_array<I, N> to_fixed_array(const std::array<I, N>& input) {
+    fixed_array<I, N> result;
+    for (size_t i = 0; i < N; i++) {
+        result[i] = input[i];
+    }
+    return result;
+}
+
 template<typename T, size_t N>
 struct TaskArgumentTrait<ExecutionSpace::Host, Array<T, N>> {
     using packed_type = PackedArray<const T, N>;
@@ -229,7 +238,7 @@ struct TaskArgumentTrait<ExecutionSpace::Host, Array<T, N>> {
 
         const auto& alloc = dynamic_cast<const HostAllocation&>(*access.allocation);
         const auto* ptr = reinterpret_cast<const T*>(alloc.data()) + array.offset;
-        return {ptr};
+        return {ptr, to_fixed_array(array.sizes)};
     }
 };
 
@@ -266,7 +275,7 @@ struct TaskArgumentTrait<ExecutionSpace::Host, Write<Array<T, N>>> {
 
         const auto& alloc = dynamic_cast<const HostAllocation&>(*access.allocation);
         auto* ptr = reinterpret_cast<T*>(alloc.data()) + array.offset;
-        return {ptr};
+        return {ptr, to_fixed_array(array.sizes)};
     }
 };
 
@@ -300,7 +309,7 @@ struct TaskArgumentTrait<ExecutionSpace::Cuda, Array<T, N>> {
 
         const auto& alloc = dynamic_cast<const CudaAllocation&>(*access.allocation);
         const auto* ptr = reinterpret_cast<const T*>(alloc.data()) + array.offset;
-        return {ptr};
+        return {ptr, to_fixed_array(array.sizes)};
     }
 };
 
@@ -337,7 +346,7 @@ struct TaskArgumentTrait<ExecutionSpace::Cuda, Write<Array<T, N>>> {
 
         const auto& alloc = dynamic_cast<const CudaAllocation&>(*access.allocation);
         auto* ptr = reinterpret_cast<T*>(alloc.data()) + array.offset;
-        return {ptr};
+        return {ptr, to_fixed_array(array.sizes)};
     }
 };
 
