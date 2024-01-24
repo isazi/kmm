@@ -47,9 +47,7 @@ TEST(IntegerFuns, round_up_to_power_of_two) {
     ASSERT_EQ(round_up_to_power_of_two(uint64_t(5)), 8);
     ASSERT_EQ(round_up_to_power_of_two(uint64_t(1024)), 1024);
     ASSERT_EQ(round_up_to_power_of_two(uint64_t(10000)), 16384);
-    ASSERT_EQ(
-        round_up_to_power_of_two(std::numeric_limits<uint64_t>::max()),
-        0);
+    ASSERT_EQ(round_up_to_power_of_two(std::numeric_limits<uint64_t>::max()), 0);
 
     ASSERT_EQ(round_up_to_power_of_two(int32_t(0)), 1);
     ASSERT_EQ(round_up_to_power_of_two(int32_t(5)), 8);
