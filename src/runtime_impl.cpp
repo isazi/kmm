@@ -27,8 +27,11 @@ BlockId RuntimeImpl::create_block(
     std::unique_ptr<BlockHeader> header,
     const void* src_data,
     size_t num_bytes) const {
-    BlockId block_id = BlockId(EventId(m_next_event++), 0);
+    auto event_id = EventId(m_next_event++);
+    auto block_id = BlockId(event_id, 0);
     m_worker->create_block(block_id, memory_id, std::move(header), src_data, num_bytes);
+
+    m_block_accesses.insert({block_id, {event_id}});
     return block_id;
 }
 
