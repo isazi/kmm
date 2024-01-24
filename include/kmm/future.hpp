@@ -1,7 +1,7 @@
 #include "block.hpp"
 #include "block_header.hpp"
 #include "runtime.hpp"
-#include "task_serialize.hpp"
+#include "task_argument.hpp"
 
 namespace kmm {
 
@@ -44,57 +44,28 @@ class Future: public FutureBase {
     }
 };
 
-template<typename T>
 struct SerializedFuture {
     size_t buffer_index;
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskArgumentSerializer<Space, Future<T>> {
-    using type = SerializedFuture<const T>;
+struct TaskArgumentTrait<Space, Future<T>> {
+    using packed_type = SerializedFuture;
+    using unpacked_type = const T&;
 
-    type serialize(RuntimeImpl& rt, const Future<T>& scalar, TaskRequirements& requirements) {
-        return {requirements.add_input(scalar.id())};
+    static packed_type pack(RuntimeImpl& rt, TaskRequirements& reqs, Future<T> future) {
+        return {.buffer_index = reqs.add_input(future.id())};
     }
 
-    void update(RuntimeImpl& rt, EventId event_id) {}
-};
-
-template<ExecutionSpace Space, typename T>
-struct TaskArgumentSerializer<Space, Write<Future<T>>> {
-    using type = SerializedFuture<T>;
-
-    type serialize(
+    static void post_submission(
         RuntimeImpl& rt,
-        const Write<Future<T>>& scalar,
-        TaskRequirements& requirements) {
-        auto header = std::make_unique<ScalarHeader<T>>();
-        m_target = &scalar.inner;
-        m_output_index = requirements.add_output(std::move(header), rt);
+        EventId id,
+        const Future<T>& future,
+        packed_type arg) {}
 
-        return {m_output_index};
-    }
-
-    void update(RuntimeImpl& rt, EventId event_id) {
-        if (m_target) {
-            auto block_id = BlockId(event_id, m_output_index);
-            auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-            *m_target = Future<T>(std::move(block));
-        }
-    }
-
-  private:
-    Future<T>* m_target = nullptr;
-    size_t m_output_index = ~0;
-};
-
-template<ExecutionSpace Space, typename T>
-struct TaskArgumentDeserializer<Space, SerializedFuture<T>> {
-    using type = T&;
-
-    type deserialize(const SerializedFuture<T>& scalar, TaskContext& context) {
-        const auto& access = context.outputs.at(scalar.buffer_index);
-        auto* header = dynamic_cast<ScalarHeader<T>*>(access.header);
+    static unpacked_type unpack(TaskContext& context, packed_type future) {
+        const auto& access = context.inputs.at(future.buffer_index);
+        const auto* header = dynamic_cast<const ScalarHeader<T>*>(access.header.get());
         KMM_ASSERT(header != nullptr);
 
         return header->get();
@@ -102,12 +73,27 @@ struct TaskArgumentDeserializer<Space, SerializedFuture<T>> {
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskArgumentDeserializer<Space, SerializedFuture<const T>> {
-    using type = const T&;
+struct TaskArgumentTrait<Space, Write<Future<T>>> {
+    using packed_type = SerializedFuture;
+    using unpacked_type = T&;
 
-    type deserialize(const SerializedFuture<const T>& scalar, TaskContext& context) {
-        const auto& access = context.inputs.at(scalar.buffer_index);
-        const auto* header = dynamic_cast<const ScalarHeader<T>*>(access.header.get());
+    static packed_type pack(RuntimeImpl& rt, TaskRequirements& reqs, Write<Future<T>> future) {
+        return {.buffer_index = reqs.add_output(future->id())};
+    }
+
+    static void post_submission(
+        RuntimeImpl& rt,
+        EventId id,
+        const Write<Future<T>>& future,
+        packed_type arg) {
+        auto block_id = BlockId(id, arg.buffer_index);
+        auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
+        *future = Future<T>(std::move(block));
+    }
+
+    static unpacked_type unpack(TaskContext& context, packed_type future) {
+        const auto& access = context.outputs.at(future.buffer_index);
+        const auto* header = dynamic_cast<ScalarHeader<T>*>(access.header);
         KMM_ASSERT(header != nullptr);
 
         return header->get();

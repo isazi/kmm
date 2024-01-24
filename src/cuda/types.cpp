@@ -112,6 +112,30 @@ std::vector<CUdevice> get_cuda_devices() {
     }
 }
 
+std::optional<CUdevice> get_cuda_device_by_address(const void* address) {
+    try {
+        CUmemorytype memory_type;
+        KMM_CUDA_CHECK(cuPointerGetAttribute(
+            &memory_type,
+            CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+            CUdeviceptr(address)));
+
+        if (memory_type == CUmemorytype_enum::CU_MEMORYTYPE_DEVICE) {
+            int ordinal;
+            KMM_CUDA_CHECK(cuPointerGetAttribute(
+                &ordinal,
+                CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
+                CUdeviceptr(address)));
+
+            return CUdevice {ordinal};
+        }
+    } catch (const std::exception& error) {
+        spdlog::warn("ignored error in `get_cuda_device_by_address`: {}", error.what());
+    }
+
+    return std::nullopt;
+}
+
 CudaContextHandle CudaContextHandle::create_context_for_device(CUdevice device) {
     int flags = CU_CTX_MAP_HOST;
     CUcontext context;

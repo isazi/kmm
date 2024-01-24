@@ -1,65 +1,9 @@
-#include <cublas_v2.h>
-#include <cuda_runtime_api.h>
 
 #include "kmm/cuda/device.hpp"
 
 #ifdef KMM_USE_CUDA
 
 namespace kmm {
-
-CudaDeviceInfo::CudaDeviceInfo(CudaContextHandle context, MemoryId affinity_id) :
-    m_affinity_id(affinity_id) {
-    CudaContextGuard guard {context};
-
-    KMM_CUDA_CHECK(cuCtxGetDevice(&m_device_id));
-
-    char name[1024];
-    KMM_CUDA_CHECK(cuDeviceGetName(name, 1024, m_device_id));
-    m_name = std::string(name);
-
-    for (size_t i = 0; i < NUM_ATTRIBUTES; i++) {
-        auto attr = CUdevice_attribute(i);
-        KMM_CUDA_CHECK(cuDeviceGetAttribute(&m_attributes[i], attr, m_device_id));
-    }
-
-    size_t ignore_free_memory;
-    KMM_CUDA_CHECK(cuMemGetInfo(&ignore_free_memory, &m_memory_capacity));
-}
-
-dim3 CudaDeviceInfo::max_block_dim() const {
-    return dim3(
-        attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
-        attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
-        attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z));
-}
-
-dim3 CudaDeviceInfo::max_grid_dim() const {
-    return dim3(
-        attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X),
-        attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y),
-        attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z));
-}
-
-int CudaDeviceInfo::compute_capability() const {
-    return attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) * 10
-        + attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
-}
-
-int CudaDeviceInfo::max_threads_per_block() const {
-    return attribute(CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK);
-}
-
-size_t CudaDeviceInfo::total_memory_size() const {
-    return m_memory_capacity;
-}
-
-int CudaDeviceInfo::attribute(CUdevice_attribute attrib) const {
-    if (attrib < NUM_ATTRIBUTES) {
-        return m_attributes[attrib];
-    }
-
-    throw std::runtime_error("unsupported attribute requested");
-}
 
 CudaDevice::CudaDevice(CudaContextHandle context, MemoryId affinity_id) :
     CudaDeviceInfo(context, affinity_id),
@@ -88,13 +32,76 @@ void CudaDevice::synchronize() const {
     KMM_CUDA_CHECK(cuStreamSynchronize(CUDA_DEFAULT_STREAM));
 }
 
-cublasHandle_t CudaDevice::cublas() {
+cublasHandle_t CudaDevice::cublas() const {
     if (m_cublas_handle == nullptr) {
         KMM_CUDA_CHECK(cublasCreate(&m_cublas_handle));
         KMM_CUDA_CHECK(cublasSetStream(m_cublas_handle, m_stream));
     }
 
     return m_cublas_handle;
+}
+
+static bool is_fill_pattern_repetitive(
+    size_t k,
+    const void* fill_pattern,
+    size_t fill_pattern_size) {
+    if (fill_pattern_size < k || fill_pattern_size % k != 0) {
+        return false;
+    }
+
+    for (size_t i = 1; i < fill_pattern_size / k; i++) {
+        for (size_t j = 0; j < k; j++) {
+            if (static_cast<const char*>(fill_pattern)[i * k + j]
+                != static_cast<const char*>(fill_pattern)[j]) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+void CudaDevice::fill_bytes(
+    void* dest_buffer,
+    size_t nbytes,
+    const void* fill_pattern,
+    size_t fill_pattern_size) const {
+    if (is_fill_pattern_repetitive(1, fill_pattern, fill_pattern_size)) {
+        uint8_t fill_value;
+        ::memcpy(&fill_value, fill_pattern, sizeof(uint8_t));
+
+        KMM_CUDA_CHECK(cuMemsetD8Async(CUdeviceptr(dest_buffer), fill_value, nbytes, m_stream));
+
+    } else if (is_fill_pattern_repetitive(2, fill_pattern, fill_pattern_size)) {
+        uint16_t fill_value;
+        ::memcpy(&fill_value, fill_pattern, sizeof(uint16_t));
+
+        KMM_CUDA_CHECK(cuMemsetD16Async(
+            CUdeviceptr(dest_buffer),
+            fill_value,
+            nbytes / sizeof(uint16_t),
+            m_stream));
+
+    } else if (is_fill_pattern_repetitive(4, fill_pattern, fill_pattern_size)) {
+        uint32_t fill_value;
+        ::memcpy(&fill_value, fill_pattern, sizeof(uint32_t));
+
+        KMM_CUDA_CHECK(cuMemsetD32Async(
+            CUdeviceptr(dest_buffer),
+            fill_value,
+            nbytes / sizeof(uint32_t),
+            m_stream));
+
+    } else {
+        throw CudaException(fmt::format(
+            "could not fill buffer, value is {} bit, but only 8, 16, or 32 bit is supported",
+            fill_pattern_size * 8));
+    }
+}
+
+void CudaDevice::copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
+    KMM_CUDA_CHECK(
+        cuMemcpyAsync(CUdeviceptr(dest_buffer), CUdeviceptr(source_buffer), nbytes, m_stream));
 }
 
 class CudaDeviceThread {
@@ -223,12 +230,18 @@ void CudaDeviceThread::submit_job(size_t slot, std::unique_ptr<CudaDeviceHandle:
     try {
         job->task->execute(*m_streams[slot], job->context);
 
+        // Check if one of the kernel submissions raised an error.
+        KMM_CUDA_CHECK(cudaGetLastError());
+
+        // Make sure to also way on tasks that are accidentally submitted onto the default stream.
         KMM_CUDA_CHECK(cuEventRecord(m_events[slot], CUDA_DEFAULT_STREAM));
         KMM_CUDA_CHECK(cuStreamWaitEvent(m_streams[slot]->stream(), m_events[slot], 0));
 
         m_running_jobs[slot] = std::move(job->completion);
     } catch (...) {
+        // Block on both the slot's stream and the default stream
         KMM_ASSERT(cuStreamSynchronize(m_streams[slot]->stream()) == CUDA_SUCCESS);
+        KMM_ASSERT(cuStreamSynchronize(CUDA_DEFAULT_STREAM) == CUDA_SUCCESS);
 
         job->completion.complete_error(ErrorPtr::from_current_exception());
     }

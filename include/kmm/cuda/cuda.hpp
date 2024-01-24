@@ -5,7 +5,7 @@
 #endif
 
 #include "kmm/cuda/device.hpp"
-#include "kmm/task_serialize.hpp"
+#include "kmm/task_argument.hpp"
 
 #ifdef KMM_USE_CUDA
 
@@ -51,14 +51,18 @@ struct CudaKernel {
         return m_device.find_device(rt);
     }
 
-    template<typename F, typename... Args>
-    void operator()(kmm::Device& device, kmm::TaskContext&, F kernel, Args... args) const {
+    template<typename... KernelArgs, typename... Args>
+    void operator()(
+        kmm::Device& device,
+        kmm::TaskContext&,
+        void (*const kernel_function)(KernelArgs...),
+        Args&&... args) const {
         device.cast<CudaDevice>().launch(
             {m_grid_dim.x, m_grid_dim.y, m_grid_dim.z},
             {m_block_dim.x, m_block_dim.y, m_block_dim.z},
             m_shared_memory,
-            kernel,
-            args...);
+            kernel_function,
+            KernelArgs(std::forward<Args>(args))...);
     }
 
   private:

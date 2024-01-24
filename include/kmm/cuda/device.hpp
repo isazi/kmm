@@ -13,83 +13,17 @@
     #include <cuda_runtime_api.h>
 #endif
 
+#include "kmm/cuda/info.hpp"
 #include "kmm/cuda/types.hpp"
 #include "kmm/device.hpp"
 #include "kmm/identifiers.hpp"
+#include "kmm/utils/checked_math.hpp"
+#include "kmm/utils/view.hpp"
 #include "kmm/utils/work_queue.hpp"
 
 #ifdef KMM_USE_CUDA
 
 namespace kmm {
-
-/**
- * Stores the information on a CUDA device.
- */
-class CudaDeviceInfo: public DeviceInfo {
-  public:
-    static constexpr size_t NUM_ATTRIBUTES = CU_DEVICE_ATTRIBUTE_MAX;
-
-    CudaDeviceInfo(CudaContextHandle context, MemoryId affinity_id);
-
-    /**
-     * Returns the name of the CUDA device as provided by `cuDeviceGetName`.
-     */
-    std::string name() const override {
-        return m_name;
-    }
-
-    /**
-     * Returns which memory this device has affinity to.
-     */
-    MemoryId memory_affinity() const override {
-        return m_affinity_id;
-    }
-
-    /**
-     * Return this device as a `CUdevice`.
-     */
-    CUdevice device() const {
-        return m_device_id;
-    }
-
-    /**
-     * Returns the maximum block size supported by this device.
-     */
-    dim3 max_block_dim() const;
-
-    /**
-     * Returns the maximum grid size supported by this device.
-     */
-    dim3 max_grid_dim() const;
-
-    /**
-     * Returns the compute capability of this device as integer `MAJOR * 10 + MINOR` (For example,
-     * `86` means capability 8.6)
-     */
-    int compute_capability() const;
-
-    /**
-     * Returns the maximum number of threads per block supported by this device.
-     */
-    int max_threads_per_block() const;
-
-    /**
-     * Returns the total memory size of this device.
-     */
-    size_t total_memory_size() const;
-
-    /**
-     * Returns the value of the provided attribute.
-     */
-    int attribute(CUdevice_attribute attrib) const;
-
-  private:
-    std::string m_name;
-    CUdevice m_device_id;
-    size_t m_memory_capacity;
-    MemoryId m_affinity_id;
-    std::array<int, NUM_ATTRIBUTES> m_attributes;
-};
 
 /**
  * Contains the state of a CUDA device, such as the CUDA context and the CUDA stream.
@@ -101,26 +35,52 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
     CudaDevice(CudaContextHandle, MemoryId affinity_id);
     ~CudaDevice() noexcept final;
 
+    /**
+     * Returns the `CudaContextHandle` of this device.
+     */
     CudaContextHandle context_handle() const {
         return m_context;
     }
 
+    /**
+     * Returns the `CUcontext` of this device.
+     */
     CUcontext context() const {
         return m_context;
     }
 
+    /**
+     * Returns the `CUstream` associated with this device. All work should be submitted onto this
+     * stream to ensure that it is performed asynchronously.
+     */
     CUstream stream() const {
         return m_stream;
     }
 
+    /**
+     * Returns an `CUevent` associated with this device. This event can be used, for example,
+     * to perform timing measurements.
+     */
     CUevent event() const {
         return m_event;
     }
 
-    cublasHandle_t cublas();
+    /**
+     * Returns a handle to the cuBLAS instance associated with this device.
+     */
+    cublasHandle_t cublas() const;
 
+    /**
+     * Block the current thread until all work submitted onto the stream of this device has
+     * finished. Note that the CUDA executor thread will also synchronize the stream automatically
+     * after each task, so calling thus function manually is not mandatory.
+     */
     void synchronize() const;
 
+    /**
+     * Launch the given CUDA kernel onto the stream of this device. The `kernel_function` argument
+     * should be a pointer to a `__global__` function.
+     */
     template<typename... Args>
     void launch(
         dim3 grid_dim,
@@ -132,6 +92,8 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
         void* void_args[sizeof...(Args) + 1] = {static_cast<void*>(&args)..., nullptr};
 
         // Launch the kernel!
+        // NOTE: This must be in the header file since `cudaLaunchKernel` seems to no find the
+        // kernel function if it is called from within a C++ file.
         KMM_CUDA_CHECK(cudaLaunchKernel(
             reinterpret_cast<const void*>(kernel_function),
             grid_dim,
@@ -141,11 +103,71 @@ class CudaDevice final: public CudaDeviceInfo, public Device {
             m_stream));
     }
 
+    /**
+     * Fill the provided view with the copies of the provided value. The fill is performed
+     * asynchronously on the stream of this device.
+     */
+    template<typename T, size_t N>
+    void fill(cuda_view_mut<T, N> dest, T value) const {
+        fill_bytes(dest.data(), dest.size_in_bytes(), &value, sizeof(T));
+    }
+
+    /**
+     * Copy data from the given source view to the given destination view. The copy is performed
+     * asynchronously on the stream of the current device.
+     */
+    template<typename T, size_t N>
+    void copy(cuda_view<T, N> source, cuda_view_mut<T, N> dest) const {
+        KMM_ASSERT(source.sizes() == dest.sizes());
+        copy_bytes(source.data(), dest.data(), source.size_in_bytes());
+    }
+
+    template<typename T, size_t N>
+    void copy(cuda_view<T, N> source, view_mut<T, N> dest) const {
+        KMM_ASSERT(source.sizes() == dest.sizes());
+        copy_bytes(source.data(), dest.data(), source.size_in_bytes());
+    }
+
+    template<typename T, size_t N>
+    void copy(view<T, N> source, cuda_view_mut<T, N> dest) const {
+        KMM_ASSERT(source.sizes() == dest.sizes());
+        copy_bytes(source.data(), dest.data(), source.size_in_bytes());
+    }
+
+    /**
+     * Copy data from the given source view to the given destination view. The copy is performed
+     * asynchronously on the stream of the current device.
+     */
+    template<typename T, typename I>
+    void copy(const T* source_ptr, T* dest_ptr, I num_elements) const {
+        copy_bytes(
+            source_ptr,
+            dest_ptr,
+            checked_mul(checked_cast<size_t>(num_elements), sizeof(T)));
+    }
+
+    /**
+     * Fill `nbytes` of the buffer starting at `dest_buffer` by repeating the given pattern.
+     * The argument `dest_buffer` must be allocated on the device while the `fill_pattern` must
+     * be on the host.
+     */
+    void fill_bytes(
+        void* dest_buffer,
+        size_t nbytes,
+        const void* fill_pattern,
+        size_t fill_pattern_size) const;
+
+    /**
+     * Copy `nbytes` bytes from the buffer starting at `source_buffer` to the buffer starting at
+     * `dest_buffer`. Both buffers must be allocated on the current device.
+     */
+    void copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const;
+
   private:
     CudaContextHandle m_context;
     CUstream m_stream;
     CUevent m_event;
-    cublasHandle_t m_cublas_handle = nullptr;
+    mutable cublasHandle_t m_cublas_handle = nullptr;
 };
 
 /**

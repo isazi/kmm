@@ -7,8 +7,9 @@
 #include "kmm/array.hpp"
 #include "kmm/device.hpp"
 #include "kmm/identifiers.hpp"
-#include "kmm/task_serialize.hpp"
+#include "kmm/task_argument.hpp"
 #include "kmm/utils/checked_math.hpp"
+#include "kmm/utils/view.hpp"
 
 namespace kmm {
 
@@ -54,6 +55,34 @@ class Runtime {
     }
 
     /**
+     * Returns the memory identifier that has the best affinity for the given memory address.
+     */
+    MemoryId memory_affinity_for_address(const void* address) const;
+
+    /**
+     * Create a new array where the data is provided by memory stored on the host. The dimensions
+     * of the new array will be `sizes`. The provided buffer must contain exactly
+     * `sizes[0] * sizes[1] * ...` elements.
+     *
+     * @param data_ptr The provided data elements.
+     * @param sizes The dimensions of the new array.
+     * @return The new array.
+     */
+    template<typename T, size_t N>
+    Array<T, N> allocate_array(const T* data_ptr, std::array<index_t, N> sizes) const {
+        index_t num_elements = checked_product(sizes.begin(), sizes.end());
+        size_t num_bytes = checked_mul(checked_cast<size_t>(num_elements), sizeof(T));
+
+        auto memory_id = memory_affinity_for_address(data_ptr);
+        auto header = std::make_unique<ArrayHeader>(ArrayHeader::for_type<T>(num_elements));
+
+        auto block_id = m_impl->create_block(memory_id, std::move(header), data_ptr, num_bytes);
+        auto block = std::make_shared<Block>(m_impl, block_id);
+
+        return {sizes, block};
+    }
+
+    /**
      * Create a new array where the data is provided by memory stored on the host. The dimensions
      * of the new array will be `{sizes[0], sizes[1], ...}`. The provided buffer must contain
      * exactly `sizes[0] * sizes[1] * ...` elements.
@@ -64,17 +93,7 @@ class Runtime {
      */
     template<typename T, typename... Sizes, size_t N = sizeof...(Sizes)>
     Array<T, N> allocate(const T* data_ptr, Sizes... sizes) const {
-        std::array<index_t, N> shape = {checked_cast<index_t>(sizes)...};
-        index_t num_elements = checked_product(shape.begin(), shape.end());
-        size_t num_bytes = checked_mul(checked_cast<size_t>(num_elements), sizeof(T));
-
-        auto memory_id = MemoryId(0);
-        auto header = std::make_unique<ArrayHeader>(ArrayHeader::for_type<T>(num_elements));
-
-        auto block_id = m_impl->create_block(memory_id, std::move(header), data_ptr, num_bytes);
-        auto block = std::make_shared<Block>(m_impl, block_id);
-
-        return {shape, block};
+        return allocate_array(data_ptr, std::array<index_t, N> {checked_cast<index_t>(sizes)...});
     }
 
     /**
@@ -83,6 +102,19 @@ class Runtime {
     template<typename T>
     Array<T> allocate(const std::vector<T>& vector) const {
         return allocate(vector.data(), vector.size());
+    }
+
+    /**
+     * This is an alias for `allocate(input.data(), input.sizes())`
+     */
+    template<typename T, size_t N>
+    Array<T> allocate(view<T, N> input) const {
+        std::array<index_t, N> shape;
+        for (size_t i = 0; i < N; i++) {
+            shape[i] = input.size(i);
+        }
+
+        return allocate_array(input.data(), shape);
     }
 
     /**

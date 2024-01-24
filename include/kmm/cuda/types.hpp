@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -8,11 +9,9 @@
     #include <cublas_v2.h>
     #include <cuda.h>
     #include <cuda_runtime_api.h>
-#endif
 
-#include "kmm/utils/macros.hpp"
+    #include "kmm/utils/macros.hpp"
 
-#ifdef KMM_USE_CUDA
     #define KMM_CUDA_CHECK(...)                                                        \
         do {                                                                           \
             auto __code = (__VA_ARGS__);                                               \
@@ -59,11 +58,21 @@ class CudaRuntimeException: public CudaException {
 
 class CudaBlasException: public CudaException {
   public:
-    CudaBlasException(const std::string& message, cublasStatus_t status);
+    CudaBlasException(const std::string& message, cublasStatus_t result);
     cublasStatus_t status;
 };
 
+/**
+ * Returns the available CUDA devices as a list of `CUdevice`s.
+ */
 std::vector<CUdevice> get_cuda_devices();
+
+/**
+ * If the given address points to memory allocation that has been allocated on a CUDA device, then
+ * this function returns the device ordinal as a `CUdevice`. If the address points ot an invalid
+ * memory location or a non-CUDA buffer, then returns `std::nullopt`.
+ */
+std::optional<CUdevice> get_cuda_device_by_address(const void* address);
 
 class CudaContextHandle {
     CudaContextHandle() = delete;

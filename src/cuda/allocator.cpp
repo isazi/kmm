@@ -2,23 +2,11 @@
 
 #include "kmm/cuda/allocator.hpp"
 #include "kmm/panic.hpp"
+#include "kmm/utils/integer_fun.hpp"
 
 #ifdef KMM_USE_CUDA
 
 namespace kmm {
-
-static size_t round_up_to_power_of_two(size_t size) {
-    size_t align = 1;
-    while (align < size && align <= std::numeric_limits<size_t>::max() / 2) {
-        align *= 2;
-    }
-
-    return align;
-}
-
-static size_t round_up_to_multiple(size_t n, size_t k) {
-    return n + (n % k == 0 ? 0 : k - n % k);
-}
 
 CudaAllocatorBase::CudaAllocatorBase(size_t max_bytes, size_t block_size) :
     m_block_size(block_size),

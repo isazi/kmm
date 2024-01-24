@@ -163,29 +163,6 @@ void Worker::stop_job(Job& job) {
     m_job_completion.notify_all();
 }
 
-class ThreadNotifier: public Waker {
-  public:
-    void trigger_wakeup(bool allow_progress) const override {
-        std::lock_guard guard {m_mutex};
-        m_updated = true;
-        m_cond.notify_one();
-    }
-
-    void wait() const {
-        std::unique_lock guard {m_mutex};
-        while (!m_updated) {
-            m_cond.wait(guard);
-        }
-
-        m_updated = false;
-    }
-
-  private:
-    mutable std::mutex m_mutex;
-    mutable std::condition_variable m_cond;
-    mutable bool m_updated = false;
-};
-
 void Worker::create_block(
     BlockId block_id,
     MemoryId memory_id,
@@ -195,7 +172,7 @@ void Worker::create_block(
     std::unique_lock guard {m_lock};
 
     auto layout = header->layout();
-    auto waker = std::make_shared<ThreadNotifier>();
+    auto waker = std::make_shared<ThreadWaker>();
     auto buffer_id = std::optional<BufferId> {};
 
     if (layout.num_bytes > 0) {
@@ -249,13 +226,13 @@ std::shared_ptr<BlockHeader> Worker::read_block(
         throw std::invalid_argument("invalid buffer size");
     }
 
-    if (buffer_size == 0) {
+    if (!buffer_id.has_value() || buffer_id->num_bytes() == 0) {
         return header;
     }
 
     auto memory_id = preferred_memory_id.has_value() ? *preferred_memory_id : meta.home_memory;
 
-    auto waker = std::make_shared<ThreadNotifier>();
+    auto waker = std::make_shared<ThreadWaker>();
     auto transaction = m_state.memory_manager->create_transaction(waker);
     auto request = m_state.memory_manager
                        ->create_request(*buffer_id, memory_id, AccessMode::Read, transaction);
