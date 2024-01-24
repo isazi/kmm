@@ -816,7 +816,7 @@ struct basic_view: private L, private A, public basic_view_base<basic_view<T, L,
 
     KMM_HOST_DEVICE
     index_type size() const {
-        index_type total = 0;
+        index_type total = 1;
         for (size_t i = 0; i < rank; i++) {
             total *= size(i);
         }
