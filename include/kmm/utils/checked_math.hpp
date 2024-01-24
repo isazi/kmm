@@ -87,41 +87,9 @@ T checked_add(const T& lhs, const T& rhs) {
 }
 
 template<typename T>
-T checked_sum(const T* begin, const T* end) {
-    T result = static_cast<T>(0);
-    bool is_valid = true;
-
-    for (auto* it = begin; it != end; it++) {
-        is_valid &= details::checked_arithmetic_impl<T>::add(result, *it, &result);
-    }
-
-    if (!is_valid) {
-        throw_overflow_exception();
-    }
-
-    return result;
-}
-
-template<typename T>
 T checked_mul(const T& lhs, const T& rhs) {
     T result;
     if (!details::checked_arithmetic_impl<T>::mul(lhs, rhs, &result)) {
-        throw_overflow_exception();
-    }
-
-    return result;
-}
-
-template<typename T>
-T checked_product(const T* begin, const T* end) {
-    T result = static_cast<T>(1);
-    bool is_valid = true;
-
-    for (auto* it = begin; it != end; it++) {
-        is_valid &= details::checked_arithmetic_impl<T>::mul(result, *it, &result);
-    }
-
-    if (!is_valid) {
         throw_overflow_exception();
     }
 
@@ -155,6 +123,38 @@ R checked_cast(const T& input, const R& length) {
     }
 
     return R(input);
+}
+
+template<typename T>
+T checked_sum(const T* begin, const T* end) {
+    T result = static_cast<T>(0);
+    bool is_valid = true;
+
+    for (auto* it = begin; it != end; it++) {
+        is_valid &= details::checked_arithmetic_impl<T>::add(result, checked_cast<T>(*it), &result);
+    }
+
+    if (!is_valid) {
+        throw_overflow_exception();
+    }
+
+    return result;
+}
+
+template<typename T>
+T checked_product(const T* begin, const T* end) {
+    T result = static_cast<T>(1);
+    bool is_valid = true;
+
+    for (auto* it = begin; it != end; it++) {
+        is_valid &= details::checked_arithmetic_impl<T>::mul(result, checked_cast<T>(*it), &result);
+    }
+
+    if (!is_valid) {
+        throw_overflow_exception();
+    }
+
+    return result;
 }
 
 }  // namespace kmm

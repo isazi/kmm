@@ -134,12 +134,27 @@ EventId submit_task_with_launcher(
 
 template<typename T>
 struct Write {
-    T& inner;
+    T* inner;
+
+    T* get() const {
+        return inner;
+    }
+
+    T& operator*() const {
+        return *inner;
+    }
+
+    T* operator->() const {
+        return inner;
+    }
 };
 
 template<typename T>
+Write(T&) -> Write<T>;
+
+template<typename T>
 Write<T> write(T& value) {
-    return {value};
+    return {&value};
 }
 
 }  // namespace kmm

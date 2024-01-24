@@ -83,7 +83,9 @@ if(KMM_BUILD_TESTS)
     ${PROJECT_SOURCE_DIR}/test/test_memory_manager.cpp
     ${PROJECT_SOURCE_DIR}/test/test_result.cpp
     ${PROJECT_SOURCE_DIR}/test/test_memory_pool.cpp
+    ${PROJECT_SOURCE_DIR}/test/test_integer_fun.cpp
   )
+  target_compile_features(kmmTest PRIVATE cxx_std_17)
   target_include_directories(
     kmmTest
     PRIVATE
@@ -108,6 +110,7 @@ if(KMM_BUILD_EXAMPLES)
       vector_add
       ${PROJECT_SOURCE_DIR}/examples/vector_add.cu
     )
+    target_compile_features(vector_add PRIVATE cxx_std_17)
     target_include_directories(
       vector_add
       PRIVATE

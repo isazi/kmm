@@ -78,7 +78,7 @@ struct TaskArgumentTrait<Space, Write<Future<T>>> {
     using unpacked_type = T&;
 
     static packed_type pack(RuntimeImpl& rt, TaskRequirements& reqs, Write<Future<T>> future) {
-        return {.buffer_index = reqs.add_output(future.id())};
+        return {.buffer_index = reqs.add_output(future->id())};
     }
 
     static void post_submission(
@@ -88,7 +88,7 @@ struct TaskArgumentTrait<Space, Write<Future<T>>> {
         packed_type arg) {
         auto block_id = BlockId(id, arg.buffer_index);
         auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-        future.inner = Future<T>(std::move(block));
+        *future = Future<T>(std::move(block));
     }
 
     static unpacked_type unpack(TaskContext& context, packed_type future) {

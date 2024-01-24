@@ -230,12 +230,18 @@ void CudaDeviceThread::submit_job(size_t slot, std::unique_ptr<CudaDeviceHandle:
     try {
         job->task->execute(*m_streams[slot], job->context);
 
+        // Check if one of the kernel submissions raised an error.
+        KMM_CUDA_CHECK(cudaGetLastError());
+
+        // Make sure to also way on tasks that are accidentally submitted onto the default stream.
         KMM_CUDA_CHECK(cuEventRecord(m_events[slot], CUDA_DEFAULT_STREAM));
         KMM_CUDA_CHECK(cuStreamWaitEvent(m_streams[slot]->stream(), m_events[slot], 0));
 
         m_running_jobs[slot] = std::move(job->completion);
     } catch (...) {
+        // Block on both the slot's stream and the default stream
         KMM_ASSERT(cuStreamSynchronize(m_streams[slot]->stream()) == CUDA_SUCCESS);
+        KMM_ASSERT(cuStreamSynchronize(CUDA_DEFAULT_STREAM) == CUDA_SUCCESS);
 
         job->completion.complete_error(ErrorPtr::from_current_exception());
     }

@@ -139,9 +139,10 @@ class Array: public ArrayBase {
      * @param dst_ptr The memory location where the data will be written.
      * @param length The size of the memory location in number of elements. Must equal `size()`.
      */
-    void read(T* dst_ptr, size_t length) const {
+    template<typename I>
+    void read(T* dst_ptr, I length) const {
         if (!is_empty()) {
-            m_block->read(dst_ptr, length * sizeof(T));
+            m_block->read(dst_ptr, checked_mul(checked_cast<size_t>(length), sizeof(T)));
         }
     }
 
@@ -189,8 +190,8 @@ class Array: public ArrayBase {
     }
 
   private:
-    size_t m_offset = 0;
     std::array<index_t, N> m_sizes;
+    size_t m_offset = 0;
 };
 
 template<typename T, size_t N = 1>
@@ -241,11 +242,11 @@ struct TaskArgumentTrait<ExecutionSpace::Host, Write<Array<T, N>>> {
         RuntimeImpl& rt,
         TaskRequirements& reqs,
         Write<Array<T, N>> array) {
-        auto header = std::make_unique<ArrayHeader>(array.inner.header());
+        auto header = std::make_unique<ArrayHeader>(array->header());
         return {
             .buffer_index = reqs.add_output(std::move(header), rt),
             .offset = 0,
-            .sizes = array.inner.sizes()};
+            .sizes = array->sizes()};
     }
 
     static void post_submission(
@@ -255,7 +256,7 @@ struct TaskArgumentTrait<ExecutionSpace::Host, Write<Array<T, N>>> {
         PackedArray<T, N> arg) {
         auto block_id = BlockId(id, arg.buffer_index);
         auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-        array.inner = Array<T, N>(arg.sizes, block);
+        *array = Array<T, N>(arg.sizes, block);
     }
 
     static view_mut<T, N> unpack(TaskContext& context, PackedArray<T, N> array) {
@@ -312,11 +313,11 @@ struct TaskArgumentTrait<ExecutionSpace::Cuda, Write<Array<T, N>>> {
         RuntimeImpl& rt,
         TaskRequirements& reqs,
         Write<Array<T, N>> array) {
-        auto header = std::make_unique<ArrayHeader>(array.inner.header());
+        auto header = std::make_unique<ArrayHeader>(array->header());
         return {
             .buffer_index = reqs.add_output(std::move(header), rt),
             .offset = 0,
-            .sizes = array.inner.sizes()};
+            .sizes = array->sizes()};
     }
 
     static void post_submission(
@@ -326,7 +327,7 @@ struct TaskArgumentTrait<ExecutionSpace::Cuda, Write<Array<T, N>>> {
         PackedArray<T, N> arg) {
         auto block_id = BlockId(id, uint8_t(arg.buffer_index));
         auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-        array.inner = Array<T, N>(arg.sizes, block);
+        *array = Array<T, N>(arg.sizes, block);
     }
 
     static cuda_view_mut<T, N> unpack(TaskContext& context, PackedArray<T, N> array) {
