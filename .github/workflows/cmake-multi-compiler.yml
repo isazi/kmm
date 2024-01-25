@@ -22,9 +22,9 @@ jobs:
             
     steps:
     - uses: Bacondish2023/setup-googletest@v1
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
-        submodules: 'true'
+        submodules: 'recursive'
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
