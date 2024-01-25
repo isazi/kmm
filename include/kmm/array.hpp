@@ -201,7 +201,7 @@ struct PackedArray {
     std::array<index_t, N> sizes;
 };
 
-template <typename I, size_t N>
+template<typename I, size_t N>
 static fixed_array<I, N> to_fixed_array(const std::array<I, N>& input) {
     fixed_array<I, N> result;
     for (size_t i = 0; i < N; i++) {
