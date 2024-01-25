@@ -978,7 +978,7 @@ bool MemoryManager::Resource::is_out_of_memory(AllocationGrant& link) const {
 
     const auto* buffer = link.parent->buffer;
     spdlog::warn(
-        "failed to grant memory allocation to request, out of memory for"
+        "failed to grant memory allocation to request, out of memory for "
         "device {} while allocating buffer {} of {} bytes",
         m_memory_id,
         buffer->id,
