@@ -4,7 +4,7 @@
 #include <memory>
 #include <utility>
 
-#include "kmm/block.hpp"
+#include "kmm/array_base.hpp"
 #include "kmm/block_header.hpp"
 #include "kmm/cuda/memory.hpp"
 #include "kmm/event_list.hpp"
@@ -19,49 +19,8 @@ namespace kmm {
 
 class Runtime;
 
-class ArrayBase {
-  public:
-    ArrayBase(std::shared_ptr<Block> block = nullptr) : m_block(std::move(block)) {}
-    virtual ~ArrayBase() = default;
-
-    virtual size_t rank() const = 0;
-    virtual index_t size(size_t axis) const = 0;
-
-    bool has_block() const {
-        return bool(m_block);
-    }
-
-    std::shared_ptr<Block> block() const {
-        KMM_ASSERT(m_block != nullptr);
-        return m_block;
-    }
-
-    BlockId id() const {
-        return block()->id();
-    }
-
-    Runtime runtime() const;
-
-    void synchronize() const {
-        if (m_block) {
-            m_block->synchronize();
-        }
-    }
-
-    EventId prefetch(MemoryId memory_id, EventList dependencies = {}) const {
-        if (m_block) {
-            return m_block->prefetch(memory_id, std::move(dependencies));
-        } else {
-            return EventId::invalid();
-        }
-    }
-
-  protected:
-    std::shared_ptr<Block> m_block;
-};
-
 template<typename T, size_t N = 1>
-class Array: public ArrayBase {
+class Array final: public ArrayBase {
   public:
     using ArrayBase::size;
 
@@ -88,13 +47,6 @@ class Array: public ArrayBase {
     }
 
     /**
-     * Returns the `N`-dimensional shape of this array.
-     */
-    std::array<index_t, N> sizes() const {
-        return m_sizes;
-    }
-
-    /**
      * Returns the number of elements along the provided `axis`.
      *
      * @param axis The target axis.
@@ -105,27 +57,10 @@ class Array: public ArrayBase {
     }
 
     /**
-     * Returns the total volume of this array (i.e., the total number of elements).
-     *
-     * @return The volume of this array.
+     * Returns the `N`-dimensional shape of this array.
      */
-    index_t size() const {
-        return checked_product(m_sizes.begin(), m_sizes.end());
-    }
-
-    /**
-     * Check if the array contains no elements (i.e., if `size() == 0`)
-     *
-     * @return `true` if `size() == 0`, and `false` otherwise.
-     */
-    bool is_empty() const {
-        for (size_t i = 0; i < rank(); i++) {
-            if (m_sizes[i] == 0) {
-                return true;
-            }
-        }
-
-        return false;
+    std::array<index_t, N> sizes() const {
+        return m_sizes;
     }
 
     ArrayHeader header() const {
@@ -141,8 +76,10 @@ class Array: public ArrayBase {
      */
     template<typename I>
     void read(T* dst_ptr, I length) const {
+        KMM_ASSERT(checked_cast<index_t>(length) == size());
+
         if (!is_empty()) {
-            m_block->read(dst_ptr, checked_mul(checked_cast<size_t>(length), sizeof(T)));
+            read_bytes(dst_ptr, checked_mul(checked_cast<size_t>(length), sizeof(T)));
         }
     }
 
@@ -158,7 +95,7 @@ class Array: public ArrayBase {
         }
 
         if (!is_empty()) {
-            m_block->read(v.data(), v.size_in_bytes());
+            read_bytes(v.data(), v.size_in_bytes());
         }
     }
 
@@ -211,25 +148,20 @@ static fixed_array<I, N> to_fixed_array(const std::array<I, N>& input) {
 }
 
 template<typename T, size_t N>
-struct TaskArgumentTrait<ExecutionSpace::Host, Array<T, N>> {
-    using packed_type = PackedArray<const T, N>;
-    using unpacked_type = view<T, N>;
+struct TaskArgumentPack<ExecutionSpace::Host, Array<T, N>> {
+    using type = PackedArray<const T, N>;
 
-    static PackedArray<const T, N> pack(
-        RuntimeImpl& rt,
-        TaskRequirements& reqs,
-        Array<T, N> array) {
-        return {
-            .buffer_index = reqs.add_input(array.id(), rt),
-            .offset = 0,
-            .sizes = array.sizes()};
+    static PackedArray<const T, N> pack(TaskBuilder& builder, Array<T, N> array) {
+        return {//
+                .buffer_index = builder.add_input(array.id()),
+                .offset = 0,
+                .sizes = array.sizes()};
     }
+};
 
-    static void post_submission(
-        RuntimeImpl& rt,
-        EventId id,
-        const Array<T, N>& array,
-        PackedArray<const T, N> arg) {}
+template<typename T, size_t N>
+struct TaskArgumentUnpack<ExecutionSpace::Host, PackedArray<const T, N>> {
+    using type = view<T, N>;
 
     static view<T, N> unpack(TaskContext& context, PackedArray<const T, N> array) {
         const auto& access = context.inputs.at(array.buffer_index);
@@ -243,30 +175,30 @@ struct TaskArgumentTrait<ExecutionSpace::Host, Array<T, N>> {
 };
 
 template<typename T, size_t N>
-struct TaskArgumentTrait<ExecutionSpace::Host, Write<Array<T, N>>> {
-    using packed_type = PackedArray<T, N>;
-    using unpacked_type = view_mut<T, N>;
+struct TaskArgumentPack<ExecutionSpace::Host, Write<Array<T, N>>> {
+    using type = PackedArray<T, N>;
 
-    static PackedArray<T, N> pack(
-        RuntimeImpl& rt,
-        TaskRequirements& reqs,
-        Write<Array<T, N>> array) {
+    static PackedArray<T, N> pack(TaskBuilder& builder, Write<Array<T, N>> array) {
         auto header = std::make_unique<ArrayHeader>(array->header());
-        return {
-            .buffer_index = reqs.add_output(std::move(header), rt),
-            .offset = 0,
-            .sizes = array->sizes()};
-    }
+        auto buffer_index = builder.add_output(std::move(header));
+        auto rt = builder.runtime();
 
-    static void post_submission(
-        RuntimeImpl& rt,
-        EventId id,
-        const Write<Array<T, N>>& array,
-        PackedArray<T, N> arg) {
-        auto block_id = BlockId(id, arg.buffer_index);
-        auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-        *array = Array<T, N>(arg.sizes, block);
+        builder.after_submission([=](EventId event_id) {
+            auto block_id = BlockId(event_id, buffer_index);
+            auto block = std::make_shared<Block>(rt, block_id);
+            *array = Array<T, N>(array->sizes(), block);
+        });
+
+        return {//
+                .buffer_index = buffer_index,
+                .offset = 0,
+                .sizes = array->sizes()};
     }
+};
+
+template<typename T, size_t N>
+struct TaskArgumentUnpack<ExecutionSpace::Host, PackedArray<T, N>> {
+    using type = view_mut<T, N>;
 
     static view_mut<T, N> unpack(TaskContext& context, PackedArray<T, N> array) {
         const auto& access = context.outputs.at(array.buffer_index);
@@ -282,25 +214,20 @@ struct TaskArgumentTrait<ExecutionSpace::Host, Write<Array<T, N>>> {
 #ifdef KMM_USE_CUDA
 
 template<typename T, size_t N>
-struct TaskArgumentTrait<ExecutionSpace::Cuda, Array<T, N>> {
-    using packed_type = PackedArray<const T, N>;
-    using unpacked_type = cuda_view<T, N>;
+struct TaskArgumentPack<ExecutionSpace::Cuda, Array<T, N>> {
+    using type = PackedArray<const T, N>;
 
-    static PackedArray<const T, N> pack(
-        RuntimeImpl& rt,
-        TaskRequirements& reqs,
-        Array<T, N> array) {
-        return {
-            .buffer_index = reqs.add_input(array.id(), rt),
-            .offset = 0,
-            .sizes = array.sizes()};
+    static PackedArray<const T, N> pack(TaskBuilder& builder, Array<T, N> array) {
+        return {//
+                .buffer_index = builder.add_input(array.id()),
+                .offset = 0,
+                .sizes = array.sizes()};
     }
+};
 
-    static void post_submission(
-        RuntimeImpl& rt,
-        EventId id,
-        const Array<T, N>& array,
-        PackedArray<const T, N> arg) {}
+template<typename T, size_t N>
+struct TaskArgumentUnpack<ExecutionSpace::Cuda, PackedArray<const T, N>> {
+    using type = cuda_view<T, N>;
 
     static cuda_view<T, N> unpack(TaskContext& context, PackedArray<const T, N> array) {
         const auto& access = context.inputs.at(array.buffer_index);
@@ -314,30 +241,30 @@ struct TaskArgumentTrait<ExecutionSpace::Cuda, Array<T, N>> {
 };
 
 template<typename T, size_t N>
-struct TaskArgumentTrait<ExecutionSpace::Cuda, Write<Array<T, N>>> {
-    using packed_type = PackedArray<T, N>;
-    using unpacked_type = cuda_view_mut<T, N>;
+struct TaskArgumentPack<ExecutionSpace::Cuda, Write<Array<T, N>>> {
+    using type = PackedArray<T, N>;
 
-    static PackedArray<T, N> pack(
-        RuntimeImpl& rt,
-        TaskRequirements& reqs,
-        Write<Array<T, N>> array) {
+    static PackedArray<T, N> pack(TaskBuilder& builder, Write<Array<T, N>> array) {
         auto header = std::make_unique<ArrayHeader>(array->header());
-        return {
-            .buffer_index = reqs.add_output(std::move(header), rt),
-            .offset = 0,
-            .sizes = array->sizes()};
-    }
+        auto buffer_index = builder.add_output(std::move(header));
+        auto rt = builder.runtime();
 
-    static void post_submission(
-        RuntimeImpl& rt,
-        EventId id,
-        const Write<Array<T, N>>& array,
-        PackedArray<T, N> arg) {
-        auto block_id = BlockId(id, uint8_t(arg.buffer_index));
-        auto block = std::make_shared<Block>(rt.shared_from_this(), block_id);
-        *array = Array<T, N>(arg.sizes, block);
+        builder.after_submission([=](EventId event_id) {
+            auto block_id = BlockId(event_id, buffer_index);
+            auto block = std::make_shared<Block>(rt, block_id);
+            *array = Array<T, N>(array->sizes(), block);
+        });
+
+        return {//
+                .buffer_index = buffer_index,
+                .offset = 0,
+                .sizes = array->sizes()};
     }
+};
+
+template<typename T, size_t N>
+struct TaskArgumentUnpack<ExecutionSpace::Cuda, PackedArray<T, N>> {
+    using type = cuda_view_mut<T, N>;
 
     static cuda_view_mut<T, N> unpack(TaskContext& context, PackedArray<T, N> array) {
         const auto& access = context.outputs.at(array.buffer_index);

@@ -5,7 +5,6 @@
 
 #include "kmm/array.hpp"
 #include "kmm/cuda/cuda.hpp"
-#include "kmm/future.hpp"
 #include "kmm/host/host.hpp"
 #include "kmm/runtime.hpp"
 
@@ -69,18 +68,15 @@ int main(void) {
 
         // Execute the function on the device.
         //manager.submit(kmm::Cuda(), execute, write(C), A, B);
-        manager
-            .submit(kmm::CudaKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), SIZE);
+        manager.submit(kmm::CudaKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), n);
 
         // Verify the result on the host.
-        auto verify_id = manager.submit(kmm::Host(), verify, C);
+        auto verify_event = manager.submit(kmm::Host(), verify, C);
 
-        events.push_back(verify_id);
-        while (events.size() > 10) {
-            manager.wait(events.front());
-            events.pop_front();
+        events.push_back(verify_event);
+        if (events.size() >= 5) {
+            manager.wait(events[events.size() - 5]);
         }
-        //        manager.synchronize();
     }
 
     manager.synchronize();

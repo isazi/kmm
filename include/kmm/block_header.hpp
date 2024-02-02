@@ -66,32 +66,4 @@ class ArrayHeader final: public BlockHeader {
     const std::type_info& element_type_;
 };
 
-template<typename T>
-class ScalarHeader final: public BlockHeader {
-  public:
-    ScalarHeader(T value = {}) : m_value(std::move(value)) {}
-
-    std::string name() const override {
-        return typeid(T).name();
-    }
-
-    BlockLayout layout() const override {
-        return BlockLayout {
-            .num_bytes = 0,
-            .alignment = 1,
-        };
-    }
-
-    T& get() {
-        return m_value;
-    }
-
-    const T& get() const {
-        return m_value;
-    }
-
-  private:
-    T m_value;
-};
-
 }  // namespace kmm
