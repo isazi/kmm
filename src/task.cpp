@@ -1,15 +1,13 @@
-#include "kmm/runtime.hpp"
+#include "kmm/runtime_handle.hpp"
 #include "kmm/task.hpp"
 
 namespace kmm {
 
-TaskBuilder::TaskBuilder(RuntimeImpl* runtime, DeviceId id) :
-    m_runtime(runtime),
-    m_requirements(id) {}
+TaskBuilder::TaskBuilder(Runtime* runtime, DeviceId id) : m_runtime(runtime), m_requirements(id) {}
 
 EventId TaskBuilder::submit(std::shared_ptr<Task> task) {
     auto event_id = m_runtime->submit_task(std::move(task), std::move(m_requirements));
-    auto rt = Runtime(m_runtime->shared_from_this());
+    auto rt = RuntimeHandle(m_runtime->shared_from_this());
 
     for (auto& callback : m_callbacks) {
         callback->call(event_id);
@@ -18,7 +16,7 @@ EventId TaskBuilder::submit(std::shared_ptr<Task> task) {
     return event_id;
 }
 
-std::shared_ptr<RuntimeImpl> TaskBuilder::runtime() const {
+std::shared_ptr<Runtime> TaskBuilder::runtime() const {
     return m_runtime->shared_from_this();
 }
 

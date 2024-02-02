@@ -6,7 +6,7 @@
 #include "kmm/array.hpp"
 #include "kmm/cuda/cuda.hpp"
 #include "kmm/host/host.hpp"
-#include "kmm/runtime.hpp"
+#include "kmm/runtime_handle.hpp"
 
 #define SIZE 65536000
 

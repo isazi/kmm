@@ -5,7 +5,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "kmm/runtime_impl.hpp"
+#include "kmm/runtime.hpp"
 
 namespace kmm {
 
@@ -51,7 +51,7 @@ template<ExecutionSpace Space, typename T>
 using pack_argument_type = typename TaskArgumentPack<Space, std::decay_t<T>>::type;
 
 template<ExecutionSpace Space, typename T>
-pack_argument_type<Space, T> pack_argument(RuntimeImpl& rt, TaskRequirements& reqs, T&& value) {
+pack_argument_type<Space, T> pack_argument(Runtime& rt, TaskRequirements& reqs, T&& value) {
     return TaskArgumentPack<Space, std::decay_t<T>>::pack(rt, reqs, std::forward<T>(value));
 }
 
@@ -93,7 +93,7 @@ class TaskImpl final: public Task {
 
 template<typename Launcher, typename... Args>
 EventId submit_task_with_launcher(
-    RuntimeImpl& rt,
+    Runtime& rt,
     DeviceId device_id,
     Launcher launcher,
     Args... args) {

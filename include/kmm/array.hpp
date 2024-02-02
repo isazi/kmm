@@ -17,7 +17,7 @@
 
 namespace kmm {
 
-class Runtime;
+class RuntimeHandle;
 
 template<typename T, size_t N = 1>
 class Array final: public ArrayBase {

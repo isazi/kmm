@@ -1,12 +1,12 @@
 #pragma once
 
 #include "kmm/identifiers.hpp"
-#include "kmm/runtime_impl.hpp"
+#include "kmm/runtime.hpp"
 #include "kmm/utils/macros.hpp"
 
 namespace kmm {
 
-class Runtime;
+class RuntimeHandle;
 class Block;
 
 class ArrayBase {
@@ -35,7 +35,7 @@ class ArrayBase {
     /**
      * Returns the `Runtime` associated with this array.
      */
-    Runtime runtime() const;
+    RuntimeHandle runtime() const;
 
     /**
      * Block the current thread until all operations on this array have completed.
@@ -79,7 +79,7 @@ class Block {
     KMM_NOT_COPYABLE_OR_MOVABLE(Block)
 
   public:
-    Block(std::shared_ptr<RuntimeImpl> runtime, BlockId id);
+    Block(std::shared_ptr<Runtime> runtime, BlockId id);
     ~Block();
 
     /**
@@ -92,13 +92,13 @@ class Block {
     /**
      * Returns the runtime associated with this buffer.
      */
-    RuntimeImpl& runtime() const {
+    Runtime& runtime() const {
         return *m_runtime;
     }
 
   private:
     BlockId m_id;
-    std::shared_ptr<RuntimeImpl> m_runtime;
+    std::shared_ptr<Runtime> m_runtime;
 };
 
 }  // namespace kmm

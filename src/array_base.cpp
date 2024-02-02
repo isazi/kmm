@@ -1,6 +1,6 @@
 #include "kmm/array_base.hpp"
 #include "kmm/runtime.hpp"
-#include "kmm/runtime_impl.hpp"
+#include "kmm/runtime_handle.hpp"
 
 namespace kmm {
 
@@ -17,7 +17,7 @@ BlockId ArrayBase::id() const {
     return block()->id();
 }
 
-Runtime ArrayBase::runtime() const {
+RuntimeHandle ArrayBase::runtime() const {
     return {m_block->runtime().shared_from_this()};
 }
 
@@ -63,7 +63,7 @@ bool ArrayBase::is_empty() const {
     return false;
 }
 
-Block::Block(std::shared_ptr<RuntimeImpl> runtime, BlockId id) :
+Block::Block(std::shared_ptr<Runtime> runtime, BlockId id) :
     m_id(id),
     m_runtime(std::move(runtime)) {
     KMM_ASSERT(m_runtime != nullptr);

@@ -1,6 +1,6 @@
 #include "kmm/device.hpp"
 #include "kmm/runtime.hpp"
-#include "kmm/runtime_impl.hpp"
+#include "kmm/runtime_handle.hpp"
 
 namespace kmm {
 

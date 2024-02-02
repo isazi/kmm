@@ -12,8 +12,8 @@
 namespace kmm {
 
 // Forward decl
-class RuntimeImpl;
 class Runtime;
+class RuntimeHandle;
 class Device;
 class Task;
 
@@ -63,10 +63,10 @@ class TaskBuilder {
     };
 
   public:
-    TaskBuilder(RuntimeImpl* runtime, DeviceId id);
+    TaskBuilder(Runtime* runtime, DeviceId id);
     EventId submit(std::shared_ptr<Task> task);
 
-    std::shared_ptr<RuntimeImpl> runtime() const;
+    std::shared_ptr<Runtime> runtime() const;
 
     size_t add_input(BlockId block_id);
     size_t add_input(BlockId block_id, MemoryId memory_id);
@@ -80,7 +80,7 @@ class TaskBuilder {
     }
 
   private:
-    RuntimeImpl* m_runtime;
+    Runtime* m_runtime;
     TaskRequirements m_requirements;
     std::vector<std::unique_ptr<Callback>> m_callbacks;
 };
