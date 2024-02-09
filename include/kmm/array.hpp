@@ -250,7 +250,7 @@ struct TaskArgumentPack<ExecutionSpace::Cuda, Write<Array<T, N>>> {
         auto rt = builder.runtime();
 
         builder.after_submission([=](EventId event_id) {
-            auto block_id = BlockId(event_id, buffer_index);
+            auto block_id = BlockId(event_id, checked_cast<uint8_t>(buffer_index));
             auto block = std::make_shared<Block>(rt, block_id);
             *array = Array<T, N>(array->sizes(), block);
         });

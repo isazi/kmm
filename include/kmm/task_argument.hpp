@@ -40,7 +40,7 @@ struct TaskArgumentUnpack {};
 
 template<ExecutionSpace Space, typename T>
 struct TaskArgumentUnpack<Space, TaskArgument<Space, T>> {
-    using type = T;
+    using type = typename TaskArgument<Space, T>::type;
 
     static type unpack(TaskContext& context, TaskArgument<Space, T> arg) {
         return arg.unpack(context);
@@ -51,8 +51,8 @@ template<ExecutionSpace Space, typename T>
 using pack_argument_type = typename TaskArgumentPack<Space, std::decay_t<T>>::type;
 
 template<ExecutionSpace Space, typename T>
-pack_argument_type<Space, T> pack_argument(Runtime& rt, TaskRequirements& reqs, T&& value) {
-    return TaskArgumentPack<Space, std::decay_t<T>>::pack(rt, reqs, std::forward<T>(value));
+pack_argument_type<Space, T> pack_argument(TaskBuilder& builder, T&& value) {
+    return TaskArgumentPack<Space, std::decay_t<T>>::pack(builder, std::forward<T>(value));
 }
 
 template<ExecutionSpace Space, typename T>

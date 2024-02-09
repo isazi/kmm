@@ -31,7 +31,7 @@ struct Cuda {
     }
 
     template<typename F, typename... Args>
-    void operator()(kmm::Device& device, kmm::TaskContext&, F&& fun, Args&&... args) const {
+    void operator()(Device& device, TaskContext&, F&& fun, Args&&... args) const {
         std::forward<F>(fun)(device.cast<CudaDevice>(), std::forward<Args>(args)...);
     }
 
@@ -53,8 +53,8 @@ struct CudaKernel {
 
     template<typename... KernelArgs, typename... Args>
     void operator()(
-        kmm::Device& device,
-        kmm::TaskContext&,
+        Device& device,
+        TaskContext&,
         void (*const kernel_function)(KernelArgs...),
         Args&&... args) const {
         device.cast<CudaDevice>().launch(
