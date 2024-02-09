@@ -8,7 +8,7 @@
 #include "kmm/device.hpp"
 #include "kmm/event_list.hpp"
 #include "kmm/identifiers.hpp"
-#include "kmm/worker/runner.hpp"
+#include "kmm/worker/thread.hpp"
 
 namespace kmm {
 
@@ -45,7 +45,7 @@ class Runtime: public std::enable_shared_from_this<Runtime> {
   private:
     std::vector<std::unique_ptr<DeviceInfo>> m_devices;
     std::shared_ptr<Worker> m_worker;
-    WorkerRunner m_thread;
+    WorkerThread m_thread;
 
     mutable std::mutex m_mutex;
     mutable uint64_t m_next_event = 1;

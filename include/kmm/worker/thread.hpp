@@ -7,10 +7,10 @@ namespace kmm {
 
 class Worker;
 
-class WorkerRunner {
+class WorkerThread {
   public:
-    WorkerRunner(std::shared_ptr<Worker> worker);
-    ~WorkerRunner();
+    WorkerThread(std::shared_ptr<Worker> worker);
+    ~WorkerThread();
     void join();
 
   private:
