@@ -7,7 +7,7 @@ namespace kmm {
 struct Host {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Host;
 
-    DeviceId find_device(RuntimeImpl& rt) const {
+    DeviceId find_device(Runtime& rt) const {
         for (size_t i = 0, n = rt.num_devices(); i < n; i++) {
             auto id = DeviceId(checked_cast<uint8_t>(i));
 

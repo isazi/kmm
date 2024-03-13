@@ -151,15 +151,20 @@ CudaDeviceThread::~CudaDeviceThread() {
 }
 
 void CudaDeviceThread::run_forever() {
+    static constexpr std::chrono::microseconds MIN_WAIT_TIME = std::chrono::microseconds(1);
+    static constexpr std::chrono::microseconds MAX_WAIT_TIME = std::chrono::milliseconds(5);
+
     CudaContextGuard guard {m_streams[0]->context_handle()};
 
     bool shutdown = false;
+    auto wait_time = MIN_WAIT_TIME;
 
     while (!shutdown) {
         size_t num_free_slots = 0;
         size_t first_free_slot = 0;
 
-        auto next_update = std::chrono::system_clock::now() + std::chrono::microseconds(50);
+        auto next_update = std::chrono::system_clock::now() + wait_time;
+        wait_time = std::min(2 * wait_time, MAX_WAIT_TIME);
 
         // First, poll each stream
         for (size_t i = 0; i < m_streams.size(); i++) {
@@ -182,6 +187,7 @@ void CudaDeviceThread::run_forever() {
         else if (num_free_slots < m_streams.size()) {
             if (auto job_opt = m_queue->pop_wait_until(next_update)) {
                 submit_job(first_free_slot, std::move(*job_opt));
+                wait_time = MIN_WAIT_TIME;
             }
         }
 
@@ -190,6 +196,7 @@ void CudaDeviceThread::run_forever() {
         else {
             if (auto job_opt = m_queue->pop()) {
                 submit_job(0, std::move(*job_opt));
+                wait_time = MIN_WAIT_TIME;
             } else {
                 shutdown = true;
             }
@@ -233,7 +240,14 @@ void CudaDeviceThread::submit_job(size_t slot, std::unique_ptr<CudaDeviceHandle:
         // Check if one of the kernel submissions raised an error.
         KMM_CUDA_CHECK(cudaGetLastError());
 
-        // Make sure to also way on tasks that are accidentally submitted onto the default stream.
+        // Make sure to wake up this thread when the stream finishes
+        using queue_type = decltype(m_queue.get());
+        KMM_CUDA_CHECK(cuLaunchHostFunc(
+            m_streams[slot]->stream(),
+            [](void* user_data) { reinterpret_cast<queue_type>(user_data)->wakeup(); },
+            m_queue.get()));
+
+        // Make sure to also wait on tasks that are accidentally submitted onto the default stream.
         KMM_CUDA_CHECK(cuEventRecord(m_events[slot], CUDA_DEFAULT_STREAM));
         KMM_CUDA_CHECK(cuStreamWaitEvent(m_streams[slot]->stream(), m_events[slot], 0));
 

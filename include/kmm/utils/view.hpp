@@ -450,6 +450,7 @@ struct strided: private D {
 
 template<typename D, typename S, S... Strides>
 struct static_strided: private D {
+    static_assert(D::rank == sizeof...(Strides), "number of strides must match domain rank");
     static constexpr size_t rank = sizeof...(Strides);
     using domain_type = D;
     using stride_type = S;
@@ -579,16 +580,14 @@ using remove_axis_type = typename remove_axis_impl<L, Axis>::type;
 }  // namespace layouts
 
 namespace mappings {
-template<typename S = default_stride_type>
 struct right_to_left {
     template<typename D>
-    using layout_type = layouts::right_to_left<D, S>;
+    using layout_type = layouts::right_to_left<D>;
 };
 
-template<typename S = default_stride_type>
 struct left_to_right {
     template<typename D>
-    using layout_type = layouts::left_to_right<D, S>;
+    using layout_type = layouts::left_to_right<D>;
 };
 
 template<typename S = default_stride_type>
@@ -597,10 +596,10 @@ struct strided {
     using layout_type = layouts::strided<D, S>;
 };
 
-template<typename S, S... Strides>
+template<default_stride_type... Strides>
 struct static_strided {
     template<typename D>
-    using layout_type = layouts::static_strided<D, S, Strides...>;
+    using layout_type = layouts::static_strided<D, default_stride_type, Strides...>;
 };
 }  // namespace mappings
 
@@ -625,7 +624,12 @@ struct cuda_device {
 
     template<typename T>
     KMM_HOST_DEVICE T& access(T* ptr) const {
+#if __CUDA_ARCH__
         return *ptr;
+#else
+        printf("fatal error: cannot access CUDA data on host");
+        exit(1);
+#endif
     }
 };
 
@@ -895,27 +899,27 @@ struct basic_view: private L, private A, public basic_view_base<basic_view<T, L,
 template<
     typename T,
     size_t N = 1,
-    typename M = mappings::right_to_left<>,
+    typename M = mappings::right_to_left,
     typename A = accessors::host>
 using view = basic_view<const T, typename M::template layout_type<domains::bounds<N>>, A>;
 
 template<
     typename T,
     size_t N = 1,
-    typename M = mappings::right_to_left<>,
+    typename M = mappings::right_to_left,
     typename A = accessors::host>
 using view_mut = basic_view<T, typename M::template layout_type<domains::bounds<N>>, A>;
 
 template<typename T, size_t N = 1, typename A = accessors::host>
-using strided_view = view<T, N, mappings::strided<>, A>;
+using strided_view = view<T, N, mappings::strided<default_stride_type>, A>;
 
 template<typename T, size_t N = 1, typename A = accessors::host>
-using strided_view_mut = view_mut<T, N, mappings::strided<>, A>;
+using strided_view_mut = view_mut<T, N, mappings::strided<default_stride_type>, A>;
 
-template<typename T, size_t N = 1, typename L = mappings::right_to_left<>>
+template<typename T, size_t N = 1, typename L = mappings::right_to_left>
 using cuda_view = view<T, N, L, accessors::cuda_device>;
 
-template<typename T, size_t N = 1, typename L = mappings::right_to_left<>>
+template<typename T, size_t N = 1, typename L = mappings::right_to_left>
 using cuda_view_mut = view_mut<T, N, L, accessors::cuda_device>;
 
 template<typename T, size_t N = 1>
@@ -923,5 +927,37 @@ using cuda_strided_view = strided_view<T, N, accessors::cuda_device>;
 
 template<typename T, size_t N = 1>
 using cuda_strided_view_mut = strided_view_mut<T, N, accessors::cuda_device>;
+
+template<
+    typename T,
+    size_t N = 1,
+    typename M = mappings::right_to_left,
+    typename A = accessors::host>
+using subview = basic_view<const T, typename M::template layout_type<domains::subbounds<N>>, A>;
+
+template<
+    typename T,
+    size_t N = 1,
+    typename M = mappings::right_to_left,
+    typename A = accessors::host>
+using subview_mut = basic_view<T, typename M::template layout_type<domains::subbounds<N>>, A>;
+
+template<typename T, size_t N = 1, typename A = accessors::host>
+using strided_subview = subview<T, N, mappings::strided<default_stride_type>, A>;
+
+template<typename T, size_t N = 1, typename A = accessors::host>
+using strided_subview_mut = subview_mut<T, N, mappings::strided<default_stride_type>, A>;
+
+template<typename T, size_t N = 1, typename L = mappings::right_to_left>
+using cuda_subview = subview<T, N, L, accessors::cuda_device>;
+
+template<typename T, size_t N = 1, typename L = mappings::right_to_left>
+using cuda_subview_mut = subview_mut<T, N, L, accessors::cuda_device>;
+
+template<typename T, size_t N = 1>
+using cuda_strided_subview = strided_subview<T, N, accessors::cuda_device>;
+
+template<typename T, size_t N = 1>
+using cuda_strided_subview_mut = strided_subview_mut<T, N, accessors::cuda_device>;
 
 }  // namespace kmm

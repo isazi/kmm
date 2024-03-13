@@ -9,84 +9,9 @@
 #include "kmm/event_list.hpp"
 #include "kmm/identifiers.hpp"
 #include "kmm/memory.hpp"
+#include "kmm/task.hpp"
 
 namespace kmm {
-
-// Forward decl
-class RuntimeImpl;
-class Device;
-
-/**
- * Represents an input for a task specifying the memory and block identifier.
- */
-struct TaskInput {
-    BlockId block_id;
-    std::optional<MemoryId> memory_id;
-};
-
-/**
- * Represents an output of a task, containing a memory identifier and a block header.
- */
-struct TaskOutput {
-    std::unique_ptr<BlockHeader> header;
-    MemoryId memory_id;
-};
-
-/**
- * Encapsulates the requirements for a task, including the device identifier and lists of inputs and outputs.
- */
-struct TaskRequirements {
-    TaskRequirements(DeviceId id) : device_id(id) {}
-
-    size_t add_input(BlockId block_id);
-    size_t add_input(BlockId block_id, MemoryId memory_id);
-    size_t add_input(BlockId block_id, RuntimeImpl& rt);
-
-    size_t add_output(std::unique_ptr<BlockHeader> header, MemoryId memory_id);
-    size_t add_output(std::unique_ptr<BlockHeader> header, RuntimeImpl& rt);
-
-    DeviceId device_id;
-    EventList dependencies;
-    std::vector<TaskInput> inputs = {};
-    std::vector<TaskOutput> outputs = {};
-};
-
-/**
- * Provides read-only access to a block.
- */
-struct BlockAccessor {
-    BlockId block_id;
-    std::shared_ptr<const BlockHeader> header;
-    const MemoryAllocation* allocation = nullptr;
-};
-
-/**
- * Provides read-write access to a block.
- */
-struct BlockAccessorMut {
-    BlockId block_id;
-    BlockHeader* header;
-    MemoryAllocation* allocation = nullptr;
-};
-
-/**
- * Provides the context required to run task, such as the input and output data.
- */
-struct TaskContext {
-    TaskContext() = default;
-
-    std::vector<BlockAccessor> inputs;
-    std::vector<BlockAccessorMut> outputs;
-};
-
-/**
- * Abstract class representing a task to be executed.
- */
-class Task {
-  public:
-    virtual ~Task() = default;
-    virtual void execute(Device&, TaskContext&) = 0;
-};
 
 /**
  * Exception throw if
