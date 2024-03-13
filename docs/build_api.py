@@ -67,12 +67,12 @@ def build_index_page(groups):
 
 
 groups = {
-    "Array": [
-        "ArrayBase",
+    "Arrays": [
         "Array",
         "PackedArray",
         "to_fixed_array",
-        "TaskArgumentTrait",
+        "TaskArgumentPack",
+        "TaskArgumentUnpack",
     ],
 }
 
