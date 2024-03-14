@@ -1,6 +1,0 @@
-sphinx_rtd_theme
-unidecode
-nbsphinx
-wheel
-breathe
-exhale

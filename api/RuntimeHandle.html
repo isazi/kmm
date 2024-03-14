@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RuntimeHandle &mdash; kmm 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../_static/my-styles.css?v=0155ed14" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="build_runtime" href="build_runtime.html" />
+    <link rel="prev" title="EventId" href="EventId.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            kmm
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">KMM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="Array.html">Array</a></li>
+<li class="toctree-l2"><a class="reference internal" href="EventId.html">EventId</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">RuntimeHandle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="build_runtime.html">build_runtime</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/NLeSC-COMPAS/kmm">Github repository</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">kmm</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API Reference</a></li>
+      <li class="breadcrumb-item active">RuntimeHandle</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/RuntimeHandle.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="runtimehandle">
+<span id="id1"></span><h1>RuntimeHandle<a class="headerlink" href="#runtimehandle" title="Permalink to this heading"></a></h1>
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N3kmm13RuntimeHandleE">
+<span id="_CPPv3N3kmm13RuntimeHandleE"></span><span id="_CPPv2N3kmm13RuntimeHandleE"></span><span id="kmm::RuntimeHandle"></span><span class="target" id="classkmm_1_1RuntimeHandle"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">RuntimeHandle</span></span></span><a class="headerlink" href="#_CPPv4N3kmm13RuntimeHandleE" title="Permalink to this definition"></a><br /></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle11submit_taskENSt10shared_ptrI4TaskEE16TaskRequirements">
+<span id="_CPPv3NK3kmm13RuntimeHandle11submit_taskENSt10shared_ptrI4TaskEE16TaskRequirements"></span><span id="_CPPv2NK3kmm13RuntimeHandle11submit_taskENSt10shared_ptrI4TaskEE16TaskRequirements"></span><span id="kmm::RuntimeHandle::submit_task__std::shared_ptr:Task:.TaskRequirementsC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1afa7c53cffc7a0ae0c366ec45ce9b0dca"></span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">submit_task</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">shared_ptr</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">Task</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">task</span></span>, <span class="n"><span class="pre">TaskRequirements</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">reqs</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle11submit_taskENSt10shared_ptrI4TaskEE16TaskRequirements" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Submit a task to the runtime system.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>task</strong> – The Task definition. </p></li>
+<li><p><strong>reqs</strong> – The task requirements. </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The event identifier of the submitted task. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0DpENK3kmm13RuntimeHandle6submitE7EventId8LauncherDpRR4Args">
+<span id="_CPPv3I0DpENK3kmm13RuntimeHandle6submitE8LauncherDpRR4Args"></span><span id="_CPPv2I0DpENK3kmm13RuntimeHandle6submitE8LauncherDpRR4Args"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Launcher</span></span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="sig-name descname"><span class="n"><span class="pre">Args</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classkmm_1_1RuntimeHandle_1ab369a30b4adee92573227cf432a3da1e"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">submit</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4I0DpENK3kmm13RuntimeHandle6submitE7EventId8LauncherDpRR4Args" title="kmm::RuntimeHandle::submit::Launcher"><span class="n"><span class="pre">Launcher</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">launcher</span></span>, <a class="reference internal" href="#_CPPv4I0DpENK3kmm13RuntimeHandle6submitE7EventId8LauncherDpRR4Args" title="kmm::RuntimeHandle::submit::Args"><span class="n"><span class="pre">Args</span></span></a><span class="p"><span class="pre">&amp;</span></span><span class="p"><span class="pre">&amp;</span></span><span class="p"><span class="pre">...</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">args</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4I0DpENK3kmm13RuntimeHandle6submitE7EventId8LauncherDpRR4Args" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Submit a task to the runtime system using a task launcher.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>launcher</strong> – The launcher that will submit the task. </p></li>
+<li><p><strong>args</strong> – The arguments that are forwarded to the launcher. </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The event identifier of the submitted task. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0ENK3kmm13RuntimeHandle11find_deviceE8DeviceIdRK8Launcher">
+<span id="_CPPv3I0ENK3kmm13RuntimeHandle11find_deviceERK8Launcher"></span><span id="_CPPv2I0ENK3kmm13RuntimeHandle11find_deviceERK8Launcher"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Launcher</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classkmm_1_1RuntimeHandle_1a881d3c87c86e7f1c7bff0491f3e93b46"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="n"><span class="pre">DeviceId</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">find_device</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I0ENK3kmm13RuntimeHandle11find_deviceE8DeviceIdRK8Launcher" title="kmm::RuntimeHandle::find_device::Launcher"><span class="n"><span class="pre">Launcher</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">launcher</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4I0ENK3kmm13RuntimeHandle11find_deviceE8DeviceIdRK8Launcher" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Find the device identifier that would be used by the provided task launcher. </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle27memory_affinity_for_addressEPKv">
+<span id="_CPPv3NK3kmm13RuntimeHandle27memory_affinity_for_addressEPKv"></span><span id="_CPPv2NK3kmm13RuntimeHandle27memory_affinity_for_addressEPKv"></span><span id="kmm::RuntimeHandle::memory_affinity_for_address__voidCPC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1af35d13054bf860ec3299fb85c410f2fe"></span><span class="n"><span class="pre">MemoryId</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">memory_affinity_for_address</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">address</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle27memory_affinity_for_addressEPKv" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Returns the memory identifier that has the best affinity for the given memory address. </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0_6size_tENK3kmm13RuntimeHandle14allocate_arrayE5ArrayI1T1NEPK1TNSt5arrayI7index_t1NEE">
+<span id="_CPPv3I0_6size_tENK3kmm13RuntimeHandle14allocate_arrayEPK1TNSt5arrayI7index_t1NEE"></span><span id="_CPPv2I0_6size_tENK3kmm13RuntimeHandle14allocate_arrayEPK1TNSt5arrayI7index_t1NEE"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">N</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classkmm_1_1RuntimeHandle_1a3f54d6d49440e1afde162eb3c601c93d"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="Array.html#_CPPv4I0_6size_tEN3kmm5ArrayE" title="kmm::Array"><span class="n"><span class="pre">Array</span></span></a><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle14allocate_arrayE5ArrayI1T1NEPK1TNSt5arrayI7index_t1NEE" title="kmm::RuntimeHandle::allocate_array::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle14allocate_arrayE5ArrayI1T1NEPK1TNSt5arrayI7index_t1NEE" title="kmm::RuntimeHandle::allocate_array::N"><span class="n"><span class="pre">N</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">allocate_array</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle14allocate_arrayE5ArrayI1T1NEPK1TNSt5arrayI7index_t1NEE" title="kmm::RuntimeHandle::allocate_array::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">data_ptr</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">array</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">index_t</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle14allocate_arrayE5ArrayI1T1NEPK1TNSt5arrayI7index_t1NEE" title="kmm::RuntimeHandle::allocate_array::N"><span class="n"><span class="pre">N</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sizes</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle14allocate_arrayE5ArrayI1T1NEPK1TNSt5arrayI7index_t1NEE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Create a new array where the data is provided by memory stored on the host. The dimensions of the new array will be <code class="docutils literal notranslate"><span class="pre">sizes</span></code>. The provided buffer must contain exactly <code class="docutils literal notranslate"><span class="pre">sizes[0]</span> <span class="pre">*</span> <span class="pre">sizes[1]</span> <span class="pre">*</span> <span class="pre">...</span></code> elements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_ptr</strong> – The provided data elements. </p></li>
+<li><p><strong>sizes</strong> – The dimensions of the new array. </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The new array. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0Dp_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1T1NEPK1TDp5Sizes">
+<span id="_CPPv3I0Dp_6size_tENK3kmm13RuntimeHandle8allocateEPK1TDp5Sizes"></span><span id="_CPPv2I0Dp_6size_tENK3kmm13RuntimeHandle8allocateEPK1TDp5Sizes"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="sig-name descname"><span class="n"><span class="pre">Sizes</span></span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">N</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">sizeof</span></span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">(</span></span><a class="reference internal" href="#_CPPv4I0Dp_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1T1NEPK1TDp5Sizes" title="kmm::RuntimeHandle::allocate::Sizes"><span class="n"><span class="pre">Sizes</span></span></a><span class="p"><span class="pre">)</span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classkmm_1_1RuntimeHandle_1af3d5c1091e1ca6ee1243929e2199d418"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="Array.html#_CPPv4I0_6size_tEN3kmm5ArrayE" title="kmm::Array"><span class="n"><span class="pre">Array</span></span></a><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0Dp_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1T1NEPK1TDp5Sizes" title="kmm::RuntimeHandle::allocate::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I0Dp_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1T1NEPK1TDp5Sizes" title="kmm::RuntimeHandle::allocate::N"><span class="n"><span class="pre">N</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">allocate</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I0Dp_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1T1NEPK1TDp5Sizes" title="kmm::RuntimeHandle::allocate::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">data_ptr</span></span>, <a class="reference internal" href="#_CPPv4I0Dp_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1T1NEPK1TDp5Sizes" title="kmm::RuntimeHandle::allocate::Sizes"><span class="n"><span class="pre">Sizes</span></span></a><span class="p"><span class="pre">...</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sizes</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4I0Dp_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1T1NEPK1TDp5Sizes" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Create a new array where the data is provided by memory stored on the host. The dimensions of the new array will be <code class="docutils literal notranslate"><span class="pre">{sizes[0],</span> <span class="pre">sizes[1],</span> <span class="pre">...}</span></code>. The provided buffer must contain exactly <code class="docutils literal notranslate"><span class="pre">sizes[0]</span> <span class="pre">*</span> <span class="pre">sizes[1]</span> <span class="pre">*</span> <span class="pre">...</span></code> elements.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_ptr</strong> – The provided data elements. </p></li>
+<li><p><strong>sizes</strong> – The dimensions of the new array. </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The new array. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0ENK3kmm13RuntimeHandle8allocateE5ArrayI1TERKNSt6vectorI1TEE">
+<span id="_CPPv3I0ENK3kmm13RuntimeHandle8allocateERKNSt6vectorI1TEE"></span><span id="_CPPv2I0ENK3kmm13RuntimeHandle8allocateERKNSt6vectorI1TEE"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classkmm_1_1RuntimeHandle_1a6f8c3e913a032f52b63b2696aecb9f44"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="Array.html#_CPPv4I0_6size_tEN3kmm5ArrayE" title="kmm::Array"><span class="n"><span class="pre">Array</span></span></a><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0ENK3kmm13RuntimeHandle8allocateE5ArrayI1TERKNSt6vectorI1TEE" title="kmm::RuntimeHandle::allocate::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">allocate</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0ENK3kmm13RuntimeHandle8allocateE5ArrayI1TERKNSt6vectorI1TEE" title="kmm::RuntimeHandle::allocate::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">vector</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4I0ENK3kmm13RuntimeHandle8allocateE5ArrayI1TERKNSt6vectorI1TEE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>This is an alias for <code class="docutils literal notranslate"><span class="pre">allocate(vector.data(),</span> <span class="pre">vector.size())</span></code></p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1TE4viewI1T1NE">
+<span id="_CPPv3I0_6size_tENK3kmm13RuntimeHandle8allocateE4viewI1T1NE"></span><span id="_CPPv2I0_6size_tENK3kmm13RuntimeHandle8allocateE4viewI1T1NE"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">N</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classkmm_1_1RuntimeHandle_1abbc910bb56d59b1086303a863bb97308"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="Array.html#_CPPv4I0_6size_tEN3kmm5ArrayE" title="kmm::Array"><span class="n"><span class="pre">Array</span></span></a><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1TE4viewI1T1NE" title="kmm::RuntimeHandle::allocate::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">allocate</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">view</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1TE4viewI1T1NE" title="kmm::RuntimeHandle::allocate::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1TE4viewI1T1NE" title="kmm::RuntimeHandle::allocate::N"><span class="n"><span class="pre">N</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">input</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4I0_6size_tENK3kmm13RuntimeHandle8allocateE5ArrayI1TE4viewI1T1NE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>This is an alias for <code class="docutils literal notranslate"><span class="pre">allocate(input.data(),</span> <span class="pre">input.sizes())</span></code></p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0ENK3kmm13RuntimeHandle8allocateE5ArrayI1TENSt16initializer_listI1TEE">
+<span id="_CPPv3I0ENK3kmm13RuntimeHandle8allocateENSt16initializer_listI1TEE"></span><span id="_CPPv2I0ENK3kmm13RuntimeHandle8allocateENSt16initializer_listI1TEE"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classkmm_1_1RuntimeHandle_1af61ccab1e0585673ebb5e88fb4e4cfc4"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="Array.html#_CPPv4I0_6size_tEN3kmm5ArrayE" title="kmm::Array"><span class="n"><span class="pre">Array</span></span></a><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0ENK3kmm13RuntimeHandle8allocateE5ArrayI1TENSt16initializer_listI1TEE" title="kmm::RuntimeHandle::allocate::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">allocate</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">initializer_list</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4I0ENK3kmm13RuntimeHandle8allocateE5ArrayI1TENSt16initializer_listI1TEE" title="kmm::RuntimeHandle::allocate::T"><span class="n"><span class="pre">T</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">list</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4I0ENK3kmm13RuntimeHandle8allocateE5ArrayI1TENSt16initializer_listI1TEE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>This is an alias for <code class="docutils literal notranslate"><span class="pre">allocate(list.data(),</span> <span class="pre">list.size())</span></code></p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle4joinE9EventList">
+<span id="_CPPv3NK3kmm13RuntimeHandle4joinE9EventList"></span><span id="_CPPv2NK3kmm13RuntimeHandle4joinE9EventList"></span><span id="kmm::RuntimeHandle::join__EventListC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1a11a0a3fe33e56288841444d37355db9c"></span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">join</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">EventList</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">events</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle4joinE9EventList" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Takes a list of events and returns a new event that gets triggered once all the provided events have completed. </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4IDpENK3kmm13RuntimeHandle4joinE7EventIdDp2Es">
+<span id="_CPPv3IDpENK3kmm13RuntimeHandle4joinEDp2Es"></span><span id="_CPPv2IDpENK3kmm13RuntimeHandle4joinEDp2Es"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="sig-name descname"><span class="n"><span class="pre">Es</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classkmm_1_1RuntimeHandle_1a480e176561a4beff4facc98eff3b1695"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">join</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4IDpENK3kmm13RuntimeHandle4joinE7EventIdDp2Es" title="kmm::RuntimeHandle::join::Es"><span class="n"><span class="pre">Es</span></span></a><span class="p"><span class="pre">...</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">events</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4IDpENK3kmm13RuntimeHandle4joinE7EventIdDp2Es" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Takes a list of events and returns a new event that gets triggered once all the provided events have completed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>events</strong> – The events. Each argument should be convertible to an <a class="reference internal" href="EventId.html#classkmm_1_1EventId"><span class="std std-ref">EventId</span></a>. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle7is_doneE7EventId">
+<span id="_CPPv3NK3kmm13RuntimeHandle7is_doneE7EventId"></span><span id="_CPPv2NK3kmm13RuntimeHandle7is_doneE7EventId"></span><span id="kmm::RuntimeHandle::is_done__EventIdC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1a0967096356bbefc15000440a230228ad"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">is_done</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">id</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle7is_doneE7EventId" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Returns <code class="docutils literal notranslate"><span class="pre">true</span></code> if the event with the provided id has finished, otherwise returns <code class="docutils literal notranslate"><span class="pre">false</span></code>. </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle4waitE7EventId">
+<span id="_CPPv3NK3kmm13RuntimeHandle4waitE7EventId"></span><span id="_CPPv2NK3kmm13RuntimeHandle4waitE7EventId"></span><span id="kmm::RuntimeHandle::wait__EventIdC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1af4aaf23bff63708f93c857366d5fe7dd"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">wait</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">id</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle4waitE7EventId" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Block the current thread until the event with the provided id completes. </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle10wait_untilE7EventIdNSt6chrono12system_clock10time_pointE">
+<span id="_CPPv3NK3kmm13RuntimeHandle10wait_untilE7EventIdNSt6chrono12system_clock10time_pointE"></span><span id="_CPPv2NK3kmm13RuntimeHandle10wait_untilE7EventIdNSt6chrono12system_clock10time_pointE"></span><span id="kmm::RuntimeHandle::wait_until__EventId.std::chrono::system_clock::time_pointC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1ad1a9e227171399d9ef7781f8cfe72f7e"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">wait_until</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">id</span></span>, <span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">chrono</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">system_clock</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">time_point</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">deadline</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle10wait_untilE7EventIdNSt6chrono12system_clock10time_pointE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Block the current thread until the event with the provided id completes. Blocks until either the event completes or the deadline is exceeded, whatever comes first.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">true</span></code> if the event with the provided id has finished, otherwise returns <code class="docutils literal notranslate"><span class="pre">false</span></code>. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle8wait_forE7EventIdNSt6chrono12system_clock8durationE">
+<span id="_CPPv3NK3kmm13RuntimeHandle8wait_forE7EventIdNSt6chrono12system_clock8durationE"></span><span id="_CPPv2NK3kmm13RuntimeHandle8wait_forE7EventIdNSt6chrono12system_clock8durationE"></span><span id="kmm::RuntimeHandle::wait_for__EventId.std::chrono::system_clock::durationC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1a3a5f2bf7fe74af0fd5f41e3936461fb7"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">wait_for</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">id</span></span>, <span class="k"><span class="pre">typename</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">chrono</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">system_clock</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">duration</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">duration</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle8wait_forE7EventIdNSt6chrono12system_clock8durationE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Block the current thread until the event with the provided id completes. Blocks until either the event completes or the duration is exceeded, whatever comes first.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">true</span></code> if the event with the provided id has finished, otherwise returns <code class="docutils literal notranslate"><span class="pre">false</span></code>. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle14submit_barrierEv">
+<span id="_CPPv3NK3kmm13RuntimeHandle14submit_barrierEv"></span><span id="_CPPv2NK3kmm13RuntimeHandle14submit_barrierEv"></span><span id="kmm::RuntimeHandle::submit_barrierC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1a875deed279e47bef10dab8eecf8b125f"></span><a class="reference internal" href="EventId.html#_CPPv4N3kmm7EventIdE" title="kmm::EventId"><span class="n"><span class="pre">EventId</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">submit_barrier</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle14submit_barrierEv" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Submit a barrier the runtime system. The barrier completes once all the tasks submitted to the runtime system so far have finished.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The identifier of the barrier. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle11synchronizeEv">
+<span id="_CPPv3NK3kmm13RuntimeHandle11synchronizeEv"></span><span id="_CPPv2NK3kmm13RuntimeHandle11synchronizeEv"></span><span id="kmm::RuntimeHandle::synchronizeC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1a0f822f05dca9d076354412bf7efda35c"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">synchronize</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle11synchronizeEv" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Blocks until all the tasks submitted to the runtime system have finished and the system has become idle. </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK3kmm13RuntimeHandle5innerEv">
+<span id="_CPPv3NK3kmm13RuntimeHandle5innerEv"></span><span id="_CPPv2NK3kmm13RuntimeHandle5innerEv"></span><span id="kmm::RuntimeHandle::innerC"></span><span class="target" id="classkmm_1_1RuntimeHandle_1a40dcff3168660363a7cae708ac60a669"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">shared_ptr</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">Runtime</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">inner</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK3kmm13RuntimeHandle5innerEv" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Returns the inner <code class="docutils literal notranslate"><span class="pre">RuntimeImpl</span></code>. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The <code class="docutils literal notranslate"><span class="pre">RuntimeImpl</span></code>. </p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="EventId.html" class="btn btn-neutral float-left" title="EventId" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="build_runtime.html" class="btn btn-neutral float-right" title="build_runtime" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, COMPAS.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

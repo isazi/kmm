@@ -1,0 +1,36 @@
+..
+  ============================================================
+  This file has been auto-generated. DO NOT MODIFY ITS CONTENT
+  ============================================================
+
+API Reference
+=============
+.. toctree::
+   :titlesonly:
+   :hidden:
+
+   api/Array.rst
+   api/EventId.rst
+   api/RuntimeHandle.rst
+   api/build_runtime.rst
+
+.. raw:: html
+
+   <h2>Runtime</h2>
+
+* :doc:`build_runtime <api/build_runtime>`
+* :doc:`RuntimeHandle <api/RuntimeHandle>`
+
+.. raw:: html
+
+   <h2>Data</h2>
+
+* :doc:`Array <api/Array>`
+
+.. raw:: html
+
+   <h2>Tasks and Events</h2>
+
+* :doc:`EventId <api/EventId>`
+
+
