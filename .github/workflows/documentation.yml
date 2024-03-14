@@ -33,9 +33,9 @@ jobs:
       - name: Build and commit
         uses: sphinx-notes/pages@v3
         with:
-          publish: false
+          documentation_path: './docs'
       - name: Deploy documentation
-        uses: peaceiris/actions-gh-pages@v3
+        uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ${{ steps.deployment.outputs.artifact }}
+          branch: gh-pages
