@@ -193,7 +193,12 @@ class RuntimeHandle {
   private:
     std::shared_ptr<Runtime> m_impl;
 };
-
+/**
+ *
+ * Initialize the KMM runtime.
+ *
+ * @return A handler to interact with the KMM runtime.
+ */
 RuntimeHandle build_runtime();
 
 }  // namespace kmm

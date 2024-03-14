@@ -66,7 +66,11 @@ def build_index_page(groups):
     return filename
 
 
-groups = {"Initialization": ["build_runtime"], "Tasks and Events": ["EventId"]}
+groups = {
+    "Runtime": ["build_runtime", "RuntimeHandle"],
+    "Data": ["Array"],
+    "Tasks and Events": ["EventId"],
+}
 
 
 build_index_page(groups)
