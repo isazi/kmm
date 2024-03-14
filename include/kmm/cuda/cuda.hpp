@@ -16,7 +16,7 @@ struct Cuda {
 
     Cuda(int device = 0) : m_device(device) {}
 
-    DeviceId find_device(RuntimeImpl& rt) const {
+    DeviceId find_device(Runtime& rt) const {
         for (size_t i = 0, n = rt.num_devices(); i < n; i++) {
             auto id = DeviceId(uint8_t(i));
 
@@ -31,7 +31,7 @@ struct Cuda {
     }
 
     template<typename F, typename... Args>
-    void operator()(kmm::Device& device, kmm::TaskContext&, F&& fun, Args&&... args) const {
+    void operator()(Device& device, TaskContext&, F&& fun, Args&&... args) const {
         std::forward<F>(fun)(device.cast<CudaDevice>(), std::forward<Args>(args)...);
     }
 
@@ -47,14 +47,14 @@ struct CudaKernel {
         m_grid_dim(grid_dim),
         m_block_dim(block_dim) {}
 
-    DeviceId find_device(RuntimeImpl& rt) const {
+    DeviceId find_device(Runtime& rt) const {
         return m_device.find_device(rt);
     }
 
     template<typename... KernelArgs, typename... Args>
     void operator()(
-        kmm::Device& device,
-        kmm::TaskContext&,
+        Device& device,
+        TaskContext&,
         void (*const kernel_function)(KernelArgs...),
         Args&&... args) const {
         device.cast<CudaDevice>().launch(

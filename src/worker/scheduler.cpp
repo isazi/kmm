@@ -55,6 +55,8 @@ void Scheduler::push_ready(std::shared_ptr<Node> node) {
         m_ready_queues.emplace_back();
     }
 
+    // TODO: Calculate workload of job here
+
     m_ready_queues[node->queue_id].ready.emplace(node->sequence_number, std::move(node));
 }
 
@@ -76,7 +78,7 @@ std::optional<std::shared_ptr<Scheduler::Node>> Scheduler::pop_ready() {
 
     KMM_ASSERT(node->status == Node::Status::Ready);
     node->status = Node::Status::Running;
-    m_ready_queues[node->queue_id].current_workload++;
+    m_ready_queues[node->queue_id].current_workload += node->workload;
 
     return node;
 }
@@ -84,7 +86,7 @@ std::optional<std::shared_ptr<Scheduler::Node>> Scheduler::pop_ready() {
 void Scheduler::complete(std::shared_ptr<Node> node) {
     KMM_ASSERT(node->status == Node::Status::Running);
     node->status = Node::Status::WaitingForChildren;
-    m_ready_queues[node->queue_id].current_workload--;
+    m_ready_queues[node->queue_id].current_workload -= node->workload;
 
     if (node->active_children == 0) {
         complete_impl(std::move(node));

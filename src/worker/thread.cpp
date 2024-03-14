@@ -1,6 +1,6 @@
 #include "spdlog/spdlog.h"
 
-#include "kmm/worker/runner.hpp"
+#include "kmm/worker/thread.hpp"
 #include "kmm/worker/worker.hpp"
 
 namespace kmm {
@@ -11,17 +11,17 @@ void run_forever(std::shared_ptr<Worker> worker) {
     }
 }
 
-WorkerRunner::WorkerRunner(std::shared_ptr<Worker> worker) {
+WorkerThread::WorkerThread(std::shared_ptr<Worker> worker) {
     m_thread = std::thread(run_forever, std::move(worker));
 }
 
-void WorkerRunner::join() {
+void WorkerThread::join() {
     if (m_thread.joinable()) {
         m_thread.join();
     }
 }
 
-WorkerRunner::~WorkerRunner() {
+WorkerThread::~WorkerThread() {
     join();
 }
 }  // namespace kmm

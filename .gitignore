@@ -1,2 +1,7 @@
+# CMake
 build/
-.idea
+cmake-build*
+
+# Editors
+.idea/
+.vscode/

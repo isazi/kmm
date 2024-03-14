@@ -1,6 +1,6 @@
 # This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: CMake+CUDA build with multiple compilers
+name: CUDA Build with multiple compilers
 
 on:
   push:
@@ -24,12 +24,12 @@ jobs:
       - uses: Jimver/cuda-toolkit@v0.2.14
         id: cuda-toolkit
         with:
-          method: network
+          method: 'network'
           sub-packages: '["toolkit"]'
       - uses: Bacondish2023/setup-googletest@v1
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: 'recursive'
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -46,6 +46,7 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+          -DSPDLOG_FMT_EXTERNAL:BOOL=ON
           -DKMM_USE_CUDA:BOOL=ON
           -DKMM_BUILD_TESTS:BOOL=ON
           -S ${{ github.workspace }}

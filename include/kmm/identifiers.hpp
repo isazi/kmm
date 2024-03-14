@@ -24,6 +24,12 @@ namespace kmm {
 
 using index_t = int;
 
+/**
+ * @class EventId
+ *
+ * This class represents the event associated with a task.
+ *
+ */
 class EventId {
   public:
     explicit constexpr EventId(uint64_t value) : m_value(value) {}

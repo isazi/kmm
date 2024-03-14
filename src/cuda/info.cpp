@@ -13,7 +13,7 @@ CudaDeviceInfo::CudaDeviceInfo(CudaContextHandle context, MemoryId affinity_id) 
     KMM_CUDA_CHECK(cuDeviceGetName(name, 1024, m_device_id));
     m_name = std::string(name);
 
-    for (size_t i = 0; i < NUM_ATTRIBUTES; i++) {
+    for (size_t i = 1; i < NUM_ATTRIBUTES; i++) {
         auto attr = CUdevice_attribute(i);
         KMM_CUDA_CHECK(cuDeviceGetAttribute(&m_attributes[i], attr, m_device_id));
     }

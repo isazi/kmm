@@ -1,6 +1,6 @@
 # This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: CMake build with multiple compilers
+name: Build+Test with multiple compilers
 
 on:
   push:
@@ -21,9 +21,10 @@ jobs:
         cpp_compiler: [g++, clang++]
             
     steps:
-    - uses: actions/checkout@v3
+    - uses: Bacondish2023/setup-googletest@v1
+    - uses: actions/checkout@v4
       with:
-        submodules: 'true'
+        submodules: 'recursive'
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -40,8 +41,14 @@ jobs:
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+        -DSPDLOG_FMT_EXTERNAL:BOOL=ON
+        -DKMM_BUILD_TESTS:BOOL=ON
         -S ${{ github.workspace }}
 
     - name: Build
       # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+    - name: Test
+      working-directory: ${{ steps.strings.outputs.build-output-dir }}
+      run: ./kmmTest

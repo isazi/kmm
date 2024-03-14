@@ -67,6 +67,7 @@ class Scheduler {
         std::vector<std::shared_ptr<Node>> successors = {};
 
         uint8_t queue_id = 0;
+        uint64_t workload = 1;
         sequence_number_t sequence_number;
     };
 
