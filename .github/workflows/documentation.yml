@@ -35,7 +35,10 @@ jobs:
       - name: Build and commit
         uses: sphinx-notes/pages@v3
         with:
+          python_version: '3.9'
           documentation_path: './docs'
+          checkout: false
+          publish: false
       - name: Deploy documentation
         uses: ad-m/github-push-action@master
         with:
