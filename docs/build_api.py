@@ -10,7 +10,7 @@ def build_doxygen_page(name, items):
     content += name + "\n" + "=" * len(name) + "\n"
 
     for item in items:
-        directive = "doxygenstruct" if item[0].isupper() else "doxygenfunction"
+        directive = "doxygenclass" if item[0].isupper() else "doxygenfunction"
         content += f".. {directive}:: kmm::{item}\n"
 
     filename = f"api/{name}.rst"
@@ -66,15 +66,7 @@ def build_index_page(groups):
     return filename
 
 
-groups = {
-    "Arrays": [
-        "Array",
-        "PackedArray",
-        "to_fixed_array",
-        "TaskArgumentPack",
-        "TaskArgumentUnpack",
-    ],
-}
+groups = {"Initialization": ["build_runtime"], "Tasks and Events": ["EventId"]}
 
 
 build_index_page(groups)
