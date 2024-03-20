@@ -14,7 +14,15 @@
 KMM
 ===============
 
-KMM is a lightweight C++ middleware for accelerated computing.
+KMM is a lightweight C++ middleware for accelerated computing, with native support for CUDA.
+
+Highlights of KMM:
+
+* KMM manages the application memory
+   * Allocations of host and device memory is automated
+   * Data transfers to and from device are transparently performed when necessary
+* No need to rewrite your kernels
+   * KMM can schedule and execute native C++ and CUDA functions
 
 Basic Example
 =============
@@ -53,12 +61,6 @@ This example shows how to run a CUDA kernel implementing a vector add operation 
        std::cout << "initialize\n";
    }
 
-   void execute(kmm::CudaDevice& device, float* C, const float* A, const float* B) {
-       int block_size = 256;
-       int num_blocks = (SIZE + block_size - 1) / block_size;
-       vector_add<<<num_blocks, block_size, 0, device.stream()>>>(A, B, C, SIZE);
-   }
-
    void verify(const float* C) {
    #pragma omp parallel for
        for (unsigned int item = 0; item < SIZE; item++) {
@@ -92,7 +94,6 @@ This example shows how to run a CUDA kernel implementing a vector add operation 
            manager.submit(kmm::Host(), initialize, write(A), write(B));
 
            // Execute the function on the device.
-           //manager.submit(kmm::Cuda(), execute, write(C), A, B);
            manager.submit(kmm::CudaKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), n);
 
            // Verify the result on the host.
