@@ -1,0 +1,17 @@
+{
+  "upload_type": "software",
+  "description": "KMM is a lightweight C++ middleware for accelerated computing, with native support for CUDA.",
+  "title": "KMM",
+  "creators": [
+    {
+      "affiliation": "Netherlands eScience Center",
+      "name": "Alessio Sclocco"
+    },
+    {
+      "affiliation": "Netherlands eScience Center",
+      "name": "Stijn Heldens"
+    }
+  ],
+  "keywords": ["HPC", "GPU", "middleware", "CUDA"],
+  "license": "Apache-2.0"
+}
