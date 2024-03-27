@@ -25,15 +25,12 @@ endif()
 
 file(GLOB_RECURSE sources
   "${PROJECT_SOURCE_DIR}/src/*.cpp"
-  "${PROJECT_SOURCE_DIR}/src/*/*.cpp"
-  "${PROJECT_SOURCE_DIR}/include/kmm/*.h"
-  "${PROJECT_SOURCE_DIR}/include/kmm/*/*.h")
+  "${PROJECT_SOURCE_DIR}/src/*/*.cpp")
 
-file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
 if(KMM_STATIC)
-  add_library(${PROJECT_NAME} STATIC ${sources} ${includes})
+  add_library(${PROJECT_NAME} STATIC ${sources})
 else()
-  add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
+  add_library(${PROJECT_NAME} SHARED ${sources})
 endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
@@ -52,13 +49,15 @@ set_target_properties(
   PROPERTIES
   VERSION ${PROJECT_VERSION}
   SOVERSION 1
-  PUBLIC_HEADER "${includes}"
 )
 
 install(
   TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+DIRECTORY include/kmm DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.hpp"
 )
 
 target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
