@@ -1,4 +1,6 @@
 
+#include "spdlog/spdlog.h"
+
 #include "kmm/cuda/device.hpp"
 
 #ifdef KMM_USE_CUDA
@@ -107,6 +109,7 @@ void CudaDevice::copy_bytes(const void* source_buffer, void* dest_buffer, size_t
 class CudaDeviceThread {
   public:
     CudaDeviceThread(
+        CudaContextHandle context,
         std::shared_ptr<WorkQueue<CudaDeviceHandle::Job>> queue,
         std::vector<std::unique_ptr<CudaDevice>> streams);
     ~CudaDeviceThread();
@@ -117,6 +120,7 @@ class CudaDeviceThread {
     PollResult poll_stream(size_t slot);
     void submit_job(size_t slot, std::unique_ptr<CudaDeviceHandle::Job> job);
 
+    CudaContextHandle m_context;
     std::shared_ptr<WorkQueue<CudaDeviceHandle::Job>> m_queue;
     std::vector<std::unique_ptr<CudaDevice>> m_streams;
     std::vector<Completion> m_running_jobs;
@@ -124,17 +128,18 @@ class CudaDeviceThread {
 };
 
 CudaDeviceThread::CudaDeviceThread(
+    CudaContextHandle context,
     std::shared_ptr<WorkQueue<CudaDeviceHandle::Job>> queue,
     std::vector<std::unique_ptr<CudaDevice>> streams) :
+    m_context(context),
     m_queue(std::move(queue)),
     m_streams(std::move(streams)) {
-    KMM_ASSERT(m_streams.empty() == false);
+    CudaContextGuard guard {m_context};
 
+    KMM_ASSERT(m_streams.empty() == false);
     m_running_jobs.resize(m_streams.size());
 
     for (const auto& stream : m_streams) {
-        CudaContextGuard guard {stream->context_handle()};
-
         CUevent event;
         KMM_CUDA_CHECK(cuEventCreate(&event, 0));
         m_events.push_back(event);
@@ -152,9 +157,9 @@ CudaDeviceThread::~CudaDeviceThread() {
 
 void CudaDeviceThread::run_forever() {
     static constexpr std::chrono::microseconds MIN_WAIT_TIME = std::chrono::microseconds(1);
-    static constexpr std::chrono::microseconds MAX_WAIT_TIME = std::chrono::milliseconds(5);
+    static constexpr std::chrono::microseconds MAX_WAIT_TIME = std::chrono::milliseconds(25);
 
-    CudaContextGuard guard {m_streams[0]->context_handle()};
+    CudaContextGuard guard {m_context};
 
     bool shutdown = false;
     auto wait_time = MIN_WAIT_TIME;
@@ -198,7 +203,7 @@ void CudaDeviceThread::run_forever() {
                 submit_job(0, std::move(*job_opt));
                 wait_time = MIN_WAIT_TIME;
             } else {
-                shutdown = true;
+                shutdown = m_queue->is_shutdown();
             }
         }
     }
@@ -220,6 +225,8 @@ PollResult CudaDeviceThread::poll_stream(size_t slot) {
     // `cuStreamQuery` was some other asynchronous error. We need to be sure the work on this
     // stream has really finished before we fire the completion.
     KMM_CUDA_CHECK(cuStreamSynchronize(m_streams[slot]->stream()));
+
+    spdlog::trace("task completed on CUDA stream {}", slot);
 
     auto completion = std::move(m_running_jobs[slot]);
     if (status == CUDA_SUCCESS) {
@@ -251,6 +258,7 @@ void CudaDeviceThread::submit_job(size_t slot, std::unique_ptr<CudaDeviceHandle:
         KMM_CUDA_CHECK(cuEventRecord(m_events[slot], CUDA_DEFAULT_STREAM));
         KMM_CUDA_CHECK(cuStreamWaitEvent(m_streams[slot]->stream(), m_events[slot], 0));
 
+        spdlog::trace("submit task on CUDA stream {}", slot);
         m_running_jobs[slot] = std::move(job->completion);
     } catch (...) {
         // Block on both the slot's stream and the default stream
@@ -280,7 +288,7 @@ CudaDeviceHandle::CudaDeviceHandle(
         streams.push_back(std::make_unique<CudaDevice>(context, affinity_id));
     }
 
-    auto state = std::make_unique<CudaDeviceThread>(m_queue, std::move(streams));
+    auto state = std::make_unique<CudaDeviceThread>(context, m_queue, std::move(streams));
     m_thread = std::thread([state = std::move(state)] { state->run_forever(); });
 }
 
@@ -292,6 +300,7 @@ CudaDeviceHandle::~CudaDeviceHandle() noexcept {
 std::unique_ptr<DeviceInfo> CudaDeviceHandle::info() const {
     return std::make_unique<CudaDeviceInfo>(m_info);
 }
+
 void CudaDeviceHandle::submit(
     std::shared_ptr<Task> task,
     TaskContext context,
