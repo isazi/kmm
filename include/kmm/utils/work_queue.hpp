@@ -23,6 +23,11 @@ class WorkQueue {
         cond.notify_all();
     }
 
+    bool is_shutdown() {
+        std::unique_lock guard {lock};
+        return has_shutdown;
+    }
+
     void push(std::unique_ptr<Job> unit) {
         static_assert(std::is_base_of<JobBase, Job>(), "`Job` must extend `JobBase`");
         std::unique_lock guard {lock};
@@ -45,20 +50,20 @@ class WorkQueue {
         while (true) {
             if (triggered) {
                 triggered = false;
+                return std::nullopt;
+            }
+
+            if (front != nullptr) {
                 break;
             }
 
             if (has_shutdown) {
-                break;
+                return std::nullopt;
             }
 
             if (cond.wait_until(guard, deadline) == std::cv_status::timeout) {
-                break;
+                return std::nullopt;
             }
-        }
-
-        if (front == nullptr) {
-            return std::nullopt;
         }
 
         auto popped = std::move(front);
