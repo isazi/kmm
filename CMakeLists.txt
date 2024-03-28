@@ -3,11 +3,14 @@ cmake_minimum_required(VERSION 3.10)
 set(PROJECT_NAME "kmm")
 project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
 
-# User options
+# User options (features)
 option(KMM_USE_CUDA "Build the CUDA backend" OFF)
+option(KMM_STATIC "Build a static library" OFF)
+# User options (development)
+option(KMM_ENABLE_LINTER "Enable clang-tidy linter" OFF)
 option(KMM_BUILD_TESTS "Build tests" OFF)
 option(KMM_BUILD_EXAMPLES "Build examples" OFF)
-option(KMM_STATIC "Build a static library" OFF)
+
 
 # Enable C++17 support
 set(CXX_STANDARD 17)
@@ -22,15 +25,12 @@ endif()
 
 file(GLOB_RECURSE sources
   "${PROJECT_SOURCE_DIR}/src/*.cpp"
-  "${PROJECT_SOURCE_DIR}/src/*/*.cpp"
-  "${PROJECT_SOURCE_DIR}/include/kmm/*.h"
-  "${PROJECT_SOURCE_DIR}/include/kmm/*/*.h")
+  "${PROJECT_SOURCE_DIR}/src/*/*.cpp")
 
-file(GLOB_RECURSE includes "${PROJECT_SOURCE_DIR}/include/*.hpp")
 if(KMM_STATIC)
-  add_library(${PROJECT_NAME} STATIC ${sources} ${includes})
+  add_library(${PROJECT_NAME} STATIC ${sources})
 else()
-  add_library(${PROJECT_NAME} SHARED ${sources} ${includes})
+  add_library(${PROJECT_NAME} SHARED ${sources})
 endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
@@ -49,13 +49,15 @@ set_target_properties(
   PROPERTIES
   VERSION ${PROJECT_VERSION}
   SOVERSION 1
-  PUBLIC_HEADER "${includes}"
 )
 
 install(
   TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+DIRECTORY include/kmm DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.hpp"
 )
 
 target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
@@ -63,8 +65,10 @@ target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
 # Enable PIC
 set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-set(PROJECT_CLANG_TIDY clang-tidy)
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_CLANG_TIDY "${PROJECT_CLANG_TIDY}")
+if(KMM_ENABLE_LINTER)
+  set(PROJECT_CLANG_TIDY clang-tidy)
+  set_target_properties(${PROJECT_NAME} PROPERTIES CXX_CLANG_TIDY "${PROJECT_CLANG_TIDY}")
+endif()
 
 if(DEFINED CMAKE_CUDA_COMPILER)
   find_package(CUDAToolkit REQUIRED)

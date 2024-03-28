@@ -130,7 +130,7 @@ std::optional<CUdevice> get_cuda_device_by_address(const void* address) {
             return CUdevice {ordinal};
         }
     } catch (const std::exception& error) {
-        spdlog::warn("ignored error in `get_cuda_device_by_address`: {}", error.what());
+        spdlog::trace("ignored error in `get_cuda_device_by_address`: {}", error.what());
     }
 
     return std::nullopt;

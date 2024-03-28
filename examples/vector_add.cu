@@ -47,14 +47,13 @@ void verify(const float* C) {
 }
 
 int main(void) {
-    spdlog::set_level(spdlog::level::debug);
-
     unsigned int threads_per_block = 256;
     unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
     int n = SIZE;
 
     // Create manager
     auto manager = kmm::build_runtime();
+    spdlog::set_level(spdlog::level::debug);
     std::deque<kmm::EventId> events;
 
     for (size_t i = 0; i < 20; i++) {

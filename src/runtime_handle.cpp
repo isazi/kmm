@@ -1,5 +1,6 @@
 #include <future>
 
+#include "spdlog/spdlog.h"
 #include "kmm/cuda/device.hpp"
 #include "kmm/cuda/memory.hpp"
 #include "kmm/cuda/types.hpp"
@@ -76,6 +77,7 @@ void RuntimeHandle::synchronize() const {
 }
 
 RuntimeHandle build_runtime() {
+    spdlog::set_level(spdlog::level::err);
     auto host_device = std::make_shared<ParallelDeviceHandle>();
 
     std::vector<std::shared_ptr<DeviceHandle>> handles = {host_device};

@@ -43,6 +43,7 @@ jobs:
         -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
         -DSPDLOG_FMT_EXTERNAL:BOOL=ON
         -DKMM_BUILD_TESTS:BOOL=ON
+        -DKMM_USE_LINTER:BOOL=ON
         -S ${{ github.workspace }}
 
     - name: Build
