@@ -113,17 +113,25 @@ endif()
 if(KMM_BUILD_EXAMPLES)
   if(DEFINED CMAKE_CUDA_COMPILER)
     add_executable(
-      vector_add
-      ${PROJECT_SOURCE_DIR}/examples/vector_add.cu
+      vector_add_cuda examples/vector_add/vector_add.cu
     )
-    target_compile_features(vector_add PRIVATE cxx_std_17)
+    target_compile_features(vector_add_cuda PRIVATE cxx_std_17)
     target_include_directories(
-      vector_add
+      vector_add_cuda
+      PRIVATE
+      ${PROJECT_SOURCE_DIR}/include
+    )
+    add_executable(
+      vector_add_kmm examples/vector_add/vector_add.cpp
+    )
+    target_compile_features(vector_add_cuda PRIVATE cxx_std_17)
+    target_include_directories(
+      vector_add_kmm
       PRIVATE
       ${PROJECT_SOURCE_DIR}/include
     )
     target_link_libraries(
-      vector_add
+      vector_add_kmm
       PRIVATE
       kmm
     )
