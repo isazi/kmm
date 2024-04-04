@@ -124,7 +124,8 @@ if(KMM_BUILD_EXAMPLES)
     add_executable(
       vector_add_kmm examples/vector_add/vector_add.cpp
     )
-    target_compile_features(vector_add_cuda PRIVATE cxx_std_17)
+    set_source_files_properties(examples/vector_add/vector_add.cpp PROPERTIES LANGUAGE CUDA)
+    target_compile_features(vector_add_kmm PRIVATE cxx_std_17)
     target_include_directories(
       vector_add_kmm
       PRIVATE
