@@ -73,7 +73,7 @@ void RuntimeHandle::wait(EventId id) const {
 }
 
 void RuntimeHandle::synchronize() const {
-    m_impl->query_event(m_impl->submit_barrier());
+    wait(submit_barrier());
 }
 
 RuntimeHandle build_runtime() {
