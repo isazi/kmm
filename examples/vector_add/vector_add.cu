@@ -26,7 +26,7 @@ int main(void) {
     cudaMemcpy(B_d, B, n * sizeof(float), cudaMemcpyHostToDevice);
 
     // Execute the function on the device
-    vector_add<<<n_blocks, threads_per_block>>>(A_d, B_d, C_d, n);
+    vector_add<<<n_blocks, threads_per_block>>>(reinterpret_cast<float *>(A_d), reinterpret_cast<float *>(B_d), reinterpret_cast<float *>(C_d), n);
 
     // Copy C from device to host
     cudaMemcpy(C, C_d, n * sizeof(float), cudaMemcpyDeviceToHost);
