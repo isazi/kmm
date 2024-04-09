@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdio>
 #include <sstream>
 
 #define KMM_PANIC(...)                                     \
