@@ -115,6 +115,7 @@ if(KMM_BUILD_EXAMPLES)
     add_executable(
       vector_add_cuda examples/vector_add/vector_add.cu
     )
+    set_target_properties(vector_add_cuda PROPERTIES CUDA_ARCHITECTURES "80")
     target_compile_features(vector_add_cuda PRIVATE cxx_std_17)
     target_include_directories(
       vector_add_cuda
@@ -124,6 +125,7 @@ if(KMM_BUILD_EXAMPLES)
     add_executable(
       vector_add_kmm examples/vector_add/vector_add.cpp
     )
+    set_target_properties(vector_add_kmm PROPERTIES CUDA_ARCHITECTURES "80")
     set_source_files_properties(examples/vector_add/vector_add.cpp PROPERTIES LANGUAGE CUDA)
     target_compile_features(vector_add_kmm PRIVATE cxx_std_17)
     target_include_directories(
