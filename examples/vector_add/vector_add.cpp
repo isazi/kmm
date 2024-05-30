@@ -1,9 +1,6 @@
 #include "spdlog/spdlog.h"
 
-#include "kmm/array.hpp"
-#include "kmm/cuda/cuda.hpp"
-#include "kmm/host/host.hpp"
-#include "kmm/runtime_handle.hpp"
+#include "kmm/kmm.hpp"
 
 #include "vector_add.h"
 #include "vector_add.cuh"
