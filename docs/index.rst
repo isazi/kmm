@@ -36,10 +36,7 @@ This example shows how to run a CUDA kernel implementing a vector add operation 
 
    #include "spdlog/spdlog.h"
 
-   #include "kmm/array.hpp"
-   #include "kmm/cuda/cuda.hpp"
-   #include "kmm/host/host.hpp"
-   #include "kmm/runtime_handle.hpp"
+   #include "kmm/kmm.hpp"
 
    #define SIZE 65536000
 
