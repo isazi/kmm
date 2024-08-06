@@ -20,6 +20,7 @@
 #define KMM_INLINE   __attribute__((always_inline))
 #define KMM_NOINLINE __attribute__((noinline))
 
+// If we are use the NVIDIA compiler
 #ifdef __NVCC__
     #define KMM_HOST_DEVICE __host__ __device__ __forceinline__
     #define KMM_DEVICE      __device__ __forceinline__

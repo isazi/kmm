@@ -89,10 +89,10 @@ if(KMM_BUILD_TESTS)
   enable_testing()
   add_executable(
     kmmTest
-    ${PROJECT_SOURCE_DIR}/test/test_memory_manager.cpp
-    ${PROJECT_SOURCE_DIR}/test/test_result.cpp
-    ${PROJECT_SOURCE_DIR}/test/test_memory_pool.cpp
     ${PROJECT_SOURCE_DIR}/test/test_integer_fun.cpp
+    ${PROJECT_SOURCE_DIR}/test/test_checked_math.cpp
+    ${PROJECT_SOURCE_DIR}/test/test_small_vector.cpp
+    ${PROJECT_SOURCE_DIR}/test/test_geom.cpp
   )
   target_compile_features(kmmTest PRIVATE cxx_std_17)
   target_include_directories(

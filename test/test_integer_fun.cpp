@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <cmath>
 
 #include "kmm/utils/integer_fun.hpp"
 
@@ -70,36 +71,42 @@ TEST(IntegerFuns, round_up_to_power_of_two) {
     ASSERT_EQ(round_up_to_power_of_two(std::numeric_limits<int64_t>::max()), 0);
 }
 
-TEST(IntegerFuns, div_ceil) {
-    ASSERT_EQ(div_ceil(uint32_t(5), uint32_t(2)), uint32_t(3));
-    ASSERT_EQ(div_ceil(uint32_t(103), uint32_t(5)), uint32_t(21));
-    ASSERT_EQ(div_ceil(uint32_t(0), uint32_t(5)), uint32_t(0));
+TEST(IntegerFuns, div_ceil_and_div_floor) {
+#define CHECK_DIV_CASE(T, A, B) \
+    ASSERT_EQ(div_ceil(T(A), T(B)), T(std::ceil(double(A) / double(B)))); \
+    ASSERT_EQ(div_floor(T(A), T(B)), T(std::floor(double(A) / double(B))));
 
-    ASSERT_EQ(div_ceil(uint64_t(5), uint64_t(2)), uint64_t(3));
-    ASSERT_EQ(div_ceil(uint64_t(103), uint64_t(5)), uint64_t(21));
-    ASSERT_EQ(div_ceil(uint64_t(0), uint64_t(5)), uint64_t(0));
+    CHECK_DIV_CASE(uint32_t, 5, 2);
+    CHECK_DIV_CASE(uint32_t, 6, 2);
+    CHECK_DIV_CASE(uint32_t, 7, 2);
+    CHECK_DIV_CASE(uint32_t, 103, 5);
+    CHECK_DIV_CASE(uint32_t, 0, 5);
 
-    ASSERT_EQ(div_ceil(int32_t(5), int32_t(2)), int32_t(3));
-    ASSERT_EQ(div_ceil(int32_t(5), int32_t(-2)), int32_t(3));
-    ASSERT_EQ(div_ceil(int32_t(-5), int32_t(2)), int32_t(-2));
-    ASSERT_EQ(div_ceil(int32_t(-5), int32_t(-2)), int32_t(-2));
-    ASSERT_EQ(div_ceil(int32_t(6), int32_t(2)), int32_t(3));
-    ASSERT_EQ(div_ceil(int32_t(6), int32_t(-2)), int32_t(3));
-    ASSERT_EQ(div_ceil(int32_t(-6), int32_t(2)), int32_t(-3));
-    ASSERT_EQ(div_ceil(int32_t(-6), int32_t(-2)), int32_t(-3));
-    ASSERT_EQ(div_ceil(int32_t(103), int32_t(5)), int32_t(21));
-    ASSERT_EQ(div_ceil(int32_t(0), int32_t(5)), int32_t(0));
+    CHECK_DIV_CASE(uint64_t, 5, 2);
+    CHECK_DIV_CASE(uint64_t, 103, 5);
+    CHECK_DIV_CASE(uint64_t, 0, 5);
 
-    ASSERT_EQ(div_ceil(int64_t(5), int64_t(2)), int64_t(3));
-    ASSERT_EQ(div_ceil(int64_t(5), int64_t(-2)), int64_t(3));
-    ASSERT_EQ(div_ceil(int64_t(-5), int64_t(2)), int64_t(-2));
-    ASSERT_EQ(div_ceil(int64_t(-5), int64_t(-2)), int64_t(-2));
-    ASSERT_EQ(div_ceil(int64_t(6), int64_t(2)), int64_t(3));
-    ASSERT_EQ(div_ceil(int64_t(6), int64_t(-2)), int64_t(3));
-    ASSERT_EQ(div_ceil(int64_t(-6), int64_t(2)), int64_t(-3));
-    ASSERT_EQ(div_ceil(int64_t(-6), int64_t(-2)), int64_t(-3));
-    ASSERT_EQ(div_ceil(int64_t(103), int64_t(5)), int64_t(21));
-    ASSERT_EQ(div_ceil(int64_t(0), int64_t(5)), int64_t(0));
+    CHECK_DIV_CASE(int32_t, 5, 2);
+    CHECK_DIV_CASE(int32_t, 5, -2);
+    CHECK_DIV_CASE(int32_t, -5, 2);
+    CHECK_DIV_CASE(int32_t, -5, -2);
+    CHECK_DIV_CASE(int32_t, 6, 2);
+    CHECK_DIV_CASE(int32_t, 6, -2);
+    CHECK_DIV_CASE(int32_t, -6, 2);
+    CHECK_DIV_CASE(int32_t, -6, -2);
+    CHECK_DIV_CASE(int32_t, 103, 5);
+    CHECK_DIV_CASE(int32_t, 0, 5);
+
+    CHECK_DIV_CASE(int64_t, 5, 2);
+    CHECK_DIV_CASE(int64_t, 5, -2);
+    CHECK_DIV_CASE(int64_t, -5, 2);
+    CHECK_DIV_CASE(int64_t, -5, -2);
+    CHECK_DIV_CASE(int64_t, 6, 2);
+    CHECK_DIV_CASE(int64_t, 6, -2);
+    CHECK_DIV_CASE(int64_t, -6, 2);
+    CHECK_DIV_CASE(int64_t, -6, -2);
+    CHECK_DIV_CASE(int64_t, 103, 5);
+    CHECK_DIV_CASE(int64_t, 0, 5);
 }
 
 TEST(IntegerFuns, is_power_of_two) {

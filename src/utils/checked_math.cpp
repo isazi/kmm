@@ -5,7 +5,7 @@
 namespace kmm {
 
 void throw_overflow_exception() {
-    throw std::overflow_error("an operation resulted in an integer overflow");
+    throw std::overflow_error("operation resulted in overflow");
 }
 
 }  // namespace kmm

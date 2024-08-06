@@ -1,85 +1,50 @@
-#include <deque>
-#include <iostream>
+#include "kmm/api/runtime.hpp"
+#include "kmm/api/array.hpp"
 
-#include "spdlog/spdlog.h"
-
-#include "kmm/array.hpp"
-#include "kmm/cuda/cuda.hpp"
-#include "kmm/host/host.hpp"
-#include "kmm/runtime_handle.hpp"
-
-#define SIZE 65536000
-
-__global__ void vector_add(const float* A, const float* B, float* C, int size) {
-    int item = (blockDim.x * blockIdx.x) + threadIdx.x;
-
-    if (item < size) {
-        C[item] = A[item] + B[item];
-    }
-}
-
-void initialize(float* A, float* B) {
-#pragma omp parallel for
-    for (unsigned int item = 0; item < SIZE; item++) {
-        A[item] = 1.0;
-        B[item] = 2.0;
-    }
-
-    std::cout << "initialize\n";
-}
-
-void execute(kmm::CudaDevice& device, float* C, const float* A, const float* B) {
-    int block_size = 256;
-    int num_blocks = (SIZE + block_size - 1) / block_size;
-    vector_add<<<num_blocks, block_size, 0, device.stream()>>>(A, B, C, SIZE);
-}
-
-void verify(const float* C) {
-#pragma omp parallel for
-    for (unsigned int item = 0; item < SIZE; item++) {
-        if (fabsf(C[item] - 3.0f) > 1.0e-9) {
-            std::cout << "ERROR" << std::endl;
-            break;
+void kernel_function(
+    kmm::rect<2> subregion,
+    int n, int m, int k,
+    kmm::subview<float, 2> a,
+    kmm::subview<float, 2> b,
+    kmm::subview_mut<float, 2> c
+) {
+    for (int i = subregion.begin(0); i < subregion.end(0); i++) {
+        for (int j = subregion.begin(1); j < subregion.end(1); j++) {
+            for (int l = 0; l < k; l++) {
+                c[i][j] += a[i][l] * b[l][j];
+            }
         }
     }
-
-    std::cout << "SUCCESS" << std::endl;
 }
 
-int main(void) {
-    unsigned int threads_per_block = 256;
-    unsigned int n_blocks = ceil((1.0 * SIZE) / threads_per_block);
-    int n = SIZE;
+void example(kmm::Runtime rt) {
+    using namespace kmm::placeholders;
 
-    // Create manager
-    auto manager = kmm::build_runtime();
-    spdlog::set_level(spdlog::level::debug);
-    std::deque<kmm::EventId> events;
+    int n = 150;
+    int m = 50;
+    int k = 10;
 
-    for (size_t i = 0; i < 20; i++) {
-        // Request 3 memory areas of a certain size
-        auto A = kmm::Array<float>(n);
-        auto B = kmm::Array<float>(n);
-        auto C = kmm::Array<float>(n);
+    kmm::Array<float, 2> a = {n, k};
+    kmm::Array<float, 2> b = {k, m};
+    kmm::Array<float, 2> c = {n, m};
 
-        // Initialize array A and B on the host
-        manager.submit(kmm::Host(), initialize, write(A), write(B));
+    rt.submit(
+        kmm::Host(),
+        kmm::ChunkPartition<2> {
+            {n, m},
+            {10, 10}
+        },
+        kernel_function,
+        n,
+        m,
+        k,
+        read(a, slice(_x, _)),
+        read(b, slice(_, _y)),
+        write(c, slice(_x, _y))
+    );
+}
 
-        // Execute the function on the device.
-        //manager.submit(kmm::Cuda(), execute, write(C), A, B);
-        manager.submit(kmm::CudaKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), n);
-
-        // Verify the result on the host.
-        auto verify_event = manager.submit(kmm::Host(), verify, C);
-
-        events.push_back(verify_event);
-        if (events.size() >= 5) {
-            manager.wait(events[events.size() - 5]);
-        }
-    }
-
-    manager.synchronize();
-    std::cout << "done\n";
-
-    return 0;
+int main() {
+    auto rt = kmm::make_runtime();
+    example(rt);
 }
