@@ -6,6 +6,53 @@
 
 namespace kmm {
 
+template<size_t N, typename Launcher, typename F, typename... Args>
+EventId submit_with_launcher(
+    const RuntimeImpl* runtime,
+    Partition<N> dist,
+    Launcher launcher,
+    F fun,
+    Args&&... args) {
+    return submit_with_launcher_impl(
+        std::index_sequence_for<Args...>(),
+        runtime,
+        dist,
+        launcher,
+        fun,
+        std::forward<Args>(args)...);
+}
+
+template<size_t N, typename Launcher, typename F, typename... Args, size_t... Is>
+EventId submit_with_launcher_impl(
+    std::index_sequence<Is...>,
+    const RuntimeImpl* runtime,
+    Partition<N> dist,
+    Launcher launcher,
+    F fun,
+    Args&&... args) {
+    auto processors = std::make_tuple(TaskDataProcessor<std::decay_t<Args>> {args}...);
+    auto events = EventList {};
+
+    for (const auto& chunk : dist.chunks) {
+        TaskRequirements reqs;
+
+        auto result = launcher(
+            runtime,
+            reqs,
+            fun,
+            chunk,
+            std::get<Is>(processors).pre_enqueue(chunk, reqs)...);
+
+        ((std::get<Is>(processors).post_enqueue(chunk, result)), ...);
+
+        events.push_back(result.event_id);
+    }
+
+    ((std::get<Is>(processors).finalize()), ...);
+
+    return runtime->join_events(events);
+}
+
 template<size_t N, typename F, typename... Args>
 struct HostTaskImpl: public HostTask {
     HostTaskImpl(rect<N> local_size, F fun, Args... args) :
@@ -34,44 +81,37 @@ struct HostTaskImpl: public HostTask {
 
 struct Host {
     template<size_t N, typename F, typename... Args>
-    EventId operator()(const RuntimeImpl* runtime, Partition<N> dist, F fun, Args&&... args) {
-        return execute_impl(
-            std::index_sequence_for<Args...>(),
-            runtime,
-            dist,
-            fun,
-            std::forward<Args>(args)...);
-    }
-
-    template<size_t N, typename F, typename... Args, size_t... Is>
-    static EventId execute_impl(
-        std::index_sequence<Is...>,
+    TaskResult operator()(
         const RuntimeImpl* runtime,
-        Partition<N> dist,
+        TaskRequirements& reqs,
         F fun,
+        Chunk<N> chunk,
         Args&&... args) {
-        TaskRequirements reqs;
+        auto task = std::make_shared<HostTaskImpl<N, F, Args...>>(chunk.local_size, fun, args...);
+        return runtime->enqueue_host_task(task, reqs);
+    }
+};
 
-        auto processors = std::make_tuple(TaskDataProcessor<std::decay_t<Args>> {args}...);
-        auto events = EventList {};
+struct CudaKernelLaunch {
+    dim3 grid_size;
+    dim3 block_size;
+    unsigned int shared_memory;
+};
 
-        for (const auto& chunk : dist.chunks) {
-            auto task =
-                std::make_shared<HostTaskImpl<N, F, serialized_argument_t<std::decay_t<Args>>...>>(
-                    chunk.local_size,
-                    fun,
-                    std::get<Is>(processors).pre_enqueue(chunk, reqs)...);
+struct CudaKernel {
+    CudaKernel(dim3 block_size, dim3 grid_divisor, unsigned int shared_memory = 0) {}
 
-            auto result = runtime->enqueue_host_task(task, reqs);
+    CudaKernel(dim3 block_size) : CudaKernel(block_size, block_size) {}
 
-            ((std::get<Is>(processors).post_enqueue(chunk, result)), ...);
-
-            events.push_back(result.event_id);
-        }
-
-        ((std::get<Is>(processors).finalize()), ...);
-
-        return runtime->join_events(events);
+    template<size_t N, typename F, typename... Args>
+    TaskResult operator()(
+        const RuntimeImpl* runtime,
+        TaskRequirements& reqs,
+        F fun,
+        Chunk<N> chunk,
+        Args&&... args) {
+        auto task = std::make_shared<HostTaskImpl<N, F, Args...>>(chunk.local_size, fun, args...);
+        return runtime->enqueue_host_task(task, reqs);
     }
 };
 

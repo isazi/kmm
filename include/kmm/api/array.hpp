@@ -78,7 +78,7 @@ struct TaskDataProcessor<Read<Array<T, N>, P>> {
         auto buffer_index = req.inputs.size();
         req.inputs.push_back(c.buffer);
 
-        return {.buffer_index = buffer_index, .offset = 0, .sizes = {}};
+        return {.buffer_index = buffer_index, .offset = c.offset, .sizes = c.shape};
     }
 
     template<size_t M>
@@ -110,7 +110,10 @@ struct TaskDataProcessor<Write<Array<T, N>, P>> {
         m_chunks.push_back(
             ArrayChunk<N> {.offset = region.offset, .shape = region.sizes, .buffer = nullptr});
 
-        return {.buffer_index = m_prev_output_index, .offset = 0, .sizes = {}};
+        return {
+            .buffer_index = m_prev_output_index,
+            .offset = region.offset,
+            .sizes = region.sizes};
     }
 
     template<size_t M>

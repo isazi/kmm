@@ -1,4 +1,4 @@
-#include "kmm/api/distribution.hpp"
+#include "kmm/api/partition.hpp"
 #include "kmm/utils/integer_fun.hpp"
 
 namespace kmm {
@@ -36,7 +36,7 @@ Partition<N> ChunkPartition<N>::operator()(RuntimeImpl* runtime) const {
             rect(global_size).intersection(rect<N> {index * chunk_size.to_point(), chunk_size});
 
         auto device_id = devices[result.size() % devices.size()].device_id();
-        result.push_back({global_size, region, device_id});
+        result.push_back({region, device_id});
 
         for (size_t j = 0; j < N; j++) {
             index[j]++;

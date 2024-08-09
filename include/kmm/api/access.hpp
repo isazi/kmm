@@ -2,7 +2,7 @@
 
 #include <limits>
 
-#include "distribution.hpp"
+#include "partition.hpp"
 
 #include "kmm/core/geometry.hpp"
 #include "kmm/utils/checked_math.hpp"
@@ -98,6 +98,10 @@ static constexpr VariableMapping _x = VariableMapping(0);
 static constexpr VariableMapping _y = VariableMapping(1);
 static constexpr VariableMapping _z = VariableMapping(2);
 static constexpr VariableMapping _w = VariableMapping(3);
+
+static constexpr VariableMapping _i = VariableMapping(0);
+static constexpr VariableMapping _j = VariableMapping(1);
+static constexpr VariableMapping _k = VariableMapping(2);
 
 static constexpr VariableMapping _0 = VariableMapping(0);
 static constexpr VariableMapping _1 = VariableMapping(1);

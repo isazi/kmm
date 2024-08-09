@@ -327,7 +327,7 @@ struct right_to_left: private D {
     stride_type data_offset() const {
         stride_type offset = 0;
 
-        for (size_t i = 0; i < rank; i++) {
+        for (size_t i = rank; i > 0; i--) {
             offset =
                 offset * stride_type(domain().size(i - 1)) - stride_type(domain().offset(i - 1));
         }
@@ -339,7 +339,7 @@ struct right_to_left: private D {
     stride_type linearize_index(fixed_array<index_type, rank> ndindex) const {
         stride_type linear = 0;
 
-        for (size_t i = 0; i < rank; i++) {
+        for (size_t i = rank; i > 0; i--) {
             linear = linear * stride_type(domain().size(i - 1)) + stride_type(ndindex[i - 1]);
         }
 

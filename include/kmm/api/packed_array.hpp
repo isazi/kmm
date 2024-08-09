@@ -11,7 +11,7 @@ namespace kmm {
 template<typename T, size_t N>
 struct PackedArray {
     size_t buffer_index;
-    size_t offset;
+    point<N> offset;
     dim<N> sizes;
 };
 

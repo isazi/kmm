@@ -6,8 +6,8 @@
 #include <vector>
 
 #include "array.hpp"
-#include "distribution.hpp"
 #include "launcher.hpp"
+#include "partition.hpp"
 #include "runtime_impl.hpp"
 
 #include "kmm/core/device_info.hpp"
@@ -20,15 +20,21 @@ class Runtime {
   public:
     Runtime(std::shared_ptr<RuntimeImpl> impl) : m_impl(impl) {}
 
-    template<typename Launcher, typename Partitioner, typename... Args>
-    EventId submit(Launcher launcher, Partitioner partition, Args&&... args) {
-        return launcher(m_impl.get(), partition(m_impl.get()), args...);
+    template<typename Partitioner, typename Launcher, typename... Args>
+    EventId parallel_submit(Partitioner partition, Launcher launcher, Args&&... args) {
+        return submit_with_launcher(m_impl.get(), partition(m_impl.get()), launcher, args...);
+    }
+
+    template<typename Launcher, typename... Args>
+    EventId submit(DeviceId device_id, Launcher launcher, Args&&... args) {
+        auto partition = Partition<0> {dim<0> {}, {Chunk<0> {rect<0> {}, device_id}}};
+        return submit_with_launcher(m_impl.get(), partition, launcher, args...);
     }
 
     template<typename T, size_t N>
     Array<T, N> allocate_array(const T* data_ptr, std::array<index_t, N> sizes) const {
         auto num_elements = checked_product(sizes.begin(), sizes.end());
-        size_t num_bytes = checked_mul(checked_cast<size_t>(num_elements), sizeof(T));
+        BufferLayout layout = BufferLayout::for_type<T>(num_elements);
 
         KMM_TODO();
     }

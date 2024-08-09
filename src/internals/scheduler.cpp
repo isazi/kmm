@@ -218,8 +218,10 @@ void Scheduler::make_progress_device(DeviceId device_id) {
 
 std::optional<std::shared_ptr<Operation>> Scheduler::find_event(
     std::optional<EventId> event_id) const {
-    if (auto e = event_id) {
-        if (auto it = m_events.find(*event_id); it != m_events.end()) {
+    if (event_id) {
+        auto it = m_events.find(*event_id);
+
+        if (it != m_events.end()) {
             return it->second;
         }
     }

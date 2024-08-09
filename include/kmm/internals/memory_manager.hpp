@@ -6,6 +6,7 @@
 
 #include "kmm/core/identifiers.hpp"
 #include "kmm/core/task.hpp"
+
 namespace kmm {
 
 static constexpr size_t MAX_DEVICES = 4;

@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "kmm/utils/macros.hpp"
+
 namespace kmm {
 
 static constexpr size_t MAX_DIMS = 4;
@@ -11,6 +13,7 @@ using default_geometry_type = int64_t;
 
 template<typename T, size_t N>
 struct fixed_array {
+    KMM_HOST_DEVICE
     T& operator[](size_t axis) {
         if (axis >= N) {
             __builtin_unreachable();
@@ -19,6 +22,7 @@ struct fixed_array {
         return item[axis];
     }
 
+    KMM_HOST_DEVICE
     const T& operator[](size_t axis) const {
         if (axis >= N) {
             __builtin_unreachable();
@@ -32,10 +36,12 @@ struct fixed_array {
 
 template<typename T>
 struct fixed_array<T, 0> {
+    KMM_HOST_DEVICE
     T& operator[](size_t axis) {
         __builtin_unreachable();
     }
 
+    KMM_HOST_DEVICE
     const T& operator[](size_t axis) const {
         __builtin_unreachable();
     }
@@ -43,14 +49,17 @@ struct fixed_array<T, 0> {
 
 template<typename T>
 struct fixed_array<T, 1> {
+    KMM_HOST_DEVICE
     T& operator[](size_t axis) {
         return x;
     }
 
+    KMM_HOST_DEVICE
     const T& operator[](size_t axis) const {
         return x;
     }
 
+    KMM_HOST_DEVICE
     operator T() const {
         return x;
     }
@@ -60,6 +69,7 @@ struct fixed_array<T, 1> {
 
 template<typename T>
 struct fixed_array<T, 2> {
+    KMM_HOST_DEVICE
     T& operator[](size_t axis) {
         switch (axis) {
             case 0:
@@ -71,6 +81,7 @@ struct fixed_array<T, 2> {
         }
     }
 
+    KMM_HOST_DEVICE
     const T& operator[](size_t axis) const {
         switch (axis) {
             case 0:
@@ -88,6 +99,7 @@ struct fixed_array<T, 2> {
 
 template<typename T>
 struct fixed_array<T, 3> {
+    KMM_HOST_DEVICE
     T& operator[](size_t axis) {
         switch (axis) {
             case 0:
@@ -101,6 +113,7 @@ struct fixed_array<T, 3> {
         }
     }
 
+    KMM_HOST_DEVICE
     const T& operator[](size_t axis) const {
         switch (axis) {
             case 0:
@@ -121,6 +134,7 @@ struct fixed_array<T, 3> {
 
 template<typename T>
 struct fixed_array<T, 4> {
+    KMM_HOST_DEVICE
     T& operator[](size_t axis) {
         switch (axis) {
             case 0:
@@ -136,6 +150,7 @@ struct fixed_array<T, 4> {
         }
     }
 
+    KMM_HOST_DEVICE
     const T& operator[](size_t axis) const {
         switch (axis) {
             case 0:
@@ -162,8 +177,10 @@ class point: public fixed_array<T, N> {
   public:
     using storage_type = fixed_array<T, N>;
 
+    KMM_HOST_DEVICE
     explicit constexpr point(const storage_type& storage) : storage_type(storage) {}
 
+    KMM_HOST_DEVICE
     constexpr point() {
         for (size_t i = 0; i < N; i++) {
             (*this)[i] = T {};
@@ -171,10 +188,11 @@ class point: public fixed_array<T, N> {
     }
 
     template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) + 1 == N)>::type>
-    point(T first, Ts&&... args) : storage_type {static_cast<T>(first), static_cast<T>(args)...} {}
+    KMM_HOST_DEVICE point(T first, Ts&&... args) :
+        storage_type {static_cast<T>(first), static_cast<T>(args)...} {}
 
     template<size_t M, typename U>
-    static constexpr point from(const fixed_array<U, M>& that) {
+    KMM_HOST_DEVICE static constexpr point from(const fixed_array<U, M>& that) {
         point result;
 
         for (size_t i = 0; i < N && i < M; i++) {
@@ -184,6 +202,7 @@ class point: public fixed_array<T, N> {
         return result;
     }
 
+    KMM_HOST_DEVICE
     static constexpr point fill(T value) {
         point result;
 
@@ -194,20 +213,23 @@ class point: public fixed_array<T, N> {
         return result;
     }
 
+    KMM_HOST_DEVICE
     static constexpr point zero() {
         return fill(static_cast<T>(0));
     }
 
+    KMM_HOST_DEVICE
     static constexpr point one() {
         return fill(static_cast<T>(1));
     }
 
+    KMM_HOST_DEVICE
     T get(size_t axis) const {
         return axis < N ? (*this)[axis] : static_cast<T>(0);
     }
 
     template<typename F, typename U = std::invoke_result_t<F, T>>
-    point<N, U> map(F fun) const {
+    KMM_HOST_DEVICE point<N, U> map(F fun) const {
         point<N, U> result;
 
         for (size_t i = 0; i < N; i++) {
@@ -217,6 +239,7 @@ class point: public fixed_array<T, N> {
         return result;
     }
 
+    KMM_HOST_DEVICE
     bool equals(const point& that) const {
         bool is_equal = true;
 
@@ -233,8 +256,10 @@ class dim: public fixed_array<T, N> {
   public:
     using storage_type = fixed_array<T, N>;
 
+    KMM_HOST_DEVICE
     explicit constexpr dim(const storage_type& storage) : storage_type(storage) {}
 
+    KMM_HOST_DEVICE
     constexpr dim() {
         for (size_t i = 0; i < N; i++) {
             (*this)[i] = T {1};
@@ -242,29 +267,35 @@ class dim: public fixed_array<T, N> {
     }
 
     template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) + 1 == N)>::type>
-    dim(T first, Ts&&... args) : storage_type {static_cast<T>(first), static_cast<T>(args)...} {}
+    KMM_HOST_DEVICE dim(T first, Ts&&... args) :
+        storage_type {static_cast<T>(first), static_cast<T>(args)...} {}
 
+    KMM_HOST_DEVICE
     static constexpr dim from_point(const point<N, T>& that) {
         return dim {that};
     }
 
     template<size_t M, typename U>
-    static constexpr dim from(const fixed_array<U, M>& that) {
+    KMM_HOST_DEVICE static constexpr dim from(const fixed_array<U, M>& that) {
         return from_point(point<N, T>::from(that));
     }
 
+    KMM_HOST_DEVICE
     static constexpr dim zero() {
         return from_point(point<N, T>::zero());
     }
 
+    KMM_HOST_DEVICE
     static constexpr dim one() {
         return from_point(point<N, T>::one());
     }
 
+    KMM_HOST_DEVICE
     point<N, T> to_point() const {
         return point<N, T>::from(*this);
     }
 
+    KMM_HOST_DEVICE
     bool is_empty() const {
         bool is_empty = false;
 
@@ -275,10 +306,12 @@ class dim: public fixed_array<T, N> {
         return is_empty;
     }
 
+    KMM_HOST_DEVICE
     T get(size_t i) const {
         return i < N ? (*this)[i] : static_cast<T>(1);
     }
 
+    KMM_HOST_DEVICE
     T volume() const {
         if (is_empty()) {
             return static_cast<T>(0);
@@ -297,6 +330,7 @@ class dim: public fixed_array<T, N> {
         return volume;
     }
 
+    KMM_HOST_DEVICE
     dim intersection(const dim& that) const {
         dim<N, T> new_sizes;
 
@@ -313,14 +347,17 @@ class dim: public fixed_array<T, N> {
         return {new_sizes};
     }
 
+    KMM_HOST_DEVICE
     bool overlaps(const dim& that) const {
         return !this->is_empty() && !that.is_empty();
     }
 
+    KMM_HOST_DEVICE
     bool contains(const dim& that) const {
         return that.is_empty() || intersection(that) == that;
     }
 
+    KMM_HOST_DEVICE
     bool contains(const point<N, T>& that) const {
         for (size_t i = 0; i < N; i++) {
             if (that[i] < static_cast<T>(0) || that[i] >= (*this)[i]) {
@@ -335,33 +372,44 @@ class dim: public fixed_array<T, N> {
 template<size_t N, typename T = default_geometry_type>
 class rect {
   public:
+    point<N, T> offset;
+    dim<N, T> sizes;
+
+    KMM_HOST_DEVICE
     rect(point<N, T> offset, dim<N, T> sizes) : offset(offset), sizes(sizes) {}
 
+    KMM_HOST_DEVICE
     rect(dim<N, T> sizes) : rect(point<N, T>::zero(), sizes) {}
 
+    KMM_HOST_DEVICE
     rect() : rect(dim<N, T>::zero()) {}
 
     template<size_t M, typename U>
-    static constexpr rect from(const rect<M, U>& that) {
+    KMM_HOST_DEVICE static constexpr rect from(const rect<M, U>& that) {
         return {point<N, T>::from(that.offset()), dim<N, T>::from(that.sizes())};
     }
 
+    KMM_HOST_DEVICE
     T size(size_t axis) const {
         return this->sizes.get(axis);
     }
 
+    KMM_HOST_DEVICE
     T begin(size_t axis) const {
         return this->offset.get(axis);
     }
 
+    KMM_HOST_DEVICE
     T end(size_t axis) const {
         return begin(axis) + (size(axis) < 0 ? 0 : size(axis));
     }
 
+    KMM_HOST_DEVICE
     point<N, T> begin() const {
         return this->offset;
     }
 
+    KMM_HOST_DEVICE
     point<N, T> end() const {
         point<N, T> result;
         for (size_t i = 0; i < N; i++) {
@@ -371,14 +419,17 @@ class rect {
         return result;
     }
 
+    KMM_HOST_DEVICE
     T size() const {
         return this->sizes.volume();
     }
 
+    KMM_HOST_DEVICE
     bool is_empty() const {
         return this->sizes.is_empty();
     }
 
+    KMM_HOST_DEVICE
     rect intersection(const rect& that) const {
         point<N, T> new_offset;
         dim<N, T> new_sizes;
@@ -414,33 +465,35 @@ class rect {
         return {new_offset, new_sizes};
     }
 
+    KMM_HOST_DEVICE
     bool overlaps(const rect& that) const {
         return !intersection(that).is_empty();
     }
 
+    KMM_HOST_DEVICE
     bool contains(const rect& that) const {
         return that.is_empty() || intersection(that) == that;
     }
 
+    KMM_HOST_DEVICE
     bool contains(const point<N, T>& that) const {
         return contains(rect {that, dim<N, T>::one()});
     }
 
+    KMM_HOST_DEVICE
     rect intersection(const dim<N, T>& that) const {
         return intersection(rect<N, T> {that});
     }
 
+    KMM_HOST_DEVICE
     bool overlaps(const dim<N, T>& that) const {
         return overlaps(rect<N, T> {that});
     }
 
+    KMM_HOST_DEVICE
     bool contains(const dim<N, T>& that) const {
         return contains(rect<N, T> {that});
     }
-
-  public:
-    point<N, T> offset;
-    dim<N, T> sizes;
 };
 
 template<typename... Ts>
@@ -456,44 +509,44 @@ template<size_t N, typename T>
 rect(dim<N, T> sizes) -> rect<N, T>;
 
 template<size_t N, typename T>
-bool operator==(const point<N, T>& a, const point<N, T>& b) {
+KMM_HOST_DEVICE bool operator==(const point<N, T>& a, const point<N, T>& b) {
     return a.equals(b);
 }
 
 template<size_t N, typename T>
-bool operator!=(const point<N, T>& a, const point<N, T>& b) {
+KMM_HOST_DEVICE bool operator!=(const point<N, T>& a, const point<N, T>& b) {
     return !(a == b);
 }
 
 template<size_t N, typename T>
-bool operator==(const dim<N, T>& a, const dim<N, T>& b) {
+KMM_HOST_DEVICE bool operator==(const dim<N, T>& a, const dim<N, T>& b) {
     return a.to_point() == b.to_point();
 }
 
 template<size_t N, typename T>
-bool operator!=(const dim<N, T>& a, const dim<N, T>& b) {
+KMM_HOST_DEVICE bool operator!=(const dim<N, T>& a, const dim<N, T>& b) {
     return !(a == b);
 }
 
 template<size_t N, typename T>
-bool operator==(const rect<N, T>& a, const rect<N, T>& b) {
+KMM_HOST_DEVICE bool operator==(const rect<N, T>& a, const rect<N, T>& b) {
     return a.offset == b.offset && a.sizes == b.sizes;
 }
 
 template<size_t N, typename T>
-bool operator!=(const rect<N, T>& a, const rect<N, T>& b) {
+KMM_HOST_DEVICE bool operator!=(const rect<N, T>& a, const rect<N, T>& b) {
     return !(a == b);
 }
 
-#define KMM_POINT_OPERATOR_IMPL(OP)                                       \
-    template<size_t N, typename T>                                        \
-    point<N, T> operator OP(const point<N, T>& a, const point<N, T>& b) { \
-        point<N, T> result;                                               \
-        for (size_t i = 0; i < N; i++) {                                  \
-            result[i] = a[i] OP b[i];                                     \
-        }                                                                 \
-                                                                          \
-        return result;                                                    \
+#define KMM_POINT_OPERATOR_IMPL(OP)                                                       \
+    template<size_t N, typename T>                                                        \
+    KMM_HOST_DEVICE point<N, T> operator OP(const point<N, T>& a, const point<N, T>& b) { \
+        point<N, T> result;                                                               \
+        for (size_t i = 0; i < N; i++) {                                                  \
+            result[i] = a[i] OP b[i];                                                     \
+        }                                                                                 \
+                                                                                          \
+        return result;                                                                    \
     }
 
 KMM_POINT_OPERATOR_IMPL(+)

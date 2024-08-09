@@ -97,6 +97,17 @@ KMM_IMPL_CHECKED_ARITHMETIC_FORWARD(char, signed int)
 template<typename L, typename R, typename = void>
 struct checked_compare_impl {};
 
+template<typename T>
+struct checked_compare_impl<T, T> {
+    static bool is_less(const T& left, const T& right) {
+        return left < right;
+    }
+
+    static bool is_equal(const T& left, const T& right) {
+        return left == right;
+    }
+};
+
 template<typename L, typename R>
 struct checked_compare_impl<
     L,
@@ -114,17 +125,6 @@ struct checked_compare_impl<
         return checked_compare_impl<LI, RI>::is_equal(
             static_cast<LI>(left),
             static_cast<RI>(right));
-    }
-};
-
-template<typename T>
-struct checked_compare_impl<T, T> {
-    static bool is_less(const T& left, const T& right) {
-        return left < right;
-    }
-
-    static bool is_equal(const T& left, const T& right) {
-        return left == right;
     }
 };
 

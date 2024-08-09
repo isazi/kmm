@@ -10,7 +10,6 @@ namespace kmm {
 
 template<size_t N>
 struct Chunk {
-    dim<N> global_size;
     rect<N> local_size;
     DeviceId owner_id;
 };
@@ -22,6 +21,14 @@ struct Partition {
 
     Partition<N> operator()(RuntimeImpl* runtime) const {
         return *this;
+    }
+
+    size_t size() const {
+        return chunks.size();
+    }
+
+    Chunk<N> operator[](size_t index) const {
+        return chunks[index];
     }
 };
 
