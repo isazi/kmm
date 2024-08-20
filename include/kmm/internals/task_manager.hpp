@@ -2,7 +2,6 @@
 
 namespace kmm {
 
-template<typename T, size_t N = 1>
-class Array {};
+class TaskManager {};
 
 }  // namespace kmm

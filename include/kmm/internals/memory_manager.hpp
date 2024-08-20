@@ -20,6 +20,10 @@ struct MemoryDeviceInfo {
 
     // The number of bytes that should remain available on the device for other CUDA frameworks
     size_t num_bytes_keep_available = 100'000'000;
+
+    CudaStreamId alloc_stream;
+    CudaStreamId h2d_stream;
+    CudaStreamId d2h_stream;
 };
 
 class MemoryManager {
@@ -44,40 +48,38 @@ class MemoryManager {
     BufferId create_buffer(BufferLayout layout);
     void delete_buffer(BufferId);
 
-    bool acquire_allocation_async(const std::shared_ptr<Request>& req, CudaStreamId stream);
-    void acquire_access_async(const std::shared_ptr<Request>& req, CudaStreamId stream);
+    std::optional<CudaEvent> acquire_allocation_async(const std::shared_ptr<Request>& req);
+    CudaEventSet acquire_access_async(const std::shared_ptr<Request>& req);
 
     void* get_host_pointer(const std::shared_ptr<Request>& req);
     CUdeviceptr get_device_pointer(const std::shared_ptr<Request>& req, DeviceId device_id);
 
-    void trim_device_memory(CudaStreamId stream, DeviceId device_id, size_t num_bytes_max = 0);
+    void trim_device_memory(DeviceId device_id, size_t num_bytes_max = 0);
 
   private:
     void insert_into_lru(DeviceId device_id, BufferMeta& buffer, bool hint_last_access);
     void remove_from_lru(DeviceId device_id, BufferMeta& buffer);
 
-    bool try_free_device_memory(CudaStreamId stream, DeviceId device_id);
-    bool try_allocate_device_async(CudaStreamId stream, DeviceId device_id, BufferMeta& buffer);
-    void deallocate_device_async(CudaStreamId stream, DeviceId device_id, BufferMeta& buffer);
+    bool try_free_device_memory(DeviceId device_id);
+    bool try_allocate_device_async(DeviceId device_id, BufferMeta& buffer);
+    void deallocate_device_async(DeviceId device_id, BufferMeta& buffer);
 
     void allocate_host(BufferMeta& buffer);
 
-    void copy_h2d(CudaStreamId stream, DeviceId device_id, BufferMeta& buffer);
-    void copy_d2h(CudaStreamId stream, DeviceId device_id, BufferMeta& buffer);
+    CudaEvent copy_h2d(DeviceId device_id, BufferMeta& buffer);
+    CudaEvent copy_d2h(DeviceId device_id, BufferMeta& buffer);
 
-    void update_data_host_async(TransactionId trans_id, BufferId buffer_id, CudaStreamId stream);
-    void update_data_device_async(
+    CudaEventSet update_data_host_async(TransactionId trans_id, BufferId buffer_id);
+    CudaEventSet update_data_device_async(
         TransactionId trans_id,
         DeviceId device_id,
-        BufferId buffer_id,
-        CudaStreamId stream);
+        BufferId buffer_id);
 
     void lock_allocation_host(TransactionId trans_id, BufferId buffer_id);
-    bool lock_allocation_device_async(
+    std::optional<CudaEvent> lock_allocation_device_async(
         TransactionId trans_id,
         DeviceId device_id,
-        BufferId buffer_id,
-        CudaStreamId stream);
+        BufferId buffer_id);
 
     void unlock_allocation_host(
         TransactionId trans_id,

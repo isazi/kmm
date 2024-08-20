@@ -449,7 +449,7 @@ struct strided: private D {
 
 template<size_t ContiguousAxis, typename D, typename S = default_stride_type>
 struct contiguous_strided: private D {
-    static_assert(ContiguousAxis < D::rank, "Axis out of bounds");
+    static_assert(ContiguousAxis < D::rank || D::rank == 0, "Axis out of bounds");
 
     static constexpr size_t rank = D::rank;
     using domain_type = D;

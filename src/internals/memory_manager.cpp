@@ -89,11 +89,18 @@ struct MemoryManager::DeviceMeta {
     size_t num_bytes_limit = 0;
     size_t num_bytes_used = 0;
     CUmemoryPool memory_pool;
+    CudaStreamId alloc_stream;
+    CudaStreamId h2d_stream;
+    CudaStreamId d2h_stream;
     BufferMeta* lru_oldest = nullptr;
     BufferMeta* lru_newest = nullptr;
 
     DeviceMeta(MemoryDeviceInfo info) : context(info.context) {
         CudaContextGuard guard {context};
+
+        this->alloc_stream = info.alloc_stream;
+        this->h2d_stream = info.h2d_stream;
+        this->d2h_stream = info.d2h_stream;
 
         size_t ignore;
         size_t total_memory;
@@ -192,31 +199,28 @@ void MemoryManager::unlock_allocation_host(
     }
 }
 
-bool MemoryManager::lock_allocation_device_async(
+std::optional<CudaEvent> MemoryManager::lock_allocation_device_async(
     TransactionId transaction_id,
     DeviceId device_id,
-    BufferId buffer_id,
-    CudaStreamId stream) {
+    BufferId buffer_id) {
     auto& buffer = *m_buffers[buffer_id];
     auto& entry = buffer.device_entry[device_id];
 
     if (!entry.is_allocated()) {
         while (true) {
             // Try to allocate memory
-            if (try_allocate_device_async(stream, device_id, buffer)) {
+            if (try_allocate_device_async(device_id, buffer)) {
                 break;
             }
 
             // Try to evict something. If successful, retry allocation
-            if (try_free_device_memory(stream, device_id)) {
+            if (try_free_device_memory(device_id)) {
                 continue;
             }
 
             // Out of memory?
-            return false;
+            return std::nullopt;
         }
-    } else {
-        m_streams->wait_for_event(stream, entry.allocation_event.value());
     }
 
     if (entry.transactions_active.is_empty()) {
@@ -224,7 +228,7 @@ bool MemoryManager::lock_allocation_device_async(
     }
 
     entry.transactions_active.insert(transaction_id);
-    return true;
+    return entry.allocation_event.value();
 }
 
 void MemoryManager::unlock_allocation_device_async(
@@ -307,14 +311,11 @@ CUdeviceptr MemoryManager::get_device_pointer(const MemoryRequest& req, DeviceId
     return device_entry.data;
 }
 
-void MemoryManager::trim_device_memory(
-    CudaStreamId stream,
-    DeviceId device_id,
-    size_t num_bytes_max) {
+void MemoryManager::trim_device_memory(DeviceId device_id, size_t num_bytes_max) {
     auto& device = *m_devices[device_id];
 
     while (device.num_bytes_used > num_bytes_max) {
-        if (!try_free_device_memory(stream, device_id)) {
+        if (!try_free_device_memory(device_id)) {
             break;
         }
     }
@@ -350,7 +351,7 @@ void MemoryManager::insert_into_lru(DeviceId device_id, BufferMeta& buffer, bool
     }
 }
 
-bool MemoryManager::try_free_device_memory(CudaStreamId stream, DeviceId device_id) {
+bool MemoryManager::try_free_device_memory(DeviceId device_id) {
     auto& device = *m_devices[device_id];
 
     if (device.lru_oldest == nullptr) {
@@ -366,10 +367,10 @@ bool MemoryManager::try_free_device_memory(CudaStreamId stream, DeviceId device_
     KMM_ASSERT(device_entry.data != 0);
 
     if (device_entry.is_valid && !host_entry.is_valid) {
-        copy_d2h(stream, device_id, buffer);
+        copy_d2h(device_id, buffer);
     }
 
-    deallocate_device_async(stream, device_id, buffer);
+    deallocate_device_async(device_id, buffer);
 
     return true;
 }
@@ -393,47 +394,47 @@ void MemoryManager::remove_from_lru(DeviceId device_id, BufferMeta& buffer) {
     entry.lru_older = nullptr;
 }
 
-bool MemoryManager::acquire_allocation_async(const MemoryRequest& req, CudaStreamId stream) {
+std::optional<CudaEvent> MemoryManager::acquire_allocation_async(const MemoryRequest& req) {
     KMM_ASSERT(req->status == Request::Status::Init);
+    auto result = std::optional<CudaEvent> {};
 
     if (req->memory_id.is_device()) {
-        bool success = lock_allocation_device_async(
+        result = lock_allocation_device_async(
             req->transaction_id,
             req->memory_id.as_device(),
-            req->buffer_id,
-            stream);
-
-        if (!success) {
-            return false;
-        }
+            req->buffer_id);
     } else {
         lock_allocation_host(req->transaction_id, req->buffer_id);
+        result = CudaEvent {};
     }
 
-    req->status = Request::Status::Allocated;
-    return true;
+    if (result.has_value()) {
+        req->status = Request::Status::Allocated;
+    }
+
+    return result;
 }
 
-void MemoryManager::acquire_access_async(const MemoryRequest& req, CudaStreamId stream) {
+CudaEventSet MemoryManager::acquire_access_async(const MemoryRequest& req) {
     KMM_ASSERT(req->status == Request::Status::Allocated);
+    CudaEventSet result;
 
     if (req->memory_id.is_device()) {
-        update_data_device_async(
+        result = update_data_device_async(
             req->transaction_id,
             req->memory_id.as_device(),
-            req->buffer_id,
-            stream);
+            req->buffer_id);
     } else {
-        update_data_host_async(req->transaction_id, req->buffer_id, stream);
+        result = update_data_host_async(req->transaction_id, req->buffer_id);
     }
 
     req->status = Request::Status::Acquired;
+    return result;
 }
 
-void MemoryManager::update_data_host_async(
+CudaEventSet MemoryManager::update_data_host_async(
     TransactionId transaction_id,
-    BufferId buffer_id,
-    CudaStreamId stream) {
+    BufferId buffer_id) {
     auto& buffer = m_buffers[buffer_id];
     auto& host_entry = buffer->host_entry;
 
@@ -443,7 +444,7 @@ void MemoryManager::update_data_host_async(
     if (!host_entry.is_valid) {
         for (size_t i = 0; i < MAX_DEVICES; i++) {
             if (buffer->device_entry[i].is_valid) {
-                copy_d2h(stream, static_cast<DeviceId>(i), *buffer);
+                copy_d2h(static_cast<DeviceId>(i), *buffer);
                 break;
             }
         }
@@ -453,14 +454,13 @@ void MemoryManager::update_data_host_async(
         }
     }
 
-    m_streams->wait_for_events(stream, host_entry.write_events);
+    return host_entry.write_events;
 }
 
-void MemoryManager::update_data_device_async(
+CudaEventSet MemoryManager::update_data_device_async(
     TransactionId transaction_id,
     DeviceId device_id,
-    BufferId buffer_id,
-    CudaStreamId stream) {
+    BufferId buffer_id) {
     auto& buffer = m_buffers[buffer_id];
     auto& device_entry = buffer->device_entry[device_id];
     auto& host_entry = buffer->host_entry;
@@ -468,34 +468,31 @@ void MemoryManager::update_data_device_async(
     KMM_ASSERT(device_entry.is_allocated());
     KMM_ASSERT(device_entry.transactions_active.contains(transaction_id));
 
-    m_streams->wait_for_event(stream, device_entry.allocation_event.value());
-
     if (!device_entry.is_valid) {
         if (!host_entry.is_valid) {
             for (size_t i = 0; i < MAX_DEVICES; i++) {
                 if (buffer->device_entry[i].is_valid) {
-                    copy_d2h(stream, static_cast<DeviceId>(i), *buffer);
+                    copy_d2h(static_cast<DeviceId>(i), *buffer);
                     break;
                 }
             }
         }
 
         if (host_entry.is_valid) {
-            copy_h2d(stream, device_id, *buffer);
+            copy_h2d(device_id, *buffer);
         }
 
         if (!device_entry.is_valid) {
+            device_entry.is_valid = true;
+
             auto event = device_entry.allocation_event.value();
             device_entry.write_events.clear();
             device_entry.write_events.insert(*m_streams, event);
             device_entry.access_events.insert(*m_streams, event);
-            m_streams->wait_for_event(stream, event);
         }
     }
 
-    if (device_entry.is_valid) {
-        m_streams->wait_for_events(stream, device_entry.write_events);
-    }
+    return device_entry.write_events;
 }
 
 void MemoryManager::allocate_host(BufferMeta& buffer) {
@@ -513,10 +510,7 @@ void MemoryManager::allocate_host(BufferMeta& buffer) {
     host_entry.access_events.clear();
 }
 
-bool MemoryManager::try_allocate_device_async(
-    CudaStreamId stream,
-    DeviceId device_id,
-    BufferMeta& buffer) {
+bool MemoryManager::try_allocate_device_async(DeviceId device_id, BufferMeta& buffer) {
     auto& device = *m_devices[device_id];
     auto& device_entry = buffer.device_entry[device_id];
 
@@ -536,7 +530,7 @@ bool MemoryManager::try_allocate_device_async(
             &device_entry.data,
             buffer.size_in_bytes(),
             device.memory_pool,
-            m_streams->get(stream));
+            m_streams->get(device.alloc_stream));
     }
 
     if (result == CUDA_ERROR_OUT_OF_MEMORY) {
@@ -549,17 +543,21 @@ bool MemoryManager::try_allocate_device_async(
 
     device.num_bytes_used += buffer.size_in_bytes();
 
-    device_entry.allocation_event = m_streams->record_event(stream);
+    auto event = m_streams->record_event(device.alloc_stream);
     device_entry.write_events.clear();
+    device_entry.access_events.clear();
+
+    device_entry.allocation_event = event;
+    device_entry.write_events.insert(*m_streams, event);
+    device_entry.access_events.insert(*m_streams, event);
+
     return true;
 }
 
-void MemoryManager::deallocate_device_async(
-    CudaStreamId stream,
-    DeviceId device_id,
-    BufferMeta& buffer) {
+void MemoryManager::deallocate_device_async(DeviceId device_id, BufferMeta& buffer) {
     auto& device = *m_devices[device_id];
     auto& device_entry = buffer.device_entry[device_id];
+    auto& stream = device.alloc_stream;
 
     KMM_ASSERT(device_entry.is_allocated());
     KMM_ASSERT(device_entry.transactions_active.is_empty());
@@ -582,7 +580,8 @@ void MemoryManager::deallocate_device_async(
     remove_from_lru(device_id, buffer);
 }
 
-void MemoryManager::copy_h2d(CudaStreamId stream, DeviceId device_id, BufferMeta& buffer) {
+CudaEvent MemoryManager::copy_h2d(DeviceId device_id, BufferMeta& buffer) {
+    auto& stream = m_devices[device_id]->h2d_stream;
     auto& host_entry = buffer.host_entry;
     auto& device_entry = buffer.device_entry[device_id];
 
@@ -603,9 +602,12 @@ void MemoryManager::copy_h2d(CudaStreamId stream, DeviceId device_id, BufferMeta
     device_entry.write_events.insert(*m_streams, event);
     host_entry.access_events.insert(*m_streams, event);
     device_entry.is_valid = true;
+
+    return event;
 }
 
-void MemoryManager::copy_d2h(CudaStreamId stream, DeviceId device_id, BufferMeta& buffer) {
+CudaEvent MemoryManager::copy_d2h(DeviceId device_id, BufferMeta& buffer) {
+    auto& stream = m_devices[device_id]->d2h_stream;
     auto& host_entry = buffer.host_entry;
     auto& device_entry = buffer.device_entry[device_id];
 
@@ -628,6 +630,8 @@ void MemoryManager::copy_d2h(CudaStreamId stream, DeviceId device_id, BufferMeta
     host_entry.write_events.insert(*m_streams, event);
     device_entry.access_events.insert(*m_streams, event);
     host_entry.is_valid = true;
+
+    return event;
 }
 
 }  // namespace kmm

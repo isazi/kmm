@@ -10,19 +10,16 @@ struct TaskContext {
     std::vector<BufferAccessor> accessors;
 };
 
-class Task {
+class HostTask {
   public:
-    virtual ~Task() = default;
-};
-
-class HostTask: public Task {
-  public:
+    virtual ~HostTask() = default;
     virtual void execute(TaskContext& context) = 0;
 };
 
-class DeviceTask: public Task {
+class DeviceTask {
   public:
-    virtual void submit(CUstream stream, TaskContext& context) = 0;
+    virtual ~DeviceTask() = default;
+    virtual void execute(TaskContext& context) = 0;
 };
 
 }  // namespace kmm

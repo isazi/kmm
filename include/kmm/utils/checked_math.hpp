@@ -95,62 +95,43 @@ KMM_IMPL_CHECKED_ARITHMETIC_FORWARD(unsigned char, signed int)
 KMM_IMPL_CHECKED_ARITHMETIC_FORWARD(char, signed int)
 
 template<typename L, typename R, typename = void>
-struct checked_compare_impl {};
-
-template<typename T>
-struct checked_compare_impl<T, T> {
-    static bool is_less(const T& left, const T& right) {
+struct checked_compare_impl {
+    static bool is_less(const L& left, const R& right) {
         return left < right;
     }
 
-    static bool is_equal(const T& left, const T& right) {
+    static bool is_equal(const L& left, const R& right) {
         return left == right;
     }
 };
 
 template<typename L, typename R>
-struct checked_compare_impl<
-    L,
-    R,
-    std::enable_if_t<
-        std::is_integral<L>::value && std::is_integral<R>::value && !std::is_same_v<L, R>>> {
-    using LI = std::conditional_t<std::is_signed_v<L>, long long, unsigned long long>;
-    using RI = std::conditional_t<std::is_signed_v<R>, long long, unsigned long long>;
+struct checked_compare_impl<L, R, std::enable_if_t<!std::is_signed_v<L> && std::is_signed_v<R>>> {
+    using UR = std::make_unsigned_t<R>;
 
-    static bool is_less(L left, R right) {
-        return checked_compare_impl<LI, RI>::is_less(static_cast<LI>(left), static_cast<RI>(right));
+    static bool is_less(const L& left, const R& right) {
+        return right >= static_cast<R>(0)
+            && checked_compare_impl<L, UR>::is_less(left, static_cast<UR>(right));
     }
 
-    static bool is_equal(L left, R right) {
-        return checked_compare_impl<LI, RI>::is_equal(
-            static_cast<LI>(left),
-            static_cast<RI>(right));
+    static bool is_equal(const L& left, const R& right) {
+        return right >= static_cast<R>(0)
+            && checked_compare_impl<L, UR>::is_equal(left, static_cast<UR>(right));
     }
 };
 
-template<>
-struct checked_compare_impl<unsigned long long, signed long long> {
-    static bool is_less(unsigned long long left, signed long long right) {
-        return right >= static_cast<signed long long>(0)
-            && left < static_cast<unsigned long long>(right);
+template<typename L, typename R>
+struct checked_compare_impl<L, R, std::enable_if_t<std::is_signed_v<L> && !std::is_signed_v<R>>> {
+    using UL = std::make_unsigned_t<L>;
+
+    static bool is_less(const L& left, const R& right) {
+        return left < static_cast<L>(0)
+            || checked_compare_impl<UL, R>::is_less(static_cast<UL>(left), right);
     }
 
-    static bool is_equal(unsigned long long left, signed long long right) {
-        return right >= static_cast<signed long long>(0)
-            && left == static_cast<unsigned long long>(right);
-    }
-};
-
-template<>
-struct checked_compare_impl<signed long long, unsigned long long> {
-    static bool is_less(signed long long left, unsigned long long right) {
-        return left < static_cast<signed long long>(0)
-            || static_cast<unsigned long long>(left) < right;
-    }
-
-    static bool is_equal(signed long long left, unsigned long long right) {
-        return left >= static_cast<signed long long>(0)
-            && static_cast<unsigned long long>(left) == right;
+    static bool is_equal(const L& left, const R& right) {
+        return left >= static_cast<L>(0)
+            && checked_compare_impl<UL, R>::is_equal(static_cast<UL>(left), right);
     }
 };
 
@@ -236,12 +217,20 @@ bool compare_equal(const L& left, const R& right) {
     return detail::checked_compare_impl<L, R>::is_equal(left, right);
 }
 
+/**
+ * Returns `true` if the given value of integral type `T` can safely be cast to another integral
+ * type `U`, and `false` otherwise.
+ */
 template<typename U, typename T>
 bool in_range(const T& value) {
     return !compare_less(value, std::numeric_limits<U>::min())
         && !compare_greater(value, std::numeric_limits<U>::max());
 }
 
+/**
+ * Returns `true` if the given value of integral type `T` is in the range `0` to `length` (not
+ * inclusive). Useful for checking if an value can be used to index into an array of size `length`.
+ */
 template<typename U, typename T>
 constexpr U in_range(const T& value, const U& length) {
     return !compare_less(value, static_cast<T>(0)) && compare_less(value, length);
@@ -260,6 +249,10 @@ constexpr U checked_cast(const T& value) {
     return static_cast<U>(value);
 }
 
+/**
+ * Performs a checked cast of a value of type `T` to a different type `U`, throwing an exception if
+ * the value is not in the range `0` to `length` (not inclusive).
+ */
 template<typename U, typename T>
 constexpr U checked_cast(const T& value, const U& length) {
     if (compare_less(value, static_cast<T>(0)) || !compare_less(value, length)) {

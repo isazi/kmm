@@ -45,7 +45,7 @@ void CopySpecification::add_dimension(
         }
     }
 
-    throw std::length_error("the number of dimensions of a copy operation cannot 4");
+    throw std::length_error("the number of dimensions of a copy operation cannot exceed 4");
 }
 
 size_t CopySpecification::effective_dimensionality() const {
@@ -111,7 +111,7 @@ void CopySpecification::simplify() {
     for (size_t i = 0; i < MAX_DIMS; i++) {
         for (size_t j = i + 1; j < MAX_DIMS; j++) {
             if ((counts[i] == 1 && counts[j] != 1) || dst_strides[i] > dst_strides[j]
-                || (dst_strides[i] == dst_strides[j] || src_strides[i] > src_strides[j])) {
+                || (dst_strides[i] == dst_strides[j] && src_strides[i] > src_strides[j])) {
                 std::swap(counts[i], counts[j]);
                 std::swap(src_strides[i], src_strides[j]);
                 std::swap(dst_strides[i], dst_strides[j]);
@@ -119,15 +119,15 @@ void CopySpecification::simplify() {
         }
     }
 
-    if (counts[0] == 1) {
-        src_strides[0] = element_size;
-        dst_strides[0] = element_size;
-    }
-
-    for (size_t i = 1; i < MAX_DIMS; i++) {
+    for (size_t i = 0; i < MAX_DIMS; i++) {
         if (counts[i] == 1) {
-            src_strides[i] = src_strides[i - 1];
-            dst_strides[i] = dst_strides[i - 1];
+            if (i == 0) {
+                src_strides[0] = element_size;
+                dst_strides[0] = element_size;
+            } else {
+                src_strides[i] = src_strides[i - 1];
+                dst_strides[i] = dst_strides[i - 1];
+            }
         }
     }
 }
