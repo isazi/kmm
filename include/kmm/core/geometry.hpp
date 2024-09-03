@@ -4,173 +4,13 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "fixed_array.hpp"
+
 #include "kmm/utils/macros.hpp"
 
 namespace kmm {
 
-static constexpr size_t MAX_DIMS = 4;
 using default_geometry_type = int64_t;
-
-template<typename T, size_t N>
-struct fixed_array {
-    KMM_HOST_DEVICE
-    T& operator[](size_t axis) {
-        if (axis >= N) {
-            __builtin_unreachable();
-        }
-
-        return item[axis];
-    }
-
-    KMM_HOST_DEVICE
-    const T& operator[](size_t axis) const {
-        if (axis >= N) {
-            __builtin_unreachable();
-        }
-
-        return item[axis];
-    }
-
-    T item[N] = {};
-};
-
-template<typename T>
-struct fixed_array<T, 0> {
-    KMM_HOST_DEVICE
-    T& operator[](size_t axis) {
-        __builtin_unreachable();
-    }
-
-    KMM_HOST_DEVICE
-    const T& operator[](size_t axis) const {
-        __builtin_unreachable();
-    }
-};
-
-template<typename T>
-struct fixed_array<T, 1> {
-    KMM_HOST_DEVICE
-    T& operator[](size_t axis) {
-        return x;
-    }
-
-    KMM_HOST_DEVICE
-    const T& operator[](size_t axis) const {
-        return x;
-    }
-
-    KMM_HOST_DEVICE
-    operator T() const {
-        return x;
-    }
-
-    T x {};
-};
-
-template<typename T>
-struct fixed_array<T, 2> {
-    KMM_HOST_DEVICE
-    T& operator[](size_t axis) {
-        switch (axis) {
-            case 0:
-                return x;
-            case 1:
-                return y;
-            default:
-                __builtin_unreachable();
-        }
-    }
-
-    KMM_HOST_DEVICE
-    const T& operator[](size_t axis) const {
-        switch (axis) {
-            case 0:
-                return x;
-            case 1:
-                return y;
-            default:
-                __builtin_unreachable();
-        }
-    }
-
-    T x {};
-    T y {};
-};
-
-template<typename T>
-struct fixed_array<T, 3> {
-    KMM_HOST_DEVICE
-    T& operator[](size_t axis) {
-        switch (axis) {
-            case 0:
-                return x;
-            case 1:
-                return y;
-            case 2:
-                return z;
-            default:
-                __builtin_unreachable();
-        }
-    }
-
-    KMM_HOST_DEVICE
-    const T& operator[](size_t axis) const {
-        switch (axis) {
-            case 0:
-                return x;
-            case 1:
-                return y;
-            case 2:
-                return z;
-            default:
-                __builtin_unreachable();
-        }
-    }
-
-    T x {};
-    T y {};
-    T z {};
-};
-
-template<typename T>
-struct fixed_array<T, 4> {
-    KMM_HOST_DEVICE
-    T& operator[](size_t axis) {
-        switch (axis) {
-            case 0:
-                return x;
-            case 1:
-                return y;
-            case 2:
-                return z;
-            case 3:
-                return w;
-            default:
-                __builtin_unreachable();
-        }
-    }
-
-    KMM_HOST_DEVICE
-    const T& operator[](size_t axis) const {
-        switch (axis) {
-            case 0:
-                return x;
-            case 1:
-                return y;
-            case 2:
-                return z;
-            case 3:
-                return w;
-            default:
-                __builtin_unreachable();
-        }
-    }
-
-    T x {};
-    T y {};
-    T z {};
-    T w {};
-};
 
 template<size_t N, typename T = default_geometry_type>
 class point: public fixed_array<T, N> {
@@ -226,17 +66,6 @@ class point: public fixed_array<T, N> {
     KMM_HOST_DEVICE
     T get(size_t axis) const {
         return axis < N ? (*this)[axis] : static_cast<T>(0);
-    }
-
-    template<typename F, typename U = std::invoke_result_t<F, T>>
-    KMM_HOST_DEVICE point<N, U> map(F fun) const {
-        point<N, U> result;
-
-        for (size_t i = 0; i < N; i++) {
-            result[i] = fun((*this)[i]);
-        }
-
-        return result;
     }
 
     KMM_HOST_DEVICE
@@ -313,12 +142,12 @@ class dim: public fixed_array<T, N> {
 
     KMM_HOST_DEVICE
     T volume() const {
-        if (is_empty()) {
-            return static_cast<T>(0);
+        if constexpr (N == 0) {
+            return static_cast<T>(1);
         }
 
-        if (N == 0) {
-            return static_cast<T>(1);
+        if (is_empty()) {
+            return static_cast<T>(0);
         }
 
         T volume = (*this)[0];
@@ -433,33 +262,31 @@ class rect {
     rect intersection(const rect& that) const {
         point<N, T> new_offset;
         dim<N, T> new_sizes;
+        bool is_empty = false;
 
         for (size_t i = 0; i < N; i++) {
-            if (this->offset[i] < that.offset[i]) {
-                new_offset[i] = that.offset[i];
+            auto first_a = this->offset[i] < that.offset[i];
 
-                if (this->sizes[i] <= that.offset[i] - this->offset[i]) {
-                    return rect {};
-                }
+            auto ai = first_a ? this->offset[i] : that.offset[i];
+            auto an = first_a ? this->sizes[i] : that.sizes[i];
 
-                new_sizes[i] = this->sizes[i] + this->offset[i] - that.offset[i];
+            auto bi = !first_a ? this->offset[i] : that.offset[i];
+            auto bn = !first_a ? this->sizes[i] : that.sizes[i];
 
-                if (that.sizes[i] < new_sizes[i]) {
-                    new_sizes[i] = that.sizes[i];
-                }
-            } else {
-                new_offset[i] = this->offset[i];
+            new_offset[i] = bi;
+            new_sizes[i] = an - (bi - ai);
 
-                if (that.sizes[i] <= this->offset[i] - that.offset[i]) {
-                    return rect {};
-                }
-
-                new_sizes[i] = that.sizes[i] + that.offset[i] - this->offset[i];
-
-                if (this->sizes[i] < new_sizes[i]) {
-                    new_sizes[i] = this->sizes[i];
-                }
+            if (an <= bi - ai) {
+                is_empty = true;
             }
+
+            if (bn < an - (bi - ai)) {
+                new_sizes[i] = bn;
+            }
+        }
+
+        if (is_empty) {
+            return rect {};
         }
 
         return {new_offset, new_sizes};
@@ -467,17 +294,70 @@ class rect {
 
     KMM_HOST_DEVICE
     bool overlaps(const rect& that) const {
-        return !intersection(that).is_empty();
+        bool overlapping = true;
+
+        for (size_t i = 0; i < N; i++) {
+            auto first_this = this->offset[i] < that.offset[i];
+
+            auto ai = first_this ? this->offset[i] : that.offset[i];
+            auto an = first_this ? this->sizes[i] : that.sizes[i];
+
+            auto bi = !first_this ? this->offset[i] : that.offset[i];
+            auto bn = !first_this ? this->sizes[i] : that.sizes[i];
+
+            if (an <= bi - ai || bn <= 0) {
+                overlapping = false;
+            }
+        }
+
+        return overlapping;
     }
 
     KMM_HOST_DEVICE
     bool contains(const rect& that) const {
-        return that.is_empty() || intersection(that) == that;
+        if (that.is_empty()) {
+            return true;
+        }
+
+        bool contain = true;
+
+        for (size_t i = 0; i < N; i++) {
+            auto ai = this->offset[i];
+            auto an = this->sizes[i];
+
+            auto bi = that.offset[i];
+            auto bn = that.sizes[i];
+
+            if (ai > bi) {
+                contain = false;
+            }
+
+            if (an <= bi - ai) {
+                contain = false;
+            }
+
+            if (an - (bi - ai) < bn) {
+                contain = false;
+            }
+        }
+
+        return contain;
     }
 
     KMM_HOST_DEVICE
     bool contains(const point<N, T>& that) const {
-        return contains(rect {that, dim<N, T>::one()});
+        bool contain = true;
+
+        for (size_t i = 0; i < N; i++) {
+            auto ai = this->offset[i];
+            auto an = this->sizes[i];
+
+            if (!(that[i] >= ai && that[i] - ai < an)) {
+                contain = false;
+            }
+        }
+
+        return contain;
     }
 
     KMM_HOST_DEVICE
@@ -497,16 +377,16 @@ class rect {
 };
 
 template<typename... Ts>
-point(Ts...) -> point<sizeof...(Ts)>;
+KMM_HOST_DEVICE_NOINLINE point(Ts...)->point<sizeof...(Ts)>;
 
 template<typename... Ts>
-dim(Ts...) -> dim<sizeof...(Ts)>;
+KMM_HOST_DEVICE_NOINLINE dim(Ts...)->dim<sizeof...(Ts)>;
 
 template<size_t N, typename T>
-rect(point<N, T> offset, dim<N, T> sizes) -> rect<N, T>;
+KMM_HOST_DEVICE_NOINLINE rect(point<N, T> offset, dim<N, T> sizes)->rect<N, T>;
 
 template<size_t N, typename T>
-rect(dim<N, T> sizes) -> rect<N, T>;
+KMM_HOST_DEVICE_NOINLINE rect(dim<N, T> sizes)->rect<N, T>;
 
 template<size_t N, typename T>
 KMM_HOST_DEVICE bool operator==(const point<N, T>& a, const point<N, T>& b) {
@@ -557,25 +437,17 @@ KMM_POINT_OPERATOR_IMPL(/)
 }  // namespace kmm
 
 #include <iostream>
+
 namespace kmm {
 
 template<size_t N, typename T>
 std::ostream& operator<<(std::ostream& stream, const point<N, T>& p) {
-    stream << "{";
-    for (size_t i = 0; i < N; i++) {
-        if (i != 0) {
-            stream << ", ";
-        }
-
-        stream << p[i];
-    }
-
-    return stream << "}";
+    return stream << fixed_array<T, N>(p);
 }
 
 template<size_t N, typename T>
 std::ostream& operator<<(std::ostream& stream, const dim<N, T>& p) {
-    return stream << p.to_point();
+    return stream << fixed_array<T, N>(p);
 }
 
 template<size_t N, typename T>

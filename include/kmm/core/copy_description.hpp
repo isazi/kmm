@@ -2,11 +2,11 @@
 
 namespace kmm {
 
-class CopySpecification {
+class CopyDescription {
   public:
     static constexpr size_t MAX_DIMS = 4;
 
-    CopySpecification(size_t element_size = 0) : element_size(element_size) {}
+    CopyDescription(size_t element_size = 0) : element_size(element_size) {}
 
     void add_dimension(
         size_t count,

@@ -5,7 +5,7 @@
 
 namespace kmm {
 
-template<typename T, size_t InlineSize = 2>
+template<typename T, size_t InlineSize = (sizeof(T) < 48 ? 1 : 48 / sizeof(T))>
 struct small_vector {
     small_vector() = default;
 
@@ -97,7 +97,7 @@ struct small_vector {
     void grow_capacity(size_t k = 1) {
         uint32_t new_capacity = m_capacity;
         do {
-            if (new_capacity >= uint32_t(0x80000000)) {
+            if (new_capacity >= uint32_t(0x100000000LL / 2)) {
                 throw std::overflow_error("small_vector exceeds capacity");
             }
 
@@ -144,6 +144,20 @@ struct small_vector {
         }
 
         m_size += n;
+    }
+
+    void insert_all(small_vector&& that) {
+        if (is_empty()) {
+            *this = std::move(that);
+            return;
+        }
+
+        insert_all(that.begin(), that.end());
+    }
+
+    template<typename U, size_t K>
+    void insert_all(const small_vector<U, K>& that) {
+        insert_all(that.begin(), that.end());
     }
 
     void resize(size_t n) {

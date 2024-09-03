@@ -2,132 +2,15 @@
 #include <cstddef>
 #include <cstdio>
 
+#include "kmm/core/geometry.hpp"
 #include "kmm/utils/macros.hpp"
 
 namespace kmm {
 
-namespace views {
 using default_stride_type = ptrdiff_t;
-using default_index_type = int;
+using default_index_type = default_geometry_type;
 
-template<typename T, size_t N>
-struct fixed_array {
-    KMM_HOST_DEVICE
-    constexpr T* data() {
-        return this->items;
-    }
-
-    KMM_HOST_DEVICE
-    constexpr const T* data() const {
-        return this->items;
-    }
-
-    KMM_HOST_DEVICE
-    constexpr T& operator[](size_t i) {
-        return this->items[i];
-    }
-
-    KMM_HOST_DEVICE
-    constexpr const T& operator[](size_t i) const {
-        return this->items[i];
-    }
-
-    KMM_HOST_DEVICE
-    constexpr size_t size() const {
-        return N;
-    }
-
-    T items[N];
-};
-
-template<typename T>
-struct fixed_array<T, 0> {
-    KMM_HOST_DEVICE
-    constexpr T* data() {
-        while (true) {
-        }
-    }
-
-    KMM_HOST_DEVICE
-    constexpr const T* data() const {
-        while (true) {
-        }
-    }
-
-    KMM_HOST_DEVICE
-    constexpr T& operator[](size_t i) {
-        while (true) {
-        }
-    }
-
-    KMM_HOST_DEVICE
-    constexpr const T& operator[](size_t i) const {
-        while (true) {
-        }
-    }
-
-    KMM_HOST_DEVICE
-    constexpr size_t size() const {
-        return 0;
-    }
-};
-
-template<typename T>
-struct fixed_array<T, 1> {
-    KMM_HOST_DEVICE
-    fixed_array(T value = {}) : value(value) {}
-
-    KMM_HOST_DEVICE
-    constexpr T* data() {
-        return &this->value;
-    }
-
-    KMM_HOST_DEVICE
-    constexpr const T* data() const {
-        return &this->value;
-    }
-
-    KMM_HOST_DEVICE
-    constexpr T& operator[](size_t i) {
-        return this->value;
-    }
-    KMM_HOST_DEVICE
-    constexpr const T& operator[](size_t i) const {
-        return this->value;
-    }
-    KMM_HOST_DEVICE
-    constexpr size_t size() const {
-        return 1;
-    }
-    KMM_HOST_DEVICE
-    constexpr operator T() const {
-        return this->value;
-    }
-
-    T value;
-};
-
-template<typename T, size_t N, typename R, size_t M>
-KMM_HOST_DEVICE bool operator==(const fixed_array<T, N>& lhs, const fixed_array<R, M>& rhs) {
-    if (N != M) {
-        return false;
-    }
-
-    bool all_equal = true;
-
-    for (size_t i = 0; i < N; i++) {
-        if (lhs[i] != rhs[i]) {
-            all_equal = false;
-        }
-    }
-
-    return all_equal;
-}
-
-template<typename T, size_t N, typename R, size_t M>
-KMM_HOST_DEVICE bool operator!=(const fixed_array<T, N>& lhs, const fixed_array<R, M>& rhs) {
-    return !(lhs == rhs);
-}
+namespace views {
 
 namespace domains {
 template<size_t N, typename I = default_index_type>
@@ -329,10 +212,10 @@ struct right_to_left: private D {
 
         for (size_t i = rank; i > 0; i--) {
             offset =
-                offset * stride_type(domain().size(i - 1)) - stride_type(domain().offset(i - 1));
+                offset * stride_type(domain().size(i - 1)) + stride_type(domain().offset(i - 1));
         }
 
-        return offset;
+        return -offset;
     }
 
     KMM_HOST_DEVICE
@@ -378,11 +261,11 @@ struct left_to_right: private D {
         stride_type offset = 0;
 
         for (size_t i = 0; i < rank; i++) {
-            offset -= stride_type(domain().offset(i)) * stride;
+            offset += stride_type(domain().offset(i)) * stride;
             stride *= stride_type(domain().size(i));
         }
 
-        return offset;
+        return -offset;
     }
 
     KMM_HOST_DEVICE
@@ -426,10 +309,10 @@ struct strided: private D {
         stride_type offset = 0;
 
         for (size_t i = 0; i < rank; i++) {
-            offset -= stride_type(domain().offset(i)) * m_strides[i];
+            offset += stride_type(domain().offset(i)) * m_strides[i];
         }
 
-        return offset;
+        return -offset;
     }
 
     KMM_HOST_DEVICE
@@ -481,10 +364,10 @@ struct contiguous_strided: private D {
         stride_type offset = 0;
 
         for (size_t i = 0; i < rank; i++) {
-            offset -= stride_type(domain().offset(i)) * stride(i);
+            offset += stride_type(domain().offset(i)) * stride(i);
         }
 
-        return offset;
+        return -offset;
     }
 
     KMM_HOST_DEVICE
@@ -801,8 +684,8 @@ struct basic_view: private L, private A, public views::basic_view_base<basic_vie
     using stride_type = typename layout_type::stride_type;
     using index_type = typename domain_type::index_type;
     static constexpr size_t rank = domain_type::rank;
-    using ndindex_type = views::fixed_array<index_type, rank>;
-    using ndstride_type = views::fixed_array<stride_type, rank>;
+    using ndindex_type = fixed_array<index_type, rank>;
+    using ndstride_type = fixed_array<stride_type, rank>;
 
     KMM_HOST_DEVICE
     basic_view(const basic_view&) = default;
@@ -953,14 +836,14 @@ struct basic_view: private L, private A, public views::basic_view_base<basic_vie
     drop_axis(index_type index) {
         stride_type offset = stride_type(index - begin(Axis)) * stride(Axis);
         return {
-            accessor().offset(m_data, offset),
+            accessor().offset(data(), offset),
             views::layouts::remove_axis_impl<L, Axis>::call(layout())};
     }
 
     template<size_t Axis>
     KMM_HOST_DEVICE basic_view<value_type, views::layouts::remove_axis_type<L, Axis>, accessor_type>
     drop_axis() {
-        return {m_data, views::layouts::remove_axis_impl<L, Axis>::call(layout())};
+        return {data(), views::layouts::remove_axis_impl<L, Axis>::call(layout())};
     }
 
     template<typename... Indices>
@@ -988,10 +871,10 @@ template<
 using view_mut = basic_view<T, typename M::template layout_type<views::domains::bounds<N>>, A>;
 
 template<typename T, size_t N = 1, typename A = views::accessors::host>
-using strided_view = view<T, N, views::mappings::strided<views::default_stride_type>, A>;
+using strided_view = view<T, N, views::mappings::strided<default_stride_type>, A>;
 
 template<typename T, size_t N = 1, typename A = views::accessors::host>
-using strided_view_mut = view_mut<T, N, views::mappings::strided<views::default_stride_type>, A>;
+using strided_view_mut = view_mut<T, N, views::mappings::strided<default_stride_type>, A>;
 
 template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
 using cuda_view = view<T, N, L, views::accessors::cuda_device>;
@@ -1008,7 +891,7 @@ using cuda_strided_view_mut = strided_view_mut<T, N, views::accessors::cuda_devi
 template<
     typename T,
     size_t N = 1,
-    typename M = views::mappings::contiguous_strided<N - 1>,
+    typename M = views::mappings::right_to_left,
     typename A = views::accessors::host>
 using subview =
     basic_view<const T, typename M::template layout_type<views::domains::subbounds<N>>, A>;
@@ -1016,17 +899,16 @@ using subview =
 template<
     typename T,
     size_t N = 1,
-    typename M = views::mappings::contiguous_strided<N - 1>,
+    typename M = views::mappings::right_to_left,
     typename A = views::accessors::host>
 using subview_mut =
     basic_view<T, typename M::template layout_type<views::domains::subbounds<N>>, A>;
 
 template<typename T, size_t N = 1, typename A = views::accessors::host>
-using strided_subview = subview<T, N, views::mappings::strided<views::default_stride_type>, A>;
+using strided_subview = subview<T, N, views::mappings::strided<default_stride_type>, A>;
 
 template<typename T, size_t N = 1, typename A = views::accessors::host>
-using strided_subview_mut =
-    subview_mut<T, N, views::mappings::strided<views::default_stride_type>, A>;
+using strided_subview_mut = subview_mut<T, N, views::mappings::strided<default_stride_type>, A>;
 
 template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
 using cuda_subview = subview<T, N, L, views::accessors::cuda_device>;

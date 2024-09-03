@@ -14,6 +14,14 @@ void cuda_throw_exception(cudaError_t result, const char* file, int line, const 
     throw CudaRuntimeException(fmt::format("{} ({}:{})", expression, file, line), result);
 }
 
+void cuda_throw_exception(
+    cublasStatus_t result,
+    const char* file,
+    int line,
+    const char* expression) {
+    throw CudaBlasException(fmt::format("{} ({}:{})", expression, file, line), result);
+}
+
 CudaDriverException::CudaDriverException(const std::string& message, CUresult result) :
     status(result) {
     const char* name = "???";
@@ -36,6 +44,14 @@ CudaRuntimeException::CudaRuntimeException(const std::string& message, cudaError
     description = cudaGetErrorString(result);
 
     m_message = fmt::format("CUDA runtime error: {} ({}): {}", description, name, message);
+}
+
+CudaBlasException::CudaBlasException(const std::string& message, cublasStatus_t result) :
+    status(result) {
+    const char* name = cublasGetStatusName(result);
+    const char* description = cublasGetStatusString(result);
+
+    m_message = fmt::format("cuBLAS runtime error: {} ({}): {}", description, name, message);
 }
 
 CudaContextHandle::CudaContextHandle(CUcontext context, std::shared_ptr<void> lifetime) :
@@ -69,19 +85,18 @@ std::vector<CUdevice> get_cuda_devices() {
 }
 
 std::optional<CUdevice> get_cuda_device_by_address(const void* address) {
+    int ordinal;
     CUmemorytype memory_type;
     CUresult result =
         cuPointerGetAttribute(&memory_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, CUdeviceptr(address));
 
-    if (result == CUresult::CUDA_SUCCESS
-        && memory_type == CUmemorytype_enum::CU_MEMORYTYPE_DEVICE) {
-        int ordinal;
+    if (result == CUDA_SUCCESS && memory_type == CU_MEMORYTYPE_DEVICE) {
         result = cuPointerGetAttribute(
             &ordinal,
             CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
             CUdeviceptr(address));
 
-        if (result == CUresult::CUDA_SUCCESS) {
+        if (result == CUDA_SUCCESS) {
             return CUdevice {ordinal};
         }
     }

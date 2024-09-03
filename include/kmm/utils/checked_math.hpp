@@ -194,6 +194,71 @@ T checked_div(T left, T right) {
 }
 
 /**
+ * Negates the given input, throwing an exception if the result overflows.
+ */
+template<typename T>
+T checked_negate(T value) {
+    return checked_sub(static_cast<T>(0), value);
+}
+
+/**
+ *  Performs checked addition of two values, clamping to the minimum/maximum value on overflow.
+ */
+template<typename T>
+T saturating_add(T left, T right) {
+    T result;
+
+    if (!detail::checked_arithmetic_impl<T>::add(left, right, &result)) {
+        return right < 0 ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
+    }
+
+    return result;
+}
+
+/**
+ * Performs checked subtraction of two values, clamping to the minimum/maximum value on overflow.
+ */
+template<typename T>
+T saturating_sub(T left, T right) {
+    T result;
+
+    if (!detail::checked_arithmetic_impl<T>::sub(left, right, &result)) {
+        return right >= 0 ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
+    }
+
+    return result;
+}
+
+/**
+ * Performs checked multiplication of two values, clamping to the minimum/maximum value on overflow.
+ */
+template<typename T>
+T saturating_mul(T left, T right) {
+    T result;
+
+    if (!detail::checked_arithmetic_impl<T>::mul(left, right, &result)) {
+        return (left >= 0) == (right >= 0) ? std::numeric_limits<T>::max()
+                                           : std::numeric_limits<T>::min();
+    }
+
+    return result;
+}
+
+/**
+ * Negates the given input, clamping to the minimum/maximum value on overflow.
+ */
+template<typename T>
+T saturating_negate(T value) {
+    T result;
+
+    if (!detail::checked_arithmetic_impl<T>::sub(T(0), value, &result)) {
+        return value >= 0 ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
+    }
+
+    return result;
+}
+
+/**
  * Returns true if `left < right`. This function correctly handles different operand types.
  */
 template<typename L, typename R>
@@ -232,7 +297,7 @@ bool in_range(const T& value) {
  * inclusive). Useful for checking if an value can be used to index into an array of size `length`.
  */
 template<typename U, typename T>
-constexpr U in_range(const T& value, const U& length) {
+constexpr bool in_range(const T& value, const U& length) {
     return !compare_less(value, static_cast<T>(0)) && compare_less(value, length);
 }
 

@@ -1,19 +1,26 @@
+
+#include "kmm/api/access.hpp"
 #include "kmm/api/runtime.hpp"
 #include "kmm/api/array.hpp"
+#include "kmm/api/partition.hpp"
 
 __global__
-void process(
+void process_kernel(
     kmm::rect<3> subregion,
     int n, int m, int k,
-    kmm::subview<float, 2> a,
-    kmm::subview<float, 2> b,
-    kmm::subview_mut<float, 2> c
+    kmm::cuda_subview<float, 2> a,
+    kmm::cuda_subview<float, 2> b,
+    kmm::cuda_subview_mut<float, 2> c
 ) {
-    int x = blockIdx.x * blockDim.x + threadIdx.x + subregion.offset.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y + subregion.offset.y;
+    int i = blockIdx.x * blockDim.x + threadIdx.x + subregion.offset.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y + subregion.offset.y;
 
-    if (subregion.contains(kmm::point {x, y, 0})) {
-        
+    if (!subregion.contains(kmm::point {i, j, 0})) {
+        return;
+    }
+
+    for (int l = 0; l < k; l++) {
+        c[i][j] += a[i][l] * b[l][j];
     }
 }
 
@@ -40,9 +47,9 @@ void example(kmm::Runtime rt) {
     int m = 50;
     int k = 10;
 
-    kmm::Array<float, 2> a = {n, k};
-    kmm::Array<float, 2> b = {k, m};
-    kmm::Array<float, 2> c = {n, m};
+    auto a = kmm::Array<float, 2> {n, k};
+    auto b = kmm::Array<float, 2> {k, m};
+    auto c = kmm::Array<float, 2> {n, m};
 
     rt.parallel_submit(
         kmm::ChunkPartition<3> {
@@ -50,15 +57,15 @@ void example(kmm::Runtime rt) {
             {10, 10, k}
         },
         kmm::CudaKernel(
-            {5, 5, 5}
+            dim3 {5, 5, 5}
         ),
-        kernel_function,
+        process_kernel,
         n,
         m,
         k,
-        read(a, slice(_x, _z)),
-        read(b, slice(_z, _y)),
-        write(c, slice(_x, _y))
+        read(a, slice(_i, _k)),
+        read(b, slice(_k, _j)),
+        write(c, slice(_i, _j))
     );
 
     rt.synchronize();

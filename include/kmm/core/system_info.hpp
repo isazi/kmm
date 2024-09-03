@@ -6,11 +6,11 @@
 
 namespace kmm {
 
-class DeviceInfo {
+class CudaDeviceInfo {
   public:
     static constexpr size_t NUM_ATTRIBUTES = CU_DEVICE_ATTRIBUTE_MAX;
 
-    DeviceInfo(DeviceId id, CudaContextHandle context);
+    CudaDeviceInfo(DeviceId id, CudaContextHandle context);
 
     /**
      * Returns the name of the CUDA device as provided by `cuDeviceGetName`.
@@ -79,6 +79,17 @@ class DeviceInfo {
     CUdevice m_device_id;
     size_t m_memory_capacity;
     std::array<int, NUM_ATTRIBUTES> m_attributes;
+};
+
+class SystemInfo {
+  public:
+    SystemInfo(std::vector<CudaDeviceInfo> devices = {});
+    size_t num_devices() const;
+    const CudaDeviceInfo& device(DeviceId id) const;
+    const CudaDeviceInfo& device_by_ordinal(CUdevice ordinal) const;
+
+  private:
+    std::vector<CudaDeviceInfo> m_devices;
 };
 
 }  // namespace kmm

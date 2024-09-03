@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cublas_v2.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <memory>
@@ -21,6 +22,11 @@ namespace kmm {
 
 void cuda_throw_exception(CUresult result, const char* file, int line, const char* expression);
 void cuda_throw_exception(cudaError_t result, const char* file, int line, const char* expression);
+void cuda_throw_exception(
+    cublasStatus_t result,
+    const char* file,
+    int line,
+    const char* expression);
 
 class CudaException: std::exception {
   public:
@@ -46,6 +52,12 @@ class CudaRuntimeException: CudaException {
   public:
     CudaRuntimeException(const std::string& message, cudaError_t result);
     cudaError_t status;
+};
+
+class CudaBlasException: CudaException {
+  public:
+    CudaBlasException(const std::string& message, cublasStatus_t result);
+    cublasStatus_t status;
 };
 
 /**

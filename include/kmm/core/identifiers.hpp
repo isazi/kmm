@@ -20,6 +20,7 @@
 
 namespace kmm {
 
+static constexpr size_t MAX_DEVICES = 4;
 using index_t = int;
 
 struct NodeId {
@@ -81,48 +82,39 @@ struct MemoryId {
     constexpr MemoryId(uint8_t v) : m_value(v) {}
 
   public:
-    explicit constexpr MemoryId(DeviceId device) : MemoryId(device.get()) {}
+    constexpr MemoryId(DeviceId device) : MemoryId(device.get()) {}
 
     static constexpr MemoryId host() {
         return MemoryId {HOST_ID};
     }
 
-    bool is_host() const {
+    constexpr bool is_host() const {
         return m_value == HOST_ID;
     }
 
-    bool is_device() const {
+    constexpr bool is_device() const {
         return m_value != HOST_ID;
     }
 
-    DeviceId as_device() const {
+    constexpr DeviceId as_device() const {
         KMM_ASSERT(is_device());
         return DeviceId(m_value);
     }
 
-    friend bool operator==(MemoryId lhs, MemoryId rhs) {
-        return lhs.m_value == rhs.m_value;
+    constexpr bool operator==(const MemoryId& that) const {
+        return m_value == that.m_value;
     }
 
-    friend bool operator==(MemoryId lhs, DeviceId rhs) {
-        return lhs == MemoryId(rhs);
+    constexpr bool operator<(const MemoryId& that) const {
+        // We assume the order Host, Device(0), Device(1), Device(2), ...
+        if (is_host() || that.is_host()) {
+            return that.is_device();
+        } else {
+            return m_value < that.m_value;
+        }
     }
 
-    friend bool operator==(DeviceId lhs, MemoryId rhs) {
-        return MemoryId(lhs) == rhs.m_value;
-    }
-
-    friend bool operator!=(MemoryId lhs, MemoryId rhs) {
-        return !(lhs == rhs);
-    }
-
-    friend bool operator!=(DeviceId lhs, MemoryId rhs) {
-        return !(lhs == rhs);
-    }
-
-    friend bool operator!=(MemoryId lhs, DeviceId rhs) {
-        return !(lhs == rhs);
-    }
+    KMM_IMPL_COMPARISON_OPS(MemoryId)
 
   private:
     static constexpr uint8_t HOST_ID = 0xff;
@@ -183,18 +175,14 @@ using EventList = small_vector<EventId, 2>;
 
 }  // namespace kmm
 
-namespace std {
+template<>
+struct std::hash<kmm::NodeId>: std::hash<uint8_t> {};
 
 template<>
-struct hash<kmm::NodeId>: hash<uint8_t> {};
+struct std::hash<kmm::DeviceId>: std::hash<uint8_t> {};
 
 template<>
-struct hash<kmm::DeviceId>: hash<uint8_t> {};
+struct std::hash<kmm::BufferId>: std::hash<uint64_t> {};
 
 template<>
-struct hash<kmm::BufferId>: hash<uint64_t> {};
-
-template<>
-struct hash<kmm::EventId>: hash<uint64_t> {};
-
-}  // namespace std
+struct std::hash<kmm::EventId>: std::hash<uint64_t> {};
