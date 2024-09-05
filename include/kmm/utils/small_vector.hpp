@@ -26,9 +26,8 @@ struct small_vector {
         insert_all(items.begin(), items.end());
     }
 
-    template<size_t N>
-    small_vector& operator=(const small_vector<T, N>& that) {
-        if (this == that) {
+    small_vector& operator=(const small_vector& that) {
+        if (this == &that) {
             return *this;
         }
 

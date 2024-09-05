@@ -103,8 +103,8 @@ void CopyDescription::simplify() {
 
     for (size_t i = 0; i < MAX_DIMS; i++) {
         if (counts[i] == 1) {
-            src_strides[i] = 1;
-            dst_strides[i] = 1;
+            src_strides[i] = 0;
+            dst_strides[i] = 0;
         }
     }
 

@@ -7,6 +7,7 @@
 #include "kmm/core/buffer.hpp"
 #include "kmm/core/copy_description.hpp"
 #include "kmm/internals/commands.hpp"
+#include "kmm/utils/macros.hpp"
 
 namespace kmm {
 
@@ -38,14 +39,9 @@ class TaskGraph {
 
     EventId insert_prefetch(BufferId buffer_id, MemoryId memory_id, EventList deps = {});
 
-    EventId insert_host_task(
-        std::shared_ptr<HostTask> task,
-        std::vector<BufferRequirement> buffers,
-        EventList deps = {});
-
-    EventId insert_device_task(
-        DeviceId device_id,
-        std::shared_ptr<DeviceTask> task,
+    EventId insert_task(
+        ProcessorId processor_id,
+        std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
         EventList deps = {});
 
@@ -53,22 +49,33 @@ class TaskGraph {
 
     EventId shutdown();
 
+    void commit();
+
     std::vector<Event> flush();
 
   private:
     EventId insert_event(Command command, EventList deps = {});
+    void access_buffer(BufferId buffer_id, AccessMode mode, EventList& deps_out);
 
     uint64_t m_next_event_id = 1;
     EventList m_events_since_last_barrier;
 
     struct BufferMeta {
         EventId creation;
+        EventList last_writes;
         EventList accesses;
+    };
+
+    struct BufferAccess {
+        BufferId buffer_id;
+        AccessMode access_mode;
+        EventId event_id;
     };
 
     uint64_t m_next_buffer_id = 1;
     std::unordered_map<BufferId, BufferMeta> m_buffers;
     std::vector<Event> m_events;
+    std::vector<BufferAccess> m_buffer_accesses;
 };
 
 }  // namespace kmm

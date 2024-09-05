@@ -11,7 +11,7 @@ namespace kmm {
 
 template<size_t N>
 struct Chunk {
-    MemoryId owner_id;
+    ProcessorId owner_id;
     point<N> offset;
     dim<N> size;
 };

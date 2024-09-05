@@ -249,7 +249,7 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
 
         m_chunks.push_back(ArrayChunk<N> {
             .buffer_id = buffer_id,
-            .owner_id = MemoryId::host(),
+            .owner_id = chunk.owner_id.as_memory(),
             .offset = point<N>::zero(),
             .size = m_sizes});
 

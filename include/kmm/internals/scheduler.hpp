@@ -17,6 +17,10 @@ struct TaskNode {
         event_id(event_id),
         command(std::move(command)) {}
 
+    EventId id() const {
+        return event_id;
+    }
+
     const Command& get_command() const {
         return command;
     }

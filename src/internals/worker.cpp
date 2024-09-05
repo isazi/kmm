@@ -98,9 +98,10 @@ BufferGuard Worker::access_buffer(BufferId buffer_id, MemoryId memory_id, Access
     flush_events_impl();
     make_progress_impl();
 
-    // Create the guard and immediately put into the tracker. This ensures that the request is
+    // Create the request and immediately put into the tracker. This ensures that the request is
     // always released in case an exception is thrown while polling.
-    auto req = m_memory->create_request(buffer_id, memory_id, mode, m_root_transaction);
+    auto buffer = m_buffers->get(buffer_id);
+    auto req = m_memory->create_request(buffer, memory_id, mode, m_root_transaction);
     tracker = std::make_shared<BufferGuardTracker>(shared_from_this(), req);
 
     CudaEventSet deps;
@@ -150,10 +151,12 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
     if (const auto* e = std::get_if<CommandEmpty>(&command)) {
         m_scheduler->set_complete(node);
     } else if (const auto* e = std::get_if<CommandBufferCreate>(&command)) {
-        m_memory->create_buffer(e->id, e->layout);
+        auto buffer = m_memory->create_buffer(e->layout);
+        m_buffers->add(e->id, buffer);
         m_scheduler->set_complete(node);
     } else if (const auto* e = std::get_if<CommandBufferDelete>(&command)) {
-        m_memory->delete_buffer(e->id);
+        auto buffer = m_buffers->remove(e->id);
+        m_memory->delete_buffer(buffer);
         m_scheduler->set_complete(node);
     } else if (const auto* e = std::get_if<CommandPrefetch>(&command)) {
         m_executor->submit_prefetch(node, e->buffer_id, e->memory_id);
@@ -165,10 +168,8 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
             e->dst_buffer,
             e->dst_memory,
             e->spec);
-    } else if (const auto* e = std::get_if<CommandExecuteHost>(&command)) {
-        m_executor->submit_host_task(node, e->task, e->buffers);
-    } else if (const auto* e = std::get_if<CommandExecuteDevice>(&command)) {
-        m_executor->submit_device_task(node, e->device_id, e->task, e->buffers);
+    } else if (const auto* e = std::get_if<CommandExecute>(&command)) {
+        m_executor->submit_task(node, e->processor_id, e->task, e->buffers);
     } else {
         KMM_PANIC("invalid command");
     }

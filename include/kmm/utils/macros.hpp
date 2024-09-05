@@ -1,3 +1,5 @@
+#pragma once
+
 #define KMM_NOT_COPYABLE(TYPE)             \
   public:                                  \
     TYPE(const TYPE&) = delete;            \
@@ -17,7 +19,7 @@
                                                      \
   private:
 
-#define KMM_INLINE   __attribute__((always_inline))
+#define KMM_INLINE   __attribute__((always_inline)) inline
 #define KMM_NOINLINE __attribute__((noinline))
 
 // If we are use the NVIDIA compiler

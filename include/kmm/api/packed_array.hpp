@@ -1,3 +1,5 @@
+#pragma once
+
 #include "task_data.hpp"
 
 #include "kmm/core/view.hpp"

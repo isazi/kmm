@@ -1,8 +1,10 @@
 #pragma once
 
 #include <cublas_v2.h>
+#include <cuda.h>
 
 #include "system_info.hpp"
+#include "task.hpp"
 #include "view.hpp"
 
 #include "kmm/utils/checked_math.hpp"
@@ -10,7 +12,7 @@
 
 namespace kmm {
 
-class CudaDevice: public CudaDeviceInfo {
+class CudaDevice: public CudaDeviceInfo, public ExecutionContext {
     KMM_NOT_COPYABLE_OR_MOVABLE(CudaDevice);
 
   public:

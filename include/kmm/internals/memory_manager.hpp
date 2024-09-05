@@ -46,11 +46,11 @@ class MemoryManager {
 
     std::shared_ptr<Transaction> create_transaction(std::shared_ptr<Transaction> parent = nullptr);
 
-    void create_buffer(BufferId id, BufferLayout layout);
-    void delete_buffer(BufferId id);
+    std::shared_ptr<Buffer> create_buffer(BufferLayout layout);
+    void delete_buffer(std::shared_ptr<Buffer> buffer);
 
     std::shared_ptr<Request> create_request(
-        BufferId buffer_id,
+        std::shared_ptr<Buffer> buffer,
         MemoryId memory_id,
         AccessMode mode,
         std::shared_ptr<Transaction> parent);
@@ -98,7 +98,7 @@ class MemoryManager {
 
     uint64_t m_next_transaction_id = 1;
     std::shared_ptr<CudaStreamManager> m_streams;
-    std::unordered_map<BufferId, std::shared_ptr<Buffer>> m_buffers;
+    std::unordered_set<std::shared_ptr<Buffer>> m_buffers;
     std::unordered_set<std::shared_ptr<Request>> m_active_requests;
     std::unique_ptr<Device> m_devices[MAX_DEVICES];
     std::vector<DeferredDeletion> m_deferred_deletions;

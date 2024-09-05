@@ -41,7 +41,7 @@ struct MemoryManager::Buffer {
     KMM_NOT_COPYABLE_OR_MOVABLE(Buffer);
 
   public:
-    Buffer(BufferId id, BufferLayout layout) : id(id), layout(layout) {}
+    Buffer(BufferLayout layout) : id(id), layout(layout) {}
 
     BufferId id;
     BufferLayout layout;
@@ -184,7 +184,7 @@ void MemoryManager::make_progress() {
 bool MemoryManager::is_idle() const {
     bool result = true;
 
-    for (const auto& [id, buffer] : m_buffers) {
+    for (const auto& buffer : m_buffers) {
         for (auto& e : buffer->device_entry) {
             result &= m_streams->is_ready(e.access_events);
             result &= m_streams->is_ready(e.write_events);
@@ -202,9 +202,7 @@ bool MemoryManager::is_idle() const {
     return result;
 }
 
-void MemoryManager::create_buffer(BufferId id, BufferLayout layout) {
-    KMM_ASSERT(m_buffers.find(id) == m_buffers.end());
-
+std::shared_ptr<MemoryManager::Buffer> MemoryManager::create_buffer(BufferLayout layout) {
     // Size cannot be zero
     if (layout.size_in_bytes == 0) {
         layout.size_in_bytes = 1;
@@ -214,26 +212,25 @@ void MemoryManager::create_buffer(BufferId id, BufferLayout layout) {
     layout.alignment = round_up_to_power_of_two(layout.alignment);
     layout.size_in_bytes = round_up_to_multiple(layout.size_in_bytes, layout.alignment);
 
-    m_buffers.emplace(id, std::make_shared<Buffer>(id, layout));
+    auto buffer = std::make_shared<Buffer>(layout);
+    m_buffers.emplace(buffer);
+    return buffer;
 }
 
-void MemoryManager::delete_buffer(BufferId id) {
-    auto it = m_buffers.find(id);
-    if (it == m_buffers.end()) {
+void MemoryManager::delete_buffer(std::shared_ptr<Buffer> buffer) {
+    if (buffer->is_deleted) {
         return;
     }
 
-    auto buffer = it->second;
     KMM_ASSERT(buffer->num_requests_active == 0);
+    buffer->is_deleted = true;
+    m_buffers.erase(buffer);
 
     deallocate_host(*buffer);
 
     for (size_t i = 0; i < MAX_DEVICES; i++) {
         deallocate_device_async(DeviceId(i), *buffer);
     }
-
-    buffer->is_deleted = true;
-    m_buffers.erase(it);
 }
 
 std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
@@ -243,11 +240,11 @@ std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
 }
 
 std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
-    BufferId buffer_id,
+    std::shared_ptr<Buffer> buffer,
     MemoryId memory_id,
     AccessMode mode,
     std::shared_ptr<Transaction> parent) {
-    auto buffer = m_buffers.at(buffer_id);
+    KMM_ASSERT(!buffer->is_deleted);
     buffer->num_requests_active++;
 
     auto req = std::make_shared<Request>(buffer, memory_id, mode, parent);

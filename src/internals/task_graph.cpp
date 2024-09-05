@@ -13,7 +13,9 @@ BufferId kmm::TaskGraph::create_buffer(BufferLayout layout) {
         .layout = layout,
     });
 
-    m_buffers.emplace(buffer_id, BufferMeta {.creation = event_id, .accesses = {event_id}});
+    m_buffers.emplace(
+        buffer_id,
+        BufferMeta {.creation = event_id, .last_writes = {event_id}, .accesses = {event_id}});
 
     return buffer_id;
 }
@@ -52,8 +54,8 @@ EventId TaskGraph::insert_copy(
     MemoryId dst_memory,
     CopyDescription spec,
     EventList deps) {
-    deps.push_back(m_buffers.at(src_buffer).creation);
-    deps.push_back(m_buffers.at(dst_buffer).creation);
+    access_buffer(src_buffer, AccessMode::Read, deps);
+    access_buffer(dst_buffer, AccessMode::ReadWrite, deps);
 
     auto event_id = insert_event(
         CommandCopy {
@@ -64,8 +66,8 @@ EventId TaskGraph::insert_copy(
             spec},
         std::move(deps));
 
-    m_buffers.at(src_buffer).accesses.push_back(event_id);
-    m_buffers.at(dst_buffer).accesses.push_back(event_id);
+    m_buffer_accesses.push_back({src_buffer, AccessMode::Read, event_id});
+    m_buffer_accesses.push_back({dst_buffer, AccessMode::ReadWrite, event_id});
 
     return event_id;
 }
@@ -77,46 +79,25 @@ EventId TaskGraph::insert_prefetch(BufferId buffer_id, MemoryId memory_id, Event
             .memory_id = memory_id},
         std::move(deps));
 
-    m_buffers.at(buffer_id).accesses.push_back(event_id);
+    m_buffer_accesses.push_back({buffer_id, AccessMode::Read, event_id});
     return event_id;
 }
 
-EventId TaskGraph::insert_host_task(
-    std::shared_ptr<HostTask> task,
+EventId TaskGraph::insert_task(
+    ProcessorId processor_id,
+    std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
     EventList deps) {
     for (const auto& buffer : buffers) {
-        deps.push_back(m_buffers.at(buffer.buffer_id).creation);
+        access_buffer(buffer.buffer_id, buffer.access_mode, deps);
     }
 
     auto event_id = insert_event(
-        CommandExecuteHost {
-            .task = std::move(task),  //
-            .buffers = buffers},
+        CommandExecute {.processor_id = processor_id, .task = std::move(task), .buffers = buffers},
         std::move(deps));
 
     for (const auto& buffer : buffers) {
-        m_buffers.at(buffer.buffer_id).accesses.push_back(event_id);
-    }
-
-    return event_id;
-}
-
-EventId TaskGraph::insert_device_task(
-    DeviceId device_id,
-    std::shared_ptr<DeviceTask> task,
-    std::vector<BufferRequirement> buffers,
-    EventList deps) {
-    for (const auto& buffer : buffers) {
-        deps.push_back(m_buffers.at(buffer.buffer_id).creation);
-    }
-
-    auto event_id = insert_event(
-        CommandExecuteDevice {.device_id = device_id, .task = std::move(task), .buffers = buffers},
-        std::move(deps));
-
-    for (const auto& buffer : buffers) {
-        m_buffers.at(buffer.buffer_id).accesses.push_back(event_id);
+        m_buffer_accesses.push_back({buffer.buffer_id, buffer.access_mode, event_id});
     }
 
     return event_id;
@@ -141,6 +122,36 @@ EventId TaskGraph::shutdown() {
     return join_events(deps);
 }
 
+void TaskGraph::commit() {
+    std::stable_sort(
+        m_buffer_accesses.begin(),
+        m_buffer_accesses.end(),
+        [](const auto& a, const auto& b) { return a.buffer_id < b.buffer_id; });
+
+    EventList write_events;
+    auto current = m_buffer_accesses.begin();
+
+    while (current != m_buffer_accesses.end()) {
+        auto buffer_id = current->buffer_id;
+        auto& meta = m_buffers.at(buffer_id);
+
+        do {
+            if (current->access_mode != AccessMode::Read) {
+                write_events.push_back(current->event_id);
+            }
+
+            meta.accesses.push_back(current->event_id);
+            current++;
+        } while (current != m_buffer_accesses.end() && current->buffer_id == buffer_id);
+
+        if (!write_events.is_empty()) {
+            meta.last_writes = write_events;
+        }
+    }
+
+    m_buffer_accesses.clear();
+}
+
 std::vector<Event> TaskGraph::flush() {
     return std::move(m_events);
 }
@@ -162,6 +173,12 @@ EventId TaskGraph::insert_event(Command command, EventList deps) {
     m_events_since_last_barrier.push_back(event_id);
 
     return event_id;
+}
+
+void TaskGraph::access_buffer(BufferId buffer_id, AccessMode mode, EventList& deps_out) {
+    auto& meta = m_buffers.at(buffer_id);
+    deps_out.push_back(meta.creation);
+    deps_out.insert_all(meta.last_writes);
 }
 
 }  // namespace kmm

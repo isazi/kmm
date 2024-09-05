@@ -2,25 +2,24 @@
 
 namespace kmm {
 
-class CopyInTask: public HostTask, public DeviceTask {
+class CopyInTask: public Task {
   public:
     CopyInTask(const void* data, size_t nbytes) : m_src_addr(data), m_nbytes(nbytes) {}
 
-    void execute(TaskContext context) override {
+    void execute(ExecutionContext& proc, TaskContext context) override {
         KMM_ASSERT(context.accessors.size() == 1);
         KMM_ASSERT(context.accessors[0].layout.size_in_bytes == m_nbytes);
 
         void* dst_addr = context.accessors[0].address;
-        ::memcpy(dst_addr, m_src_addr, m_nbytes);
-    }
 
-    void execute(CudaDevice& device, TaskContext context) override {
-        KMM_ASSERT(context.accessors.size() == 1);
-        KMM_ASSERT(context.accessors[0].layout.size_in_bytes == m_nbytes);
-
-        void* dst_addr = context.accessors[0].address;
-        device.copy_bytes(m_src_addr, dst_addr, m_nbytes);
-        device.synchronize();
+        if (auto* device = dynamic_cast<CudaDevice*>(&proc)) {
+            device->copy_bytes(m_src_addr, dst_addr, m_nbytes);
+            device->synchronize();
+        } else if (dynamic_cast<HostContext*>(&proc)) {
+            ::memcpy(dst_addr, m_src_addr, m_nbytes);
+        } else {
+            throw std::runtime_error("invalid execution context");
+        }
     }
 
   private:
@@ -48,12 +47,9 @@ BufferId Runtime::allocate_bytes(const void* data, BufferLayout layout, MemoryId
         };
 
         auto task = std::make_shared<CopyInTask>(data, layout.size_in_bytes);
+        ProcessorId proc = memory_id.is_device() ? memory_id.as_device() : ProcessorId::host();
 
-        if (memory_id.is_device()) {
-            return graph.insert_device_task(memory_id.as_device(), task, {req});
-        } else {
-            return graph.insert_host_task(task, {req});
-        }
+        return graph.insert_task(proc, task, {req});
     });
 
     wait(event_id);

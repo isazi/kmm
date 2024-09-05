@@ -2,6 +2,7 @@
 
 #include <mutex>
 
+#include "buffer_manager.hpp"
 #include "cuda_stream_manager.hpp"
 #include "executor.hpp"
 #include "memory_manager.hpp"
@@ -38,7 +39,14 @@ class Worker: public std::enable_shared_from_this<Worker> {
             throw std::runtime_error("cannot submit work, worker has been shut down");
         }
 
-        return fun(*m_graph);
+        if constexpr (std::is_void<decltype(fun(*m_graph))>::value) {
+            fun(*m_graph);
+            m_graph->commit();
+        } else {
+            auto result = fun(*m_graph);
+            m_graph->commit();
+            return result;
+        }
     }
 
     const SystemInfo& system_info() const {
@@ -58,6 +66,7 @@ class Worker: public std::enable_shared_from_this<Worker> {
     std::shared_ptr<Scheduler> m_scheduler;
     std::shared_ptr<CudaStreamManager> m_streams;
     std::shared_ptr<MemoryManager> m_memory;
+    std::shared_ptr<BufferManager> m_buffers;
     std::shared_ptr<Executor> m_executor;
     std::shared_ptr<TaskGraph> m_graph;
     std::shared_ptr<MemoryManager::Transaction> m_root_transaction;

@@ -31,14 +31,9 @@ struct CommandCopy {
     CopyDescription spec;
 };
 
-struct CommandExecuteHost {
-    std::shared_ptr<HostTask> task;
-    std::vector<BufferRequirement> buffers;
-};
-
-struct CommandExecuteDevice {
-    DeviceId device_id;
-    std::shared_ptr<DeviceTask> task;
+struct CommandExecute {
+    ProcessorId processor_id;
+    std::shared_ptr<Task> task;
     std::vector<BufferRequirement> buffers;
 };
 
@@ -50,7 +45,6 @@ using Command = std::variant<
     CommandBufferDelete,
     CommandPrefetch,
     CommandCopy,
-    CommandExecuteHost,
-    CommandExecuteDevice>;
+    CommandExecute>;
 
 }  // namespace kmm

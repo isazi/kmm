@@ -1,90 +1,67 @@
+#include <mutex>
 
 #include "kmm/internals/executor.hpp"
 
 namespace kmm {
 
-class Operation {
-  public:
-    std::shared_ptr<TaskNode> job;
-
-    Operation(std::shared_ptr<TaskNode> job) : job(job) {}
-    ~Operation() = default;
-    virtual Poll poll(Executor&) = 0;
+struct OperationQueue {
+    mutable std::mutex m_mutex;
+    mutable std::vector<std::shared_ptr<Operation>> m_queue;
 };
 
+class Operation: public std::enable_shared_from_this<Operation>, public Notify {
+  public:
+    std::shared_ptr<TaskNode> job;
+    std::shared_ptr<OperationQueue> m_queue;
+    mutable std::atomic_flag is_queued = true;
+
+    Operation(std::shared_ptr<TaskNode> job) : job(job) {}
+    virtual ~Operation() = default;
+    virtual Poll poll(Executor&) = 0;
+
+    void notify() const noexcept final;
+};
+
+void Operation::notify() const noexcept {
+    if (is_queued.test_and_set()) {
+        std::unique_lock guard {m_queue->m_mutex};
+        m_queue->m_queue.push_back(const_cast<Operation*>(this)->shared_from_this());
+    }
+}
+
 struct HostOperation: public Operation {
-    std::shared_ptr<HostTask> task;
-    size_t current_request = 0;
+    std::shared_ptr<Task> task;
+    std::vector<BufferRequirement> buffers;
     std::vector<MemoryRequest> requests;
     CudaEventSet dependencies;
 
     HostOperation(
         std::shared_ptr<TaskNode> job,
-        std::shared_ptr<HostTask> task,
-        std::vector<MemoryRequest> requests,
+        std::shared_ptr<Task> task,
+        std::vector<BufferRequirement> buffers,
         CudaEventSet dependencies) :
         Operation(std::move(job)),
         task(std::move(task)),
-        requests(std::move(requests)),
+        buffers(std::move(buffers)),
         dependencies(std::move(dependencies)) {}
 
     Poll poll(Executor& executor) {
-        bool all_ready = true;
+        try {
+            if (buffers.size() != requests.size()) {
+                auto trans = executor.m_memory->create_transaction();
 
-        for (size_t i = 0; i < requests.size(); i++) {
-            if (!executor.m_memory->poll_request(*requests[i], dependencies)) {
-                all_ready = false;
+                for (size_t i = 0; i < buffers.size(); i++) {
+                    auto buffer = executor.m_buffers->get(buffers[i].buffer_id);
+                    auto request = executor.m_memory->create_request(
+                        buffer,
+                        buffers[i].memory_id,
+                        buffers[i].access_mode,
+                        trans);
+
+                    requests.push_back(std::move(request));
+                }
             }
-        }
 
-        if (!all_ready) {
-            return Poll::Pending;
-        }
-
-        if (!executor.m_streams->is_ready(dependencies)) {
-            return Poll::Pending;
-        }
-
-        auto accessors = std::vector<BufferAccessor>();
-        for (size_t i = 0; i < requests.size(); i++) {
-            accessors.push_back(executor.m_memory->get_accessor(*requests[i]));
-        }
-
-        task->execute(TaskContext {accessors});
-
-        for (size_t i = 0; i < requests.size(); i++) {
-            executor.m_memory->release_request(requests[i]);
-        }
-
-        executor.m_scheduler->set_complete(job);
-        return Poll::Ready;
-    }
-};
-
-struct DeviceOperation: public Operation {
-    enum struct Status { Pending, Running, Done } status = Status::Pending;
-
-    size_t stream_index;
-    std::shared_ptr<DeviceTask> task;
-    std::vector<MemoryRequest> requests;
-    CudaEventSet dependencies;
-    CudaEvent event;
-
-    DeviceOperation(
-        std::shared_ptr<TaskNode> job,
-        size_t stream_index,
-        std::shared_ptr<DeviceTask> task,
-        std::vector<MemoryRequest> requests,
-        CudaEventSet dependencies) :
-        Operation(std::move(job)),
-        stream_index(stream_index),
-        task(std::move(task)),
-        requests(std::move(requests)),
-        dependencies(std::move(dependencies)) {}
-
-    Poll poll(Executor& executor) {
-        if (status == Status::Pending) {
-            auto& [stream, device] = executor.m_devices[stream_index];
             bool all_ready = true;
 
             for (size_t i = 0; i < requests.size(); i++) {
@@ -97,7 +74,90 @@ struct DeviceOperation: public Operation {
                 return Poll::Pending;
             }
 
+            if (!executor.m_streams->is_ready(dependencies)) {
+                return Poll::Pending;
+            }
+
             auto accessors = std::vector<BufferAccessor>();
+            for (size_t i = 0; i < requests.size(); i++) {
+                accessors.push_back(executor.m_memory->get_accessor(*requests[i]));
+            }
+
+            auto context = HostContext {};
+            task->execute(context, TaskContext {accessors});
+
+        } catch (const std::exception& error) {
+            for (const auto& buffer : buffers) {
+                if (buffer.access_mode != AccessMode::Read) {
+                    executor.m_buffers->poison(buffer.buffer_id, job->id(), error);
+                }
+            }
+        }
+
+        for (size_t i = 0; i < requests.size(); i++) {
+            executor.m_memory->release_request(requests[i]);
+        }
+
+        executor.m_scheduler->set_complete(job);
+        return Poll::Ready;
+    }
+};
+
+struct DeviceOperation: public Operation {
+    enum struct Status { Init, Pending, Running, Done } status = Status::Pending;
+
+    size_t stream_index;
+    std::shared_ptr<Task> task;
+    std::vector<BufferRequirement> buffers;
+    std::vector<MemoryRequest> requests;
+    CudaEventSet dependencies;
+    CudaEvent event;
+
+    DeviceOperation(
+        std::shared_ptr<TaskNode> job,
+        size_t stream_index,
+        std::shared_ptr<Task> task,
+        std::vector<BufferRequirement> buffers,
+        CudaEventSet dependencies) :
+        Operation(std::move(job)),
+        stream_index(stream_index),
+        task(std::move(task)),
+        buffers(std::move(buffers)),
+        dependencies(std::move(dependencies)) {}
+
+    Poll poll(Executor& executor) {
+        if (status == Status::Init) {
+            auto trans = executor.m_memory->create_transaction();
+            for (size_t i = 0; i < buffers.size(); i++) {
+                auto buffer = executor.m_buffers->get(buffers[i].buffer_id);
+                auto request = executor.m_memory->create_request(
+                    buffer,
+                    buffers[i].memory_id,
+                    buffers[i].access_mode,
+                    trans);
+
+                requests.push_back(request);
+            }
+
+            status = Status::Pending;
+        }
+
+        if (status == Status::Pending) {
+            bool all_ready = true;
+
+            for (size_t i = 0; i < requests.size(); i++) {
+                if (!executor.m_memory->poll_request(*requests[i], dependencies)) {
+                    all_ready = false;
+                }
+            }
+
+            if (!all_ready) {
+                return Poll::Pending;
+            }
+
+            auto& [stream, device] = executor.m_devices[stream_index];
+            auto accessors = std::vector<BufferAccessor>();
+
             for (size_t i = 0; i < requests.size(); i++) {
                 accessors.push_back(executor.m_memory->get_accessor(*requests[i]));
             }
@@ -163,55 +223,54 @@ bool Executor::is_idle() const {
     return m_operations.empty();
 }
 
+void Executor::submit_task(
+    std::shared_ptr<TaskNode> job,
+    ProcessorId processor_id,
+    std::shared_ptr<Task> task,
+    std::vector<BufferRequirement> buffers,
+    CudaEventSet dependencies) {
+    if (processor_id.is_device()) {
+        submit_device_task(
+            job,
+            processor_id.as_device(),
+            std::move(task),
+            buffers,
+            std::move(dependencies));
+    } else {
+        submit_host_task(job, std::move(task), std::move(buffers), std::move(dependencies));
+    }
+}
+
 void Executor::submit_host_task(
     std::shared_ptr<TaskNode> job,
-    std::shared_ptr<HostTask> task,
-    const std::vector<BufferRequirement>& buffers,
+    std::shared_ptr<Task> task,
+    std::vector<BufferRequirement> buffers,
     CudaEventSet dependencies) {
-    auto trans = m_memory->create_transaction();
-    auto reqs = std::vector<MemoryRequest>(buffers.size());
-
-    for (size_t i = 0; i < buffers.size(); i++) {
-        reqs[i] = m_memory->create_request(
-            buffers[i].buffer_id,
-            buffers[i].memory_id,
-            buffers[i].access_mode,
-            trans);
-    }
-
     m_operations.push_back(std::make_unique<HostOperation>(
         std::move(job),
         std::move(task),
-        std::move(reqs),
+        std::move(buffers),
         std::move(dependencies)));
 }
 
 void Executor::submit_device_task(
     std::shared_ptr<TaskNode> job,
     DeviceId device_id,
-    std::shared_ptr<DeviceTask> task,
-    const std::vector<BufferRequirement>& buffers,
+    std::shared_ptr<Task> task,
+    std::vector<BufferRequirement> buffers,
     CudaEventSet dependencies) {
     // TODO: improve stream selection
-    auto trans = m_memory->create_transaction();
-    auto reqs = std::vector<MemoryRequest>();
-
-    for (size_t i = 0; i < buffers.size(); i++) {
-        reqs[i] = m_memory->create_request(
-            buffers[i].buffer_id,
-            buffers[i].memory_id,
-            buffers[i].access_mode,
-            trans);
-    }
-
-    m_operations.push_back(
-        std::make_unique<DeviceOperation>(job, 0, task, std::move(reqs), std::move(dependencies)));
+    m_operations.push_back(std::make_unique<DeviceOperation>(
+        job,
+        0,
+        task,
+        std::move(buffers),
+        std::move(dependencies)));
 }
 
-class EmptyTask: public HostTask, public DeviceTask {
+class EmptyTask: public Task {
   public:
-    void execute(TaskContext context) override {}
-    void execute(CudaDevice& device, TaskContext context) override {}
+    void execute(ExecutionContext& device, TaskContext context) override {}
 };
 
 void Executor::submit_prefetch(

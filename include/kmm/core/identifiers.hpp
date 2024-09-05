@@ -1,5 +1,10 @@
 #pragma once
+#include <iostream>
+#include <utility>
 
+#include "fmt/ostream.h"
+
+#include "kmm/core/reduction.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
 #include "kmm/utils/small_vector.hpp"
@@ -121,6 +126,54 @@ struct MemoryId {
     uint8_t m_value = HOST_ID;
 };
 
+class ProcessorId {
+  public:
+    enum struct Type : uint8_t { Host, Cuda };
+
+    constexpr ProcessorId(Type type, uint8_t id = 0) : m_type(type), m_value(id) {}
+
+    constexpr ProcessorId(DeviceId device) : ProcessorId(Type::Cuda, device.get()) {}
+
+    static constexpr ProcessorId host() {
+        return ProcessorId {Type::Host};
+    }
+
+    constexpr bool is_host() const {
+        return m_type == Type::Host;
+    }
+
+    constexpr bool is_device() const {
+        return m_type == Type::Cuda;
+    }
+
+    constexpr DeviceId as_device() const {
+        KMM_ASSERT(is_device());
+        return DeviceId(m_value);
+    }
+
+    constexpr MemoryId as_memory() const {
+        return is_host() ? MemoryId::host() : MemoryId(DeviceId(m_value));
+    }
+
+    constexpr bool operator==(const ProcessorId& that) const {
+        return m_type == that.m_type && m_value == that.m_value;
+    }
+
+    constexpr bool operator<(const ProcessorId& that) const {
+        if (m_type != that.m_type) {
+            return m_type < that.m_type;
+        } else {
+            return m_value < that.m_value;
+        }
+    }
+
+    KMM_IMPL_COMPARISON_OPS(ProcessorId)
+
+  private:
+    Type m_type = Type::Host;
+    uint8_t m_value = 0;
+};
+
 struct BufferId {
     explicit constexpr BufferId(uint64_t v = ~0) : m_value(v) {}
 
@@ -186,3 +239,16 @@ struct std::hash<kmm::BufferId>: std::hash<uint64_t> {};
 
 template<>
 struct std::hash<kmm::EventId>: std::hash<uint64_t> {};
+
+template<>
+struct fmt::formatter<kmm::NodeId>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::DeviceId>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::MemoryId>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::ProcessorId>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::BufferId>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::EventId>: fmt::ostream_formatter {};

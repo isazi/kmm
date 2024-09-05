@@ -67,17 +67,6 @@ class point: public fixed_array<T, N> {
     T get(size_t axis) const {
         return axis < N ? (*this)[axis] : static_cast<T>(0);
     }
-
-    KMM_HOST_DEVICE
-    bool equals(const point& that) const {
-        bool is_equal = true;
-
-        for (size_t i = 0; i < N; i++) {
-            is_equal &= (*this)[i] == that[i];
-        }
-
-        return is_equal;
-    }
 };
 
 template<size_t N, typename T = default_geometry_type>
@@ -273,12 +262,12 @@ class rect {
             auto bi = !first_a ? this->offset[i] : that.offset[i];
             auto bn = !first_a ? this->sizes[i] : that.sizes[i];
 
-            new_offset[i] = bi;
-            new_sizes[i] = an - (bi - ai);
-
             if (an <= bi - ai) {
                 is_empty = true;
             }
+
+            new_offset[i] = bi;
+            new_sizes[i] = an - (bi - ai);
 
             if (bn < an - (bi - ai)) {
                 new_sizes[i] = bn;
@@ -390,7 +379,7 @@ KMM_HOST_DEVICE_NOINLINE rect(dim<N, T> sizes)->rect<N, T>;
 
 template<size_t N, typename T>
 KMM_HOST_DEVICE bool operator==(const point<N, T>& a, const point<N, T>& b) {
-    return a.equals(b);
+    return (const fixed_array<T, N>&)a == (const fixed_array<T, N>&)b;
 }
 
 template<size_t N, typename T>
@@ -400,7 +389,7 @@ KMM_HOST_DEVICE bool operator!=(const point<N, T>& a, const point<N, T>& b) {
 
 template<size_t N, typename T>
 KMM_HOST_DEVICE bool operator==(const dim<N, T>& a, const dim<N, T>& b) {
-    return a.to_point() == b.to_point();
+    return (const fixed_array<T, N>&)a == (const fixed_array<T, N>&)b;
 }
 
 template<size_t N, typename T>

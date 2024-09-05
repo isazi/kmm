@@ -1,3 +1,5 @@
+#pragma once
+
 #include "kmm/utils/macros.hpp"
 
 namespace kmm {

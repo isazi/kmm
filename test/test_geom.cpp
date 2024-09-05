@@ -26,10 +26,10 @@ TEST(Geometry, point_basics) {
     one[0] = 42;
     ASSERT_EQ(one, point(42, 1, 1));
 
-    ASSERT_FALSE(one.equals(zero));
-    ASSERT_FALSE(zero.equals(one));
-    ASSERT_TRUE(zero.equals(zero));
-    ASSERT_TRUE(one.equals(one));
+    ASSERT_FALSE(one == zero);
+    ASSERT_FALSE(zero == one);
+    ASSERT_TRUE(zero == zero);
+    ASSERT_TRUE(one == one);
 }
 
 TEST(Geometry, dim_basics) {

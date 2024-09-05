@@ -1,5 +1,6 @@
 #pragma once
 
+#include "buffer_manager.hpp"
 #include "cuda_stream_manager.hpp"
 #include "memory_manager.hpp"
 #include "scheduler.hpp"
@@ -24,17 +25,24 @@ class Executor {
     void make_progress();
     bool is_idle() const;
 
+    void submit_task(
+        std::shared_ptr<TaskNode> job,
+        ProcessorId processor_id,
+        std::shared_ptr<Task> task,
+        std::vector<BufferRequirement> buffers,
+        CudaEventSet dependencies = {});
+
     void submit_host_task(
         std::shared_ptr<TaskNode> job,
-        std::shared_ptr<HostTask> task,
-        const std::vector<BufferRequirement>& buffers,
+        std::shared_ptr<Task> task,
+        std::vector<BufferRequirement> buffers,
         CudaEventSet dependencies = {});
 
     void submit_device_task(
         std::shared_ptr<TaskNode> job,
         DeviceId device_id,
-        std::shared_ptr<DeviceTask> task,
-        const std::vector<BufferRequirement>& buffers,
+        std::shared_ptr<Task> task,
+        std::vector<BufferRequirement> buffers,
         CudaEventSet dependencies = {});
 
     void submit_prefetch(
@@ -57,8 +65,10 @@ class Executor {
     friend class DeviceOperation;
 
   private:
+    std::shared_ptr<struct OperationQueue> m_queue;
     std::shared_ptr<CudaStreamManager> m_streams;
     std::shared_ptr<MemoryManager> m_memory;
+    std::shared_ptr<BufferManager> m_buffers;
     std::shared_ptr<Scheduler> m_scheduler;
     std::vector<std::unique_ptr<Operation>> m_operations;
     std::vector<std::pair<CudaStream, std::unique_ptr<CudaDevice>>> m_devices;
