@@ -12,8 +12,6 @@ struct BufferEntry {
     bool is_allocated = false;
     bool is_valid = false;
 
-    size_t num_writes_active = 0;
-    size_t num_readers_active = 0;
     size_t num_allocation_locks = 0;
 
     // let `<=` the happens-before operator. Then it should ALWAYS hold that
@@ -49,7 +47,10 @@ struct MemoryManager::Buffer {
     DeviceEntry device_entry[MAX_DEVICES];
     size_t num_requests_active = 0;
     bool is_deleted = false;
-    bool exclusive_writer_active = false;
+
+    Request* access_head = nullptr;
+    Request* access_current = nullptr;
+    Request* access_tail = nullptr;
 
     KMM_INLINE BufferEntry& entry(MemoryId memory_id) {
         if (memory_id.is_host()) {
@@ -88,9 +89,13 @@ struct MemoryManager::Request {
     std::shared_ptr<Transaction> parent;
     std::chrono::system_clock::time_point created_at = std::chrono::system_clock::now();
 
-    bool has_allocation = false;
+    bool allocation_acquired = false;
     Request* allocation_next = nullptr;
     Request* allocation_prev = nullptr;
+
+    bool access_acquired = false;
+    Request* access_next = nullptr;
+    Request* access_prev = nullptr;
 };
 
 struct MemoryManager::Device {
@@ -254,6 +259,7 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
         add_to_allocation_queue(memory_id.as_device(), *req);
     }
 
+    add_to_buffer_access_queue(*buffer, *req);
     return req;
 }
 
@@ -275,7 +281,7 @@ bool MemoryManager::poll_request(Request& req, CudaEventSet& deps_out) {
     }
 
     if (req.status == Request::Status::Allocated) {
-        if (!try_lock_access(req.memory_id, buffer, req)) {
+        if (!try_lock_access(buffer, req)) {
             return false;
         }
 
@@ -313,13 +319,18 @@ void MemoryManager::release_request(std::shared_ptr<Request> req, CudaEvent even
             unlock_allocation_host(buffer, *req);
         } else {
             unlock_allocation_device(memory_id.as_device(), buffer, *req);
-            remove_from_allocation_queue(memory_id.as_device(), *req);
         }
 
         status = Request::Status::Init;
     }
 
     if (status == Request::Status::Init) {
+        remove_from_buffer_access_queue(buffer, *req);
+
+        if (memory_id.is_device()) {
+            remove_from_allocation_queue(memory_id.as_device(), *req);
+        }
+
         buffer.num_requests_active--;
         m_active_requests.erase(req);
     }
@@ -364,6 +375,52 @@ void MemoryManager::remove_from_allocation_queue(DeviceId device_id, Request& re
 
     if (device->allocation_current == &req) {
         device->allocation_current = next;
+    }
+}
+
+void MemoryManager::add_to_buffer_access_queue(Buffer& buffer, Request& req) const {
+    auto* old_tail = buffer.access_tail;
+
+    if (old_tail == nullptr) {
+        buffer.access_head = &req;
+    } else {
+        old_tail->access_next = &req;
+        req.access_prev = old_tail;
+    }
+
+    buffer.access_tail = &req;
+
+    if (buffer.access_current == nullptr) {
+        buffer.access_current = &req;
+    }
+}
+
+void MemoryManager::remove_from_buffer_access_queue(Buffer& buffer, Request& req) const {
+    auto* prev = std::exchange(req.access_prev, nullptr);
+    auto* next = std::exchange(req.access_next, nullptr);
+
+    if (prev != nullptr) {
+        prev->access_next = next;
+    } else {
+        KMM_ASSERT(buffer.access_head == &req);
+        buffer.access_head = next;
+    }
+
+    if (next != nullptr) {
+        next->access_prev = prev;
+    } else {
+        KMM_ASSERT(buffer.access_tail == &req);
+        buffer.access_tail = prev;
+    }
+
+    if (buffer.access_current == &req) {
+        buffer.access_current = next;
+    }
+
+    // Poll queue, release the lock might allow another request to gain access
+    if (req.access_acquired) {
+        req.access_acquired = false;
+        poll_access_queue(buffer);
     }
 }
 
@@ -508,8 +565,9 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
     }
 
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
-    KMM_ASSERT(device_entry.num_readers_active == 0);
-    KMM_ASSERT(device_entry.num_writes_active == 0);
+    KMM_ASSERT(buffer.access_head == nullptr);
+    KMM_ASSERT(buffer.access_current == nullptr);
+    KMM_ASSERT(buffer.access_tail == nullptr);
 
     m_streams->with_stream(device->dealloc_stream, device_entry.access_events, [&](auto stream) {
         KMM_CUDA_CHECK(cuMemFreeAsync(device_entry.data, stream));
@@ -548,8 +606,9 @@ void MemoryManager::deallocate_host(Buffer& buffer) {
     }
 
     KMM_ASSERT(host_entry.num_allocation_locks == 0);
-    KMM_ASSERT(host_entry.num_readers_active == 0);
-    KMM_ASSERT(host_entry.num_writes_active == 0);
+    KMM_ASSERT(buffer.access_head == nullptr);
+    KMM_ASSERT(buffer.access_current == nullptr);
+    KMM_ASSERT(buffer.access_tail == nullptr);
 
     // All events need to be ready before memory can be deallocated. This is why we add the
     // pointer to the deletion queue to defer it to a later moment in time.
@@ -580,7 +639,7 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
         return false;
     }
 
-    KMM_ASSERT(req.has_allocation == false);
+    KMM_ASSERT(req.allocation_acquired == false);
     KMM_ASSERT(device->allocation_current == &req);
 
     auto& device_entry = buffer.device_entry[device_id];
@@ -610,7 +669,7 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
         remove_from_lru(device_id, buffer);
     }
 
-    req.has_allocation = true;
+    req.allocation_acquired = true;
     device->allocation_current = req.allocation_next;
     device_entry.num_allocation_locks++;
     return true;
@@ -650,60 +709,41 @@ std::optional<DeviceId> MemoryManager::find_valid_device_entry(const Buffer& buf
     return std::nullopt;
 }
 
-bool MemoryManager::is_access_allowed(MemoryId memory_id, const Buffer& buffer, AccessMode mode)
+bool MemoryManager::is_access_allowed(const Buffer& buffer, MemoryId memory_id, AccessMode mode)
     const {
-    bool is_writer = mode != AccessMode::Read;
-
-    if (buffer.exclusive_writer_active) {
-        return false;
-    }
-
-    for (size_t peer_id = 0; peer_id < MAX_DEVICES; peer_id++) {
-        if (memory_id == DeviceId(peer_id)) {
-            continue;
-        }
-
-        if (buffer.device_entry[peer_id].num_writes_active > 0) {
+    for (auto* it = buffer.access_head; it != buffer.access_current; it = it->access_next) {
+        // Two exclusive requests can never be granted access simultaneously
+        if (mode == AccessMode::Exclusive || it->mode == AccessMode::Exclusive) {
             return false;
         }
 
-        if (is_writer && buffer.device_entry[peer_id].num_readers_active > 0) {
-            return false;
-        }
-    }
-
-    if (memory_id.is_device()) {
-        if (buffer.host_entry.num_writes_active > 0) {
-            return false;
-        }
-
-        if (is_writer && buffer.host_entry.num_readers_active > 0) {
-            return false;
+        // Two non-read requests can only be granted simultaneously if operating on the same memory.
+        if (mode != AccessMode::Read || it->mode != AccessMode::Read) {
+            if (memory_id != it->memory_id) {
+                return false;
+            }
         }
     }
 
     return true;
 }
 
-bool MemoryManager::try_lock_access(MemoryId memory_id, Buffer& buffer, Request& req) {
-    bool is_writer = req.mode != AccessMode::Read;
-    auto& entry = buffer.entry(memory_id);
+void MemoryManager::poll_access_queue(Buffer& buffer) const {
+    while (buffer.access_current != nullptr) {
+        auto* req = buffer.access_current;
 
-    if (!is_access_allowed(memory_id, buffer, req.mode)) {
-        return false;
-    }
-
-    entry.num_readers_active++;
-
-    if (is_writer) {
-        entry.num_writes_active++;
-
-        if (req.mode == AccessMode::Exclusive) {
-            buffer.exclusive_writer_active = true;
+        if (!is_access_allowed(buffer, req->memory_id, req->mode)) {
+            return;
         }
-    }
 
-    return true;
+        req->access_acquired = true;
+        buffer.access_current = buffer.access_current->access_next;
+    }
+}
+
+bool MemoryManager::try_lock_access(Buffer& buffer, Request& req) {
+    poll_access_queue(buffer);
+    return req.access_acquired;
 }
 
 void MemoryManager::unlock_access(
@@ -715,14 +755,11 @@ void MemoryManager::unlock_access(
     BufferEntry& entry = buffer.entry(memory_id);
 
     entry.access_events.insert(*m_streams, event);
-    entry.num_readers_active--;
 
     if (is_writer) {
-        entry.num_writes_active--;
         entry.write_events.insert(*m_streams, event);
 
         if (req.mode == AccessMode::Exclusive) {
-            buffer.exclusive_writer_active = false;
             entry.epoch_event = event;
         }
     }

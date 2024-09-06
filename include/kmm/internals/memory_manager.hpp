@@ -77,8 +77,9 @@ class MemoryManager {
     void unlock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req);
 
     std::optional<DeviceId> find_valid_device_entry(const Buffer& buffer) const;
-    bool is_access_allowed(MemoryId memory_id, const Buffer& buffer, AccessMode mode) const;
-    bool try_lock_access(MemoryId memory_id, Buffer& buffer, Request& req);
+    bool is_access_allowed(const Buffer& buffer, MemoryId memory_id, AccessMode mode) const;
+    void poll_access_queue(Buffer& buffer) const;
+    bool try_lock_access(Buffer& buffer, Request& req);
     void unlock_access(MemoryId memory_id, Buffer& buffer, Request& req, CudaEvent event);
 
     CudaEvent make_entry_valid(MemoryId memory_id, Buffer& buffer);
@@ -93,6 +94,9 @@ class MemoryManager {
 
     void add_to_allocation_queue(DeviceId device_id, Request& req) const;
     void remove_from_allocation_queue(DeviceId device_id, Request& req) const;
+
+    void add_to_buffer_access_queue(Buffer& buffer, Request& req) const;
+    void remove_from_buffer_access_queue(Buffer& buffer, Request& req) const;
 
     bool is_out_of_memory(DeviceId device_id, Transaction& trans);
 
