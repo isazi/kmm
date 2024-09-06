@@ -7,78 +7,56 @@
 
 namespace kmm {
 
-template<typename T, typename F>
-void execute_reduction(
-    const T* src_buffer,
-    T* dst_buffer,
-    F combine,
-    size_t num_partials,
-    size_t num_results) {
-    for (size_t i = 0; i < num_results; i++) {
-        dst_buffer[i] = src_buffer[i];
+inline void execute_copy_impl(
+    const void* src_buffer,
+    void* dst_buffer,
+    CopyDescription copy_description) {
+    for (size_t i0 = 0; i0 < copy_description.counts[0]; i0++) {
+        for (size_t i1 = 0; i1 < copy_description.counts[1]; i1++) {
+            for (size_t i2 = 0; i2 < copy_description.counts[2]; i2++) {
+                for (size_t i3 = 0; i3 < copy_description.counts[3]; i3++) {
+                    size_t src_offset = copy_description.src_offset
+                        + i0 * copy_description.src_strides[0]
+                        + i1 * copy_description.src_strides[1]
+                        + i2 * copy_description.src_strides[2]
+                        + i3 * copy_description.src_strides[3];
 
-        for (size_t j = 1; j < num_partials; j++) {
-            dst_buffer[i] = combine(dst_buffer[i], src_buffer[num_results * j + i]);
+                    size_t dst_offset = copy_description.dst_offset
+                        + i0 * copy_description.dst_strides[0]
+                        + i1 * copy_description.dst_strides[1]
+                        + i2 * copy_description.dst_strides[2]
+                        + i3 * copy_description.dst_strides[3];
+
+                    ::memcpy(
+                        static_cast<uint8_t*>(dst_buffer) + dst_offset,
+                        static_cast<const uint8_t*>(src_buffer) + src_offset,
+                        copy_description.element_size);
+                }
+            }
         }
     }
 }
 
-void execute_reduction(
-    const void* src_buffer,
-    void* dst_buffer,
-    Reduction reduction,
-    size_t num_partials,
-    size_t num_results) {
-    switch (reduction.data_type) {
-        case DataType::Int8:
-            switch (reduction.op) {
-                case ReductionOp::Sum:
-                    return execute_reduction(
-                        (const int8_t*)src_buffer,
-                        (int8_t*)dst_buffer,
-                        std::plus<int8_t>(),
-                        num_partials,
-                        num_results);
-                case ReductionOp::Product:
-                    break;
-                case ReductionOp::Min:
-                    break;
-                case ReductionOp::Max:
-                    break;
-                case ReductionOp::BitAnd:
-                    break;
-                case ReductionOp::BitOr:
-                    break;
-            }
-        case DataType::Int16:
-            break;
-        case DataType::Int32:
-            break;
-        case DataType::Int64:
-            break;
-        case DataType::Uint8:
-            break;
-        case DataType::Uint16:
-            break;
-        case DataType::Uint32:
-            break;
-        case DataType::Uint64:
-            break;
-        case DataType::Float16:
-            break;
-        case DataType::Float32:
-            break;
-        case DataType::Float64:
-            break;
-        case DataType::Complex16:
-            break;
-        case DataType::Complex32:
-            break;
-        case DataType::Complex64:
-            break;
+template<size_t Align>
+bool is_aligned(const void* src_buffer, void* dst_buffer, CopyDescription copy_description) {
+    bool result = reinterpret_cast<uintptr_t>(src_buffer) % Align == 0
+        && reinterpret_cast<uintptr_t>(dst_buffer) % Align == 0
+        && copy_description.src_offset % Align == 0 && copy_description.dst_offset % Align == 0
+        && copy_description.element_size % Align == 0;
+
+    for (size_t i = 0; i < CopyDescription::MAX_DIMS; i++) {
+        if (copy_description.counts[i] > 1) {
+            result &= copy_description.src_strides[i] % Align == 0;
+            result &= copy_description.dst_strides[i] % Align == 0;
+        }
     }
+
+    return result;
 }
 
-void execute_copy(const void* src_buffer, void* dst_buffer, CopyDescription copy_description) {}
+void execute_copy(const void* src_buffer, void* dst_buffer, CopyDescription copy_description) {
+    copy_description.simplify();
+    return execute_copy_impl(src_buffer, dst_buffer, copy_description);
+}
 
 }  // namespace kmm
