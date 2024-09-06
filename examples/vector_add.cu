@@ -4,74 +4,74 @@
 #include "kmm/api/array.hpp"
 #include "kmm/api/partition.hpp"
 
-__global__
-void process_kernel(
-    kmm::rect<3> subregion,
-    int n, int m, int k,
-    kmm::cuda_subview<float, 2> a,
-    kmm::cuda_subview<float, 2> b,
-    kmm::cuda_subview_mut<float, 2> c
+void fill_range(
+    kmm::rect<1> subrange,
+    kmm::subview_mut<float> view
 ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x + subregion.offset.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y + subregion.offset.y;
+    for (long i = subrange.begin(); i < subrange.end(); i++) {
+        view[i] = float(i);
+    }
+}
 
-    if (!subregion.contains(kmm::point {i, j, 0})) {
+void cuda_fill_zeros(
+    kmm::CudaDevice& device,
+    kmm::rect<1> subrange,
+    kmm::cuda_subview_mut<float> view
+) {
+    device.fill(
+        view.data_at(subrange.begin()),
+        subrange.size(),
+        0.0F
+   );
+}
+
+__global__ void vector_add(
+    kmm::rect<1> subrange,
+    kmm::cuda_subview_mut<float> C,
+    kmm::cuda_subview<float> A,
+    kmm::cuda_subview<float> B
+) {
+    int x = blockIdx.x * blockDim.x + threadIdx.x + subrange.begin();
+    if (x >= subrange.end()) {
         return;
     }
 
-    for (int l = 0; l < k; l++) {
-        c[i][j] += a[i][l] * b[l][j];
-    }
-}
-
-void kernel_function(
-    kmm::rect<3> subregion,
-    int n, int m, int k,
-    kmm::subview<float, 2> a,
-    kmm::subview<float, 2> b,
-    kmm::subview_mut<float, 2> c
-) {
-    for (int i = subregion.begin(0); i < subregion.end(0); i++) {
-        for (int j = subregion.begin(1); j < subregion.end(1); j++) {
-            for (int l = 0; l < k; l++) {
-                c[i][j] += a[i][l] * b[l][j];
-            }
-        }
-    }
-}
-
-void example(kmm::Runtime rt) {
-    using namespace kmm::placeholders;
-
-    int n = 150;
-    int m = 50;
-    int k = 10;
-
-    auto a = kmm::Array<float, 2> {n, k};
-    auto b = kmm::Array<float, 2> {k, m};
-    auto c = kmm::Array<float, 2> {n, m};
-
-    rt.parallel_submit(
-        kmm::ChunkPartition<3> {
-            {n, m, k},
-            {10, 10, k}
-        },
-        kmm::CudaKernel(
-            dim3 {5, 5, 5}
-        ),
-        process_kernel,
-        n,
-        m,
-        k,
-        read(a, slice(_i, _k)),
-        read(b, slice(_k, _j)),
-        write(c, slice(_i, _j))
-    );
-
-    rt.synchronize();
+    C[x] = A[x] + B[x];
 }
 
 int main() {
+    using namespace kmm::placeholders;
     auto rt = kmm::make_runtime();
-    example(rt);
+
+    int n = 1024 * 1024;
+    int chunk_size = n / 10;
+
+    auto A = kmm::Array<float>(n);
+    auto B = kmm::Array<float>(n);
+    auto C = kmm::Array<float>(n);
+
+    rt.parallel_submit(
+        kmm::ChunkPartition<1>{n, chunk_size},
+        kmm::Host(),
+        fill_range,
+        write(A, slice(_x))
+    );
+
+    rt.parallel_submit(
+        kmm::ChunkPartition<1>{n, chunk_size},
+        kmm::Cuda(),
+        cuda_fill_zeros,
+        write(B, slice(_x))
+    );
+
+    rt.parallel_submit(
+        kmm::ChunkPartition<1>{n, chunk_size},
+        kmm::CudaKernel(256),
+        vector_add,
+        write(C, slice(_x)),
+        read(A, slice(_x)),
+        read(B, slice(_x))
+    );
+
+    rt.synchronize();
 }
