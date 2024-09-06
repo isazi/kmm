@@ -53,9 +53,10 @@ class TaskGraph {
 
     std::vector<Event> flush();
 
+    void access_buffer(BufferId buffer_id, AccessMode mode, EventList& deps_out);
+
   private:
     EventId insert_event(Command command, EventList deps = {});
-    void access_buffer(BufferId buffer_id, AccessMode mode, EventList& deps_out);
 
     uint64_t m_next_event_id = 1;
     EventList m_events_since_last_barrier;

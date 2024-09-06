@@ -74,5 +74,55 @@ const CudaDeviceInfo& SystemInfo::device_by_ordinal(CUdevice ordinal) const {
     throw std::runtime_error(fmt::format("cannot find CUDA device with ordinal {}", ordinal));
 }
 
+std::vector<ProcessorId> SystemInfo::processors() const {
+    std::vector<ProcessorId> result {ProcessorId::host()};
+    for (const auto& device : m_devices) {
+        result.push_back(device.device_id());
+    }
+
+    return result;
+}
+
+std::vector<MemoryId> SystemInfo::memories() const {
+    std::vector<MemoryId> result {MemoryId::host()};
+    for (const auto& device : m_devices) {
+        result.push_back(device.memory_id());
+    }
+
+    return result;
+}
+
+MemoryId SystemInfo::affinity_memory(DeviceId device_id) const {
+    return device(device_id).memory_id();
+}
+
+MemoryId SystemInfo::affinity_memory(ProcessorId proc_id) const {
+    if (proc_id.is_device()) {
+        return affinity_memory(proc_id.as_device());
+    } else {
+        return MemoryId::host();
+    }
+}
+
+ProcessorId SystemInfo::affinity_processor(MemoryId memory_id) const {
+    if (memory_id.is_device()) {
+        return memory_id.as_device();
+    } else {
+        return ProcessorId::host();
+    }
+}
+
+bool SystemInfo::is_memory_accessible(MemoryId memory_id, ProcessorId proc_id) const {
+    if (!memory_id.is_host() && proc_id.is_device()) {
+        return affinity_memory(proc_id.as_device()) == memory_id;
+    }
+
+    return memory_id.is_host();
+}
+
+bool SystemInfo::is_memory_accessible(MemoryId memory_id, DeviceId device_id) const {
+    return is_memory_accessible(memory_id, ProcessorId(device_id));
+}
+
 }  // namespace kmm
 #endif

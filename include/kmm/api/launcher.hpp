@@ -7,18 +7,30 @@ namespace kmm {
 struct Host {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Host;
 
+    template<size_t N>
+    ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
+        return ProcessorId::host();
+    }
+
     template<size_t N, typename F, typename... Args>
     void operator()(ExecutionContext& exec, Chunk<N> chunk, F fun, Args... args) {
-        fun(args...);
+        auto region = rect<N>(chunk.offset, chunk.size);
+        fun(region, args...);
     }
 };
 
 struct Cuda {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Cuda;
 
+    template<size_t N>
+    ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
+        return chunk.owner_id.is_device() ? chunk.owner_id : ProcessorId(DeviceId(0));
+    }
+
     template<size_t N, typename F, typename... Args>
     void operator()(ExecutionContext& exec, Chunk<N> chunk, F fun, Args... args) {
-        fun(exec.cast<CudaDevice>(), args...);
+        auto region = rect<N>(chunk.offset, chunk.size);
+        fun(exec.cast<CudaDevice>(), region, args...);
     }
 };
 
@@ -35,6 +47,11 @@ struct CudaKernel {
         block_size(block_size),
         elements_per_block(elements_per_block),
         shared_memory(shared_memory) {}
+
+    template<size_t N>
+    ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
+        return Cuda {}.find_processor(info, chunk);
+    }
 
     template<size_t N, typename K, typename... Args>
     void operator()(ExecutionContext& exec, Chunk<N> chunk, K kernel, Args... args) {
@@ -93,14 +110,17 @@ EventId parallel_submit_impl(
     Args&&... args) {
     return worker.with_task_graph([&](TaskGraph& graph) {
         EventList events;
+
         std::tuple<TaskDataProcessor<typename std::decay<Args>::type>...> processors = {
             std::forward<Args>(args)...};
 
         for (const Chunk<N>& chunk : partition.chunks) {
+            ProcessorId processor_id = launcher.find_processor(worker.system_info(), chunk);
+
             TaskBuilder builder {
                 .graph = graph,
                 .worker = worker,
-                .memory_id = chunk.owner_id.as_memory(),
+                .memory_id = worker.system_info().affinity_memory(processor_id),
                 .buffers = {},
                 .dependencies = {}};
 
@@ -113,7 +133,7 @@ EventId parallel_submit_impl(
                 std::get<Is>(processors).process_chunk(chunk, builder)...);
 
             EventId id = graph.insert_task(
-                chunk.owner_id,
+                processor_id,
                 std::move(task),
                 std::move(builder.buffers),
                 std::move(builder.dependencies));
@@ -121,9 +141,10 @@ EventId parallel_submit_impl(
             events.push_back(id);
         }
 
-        auto result = TaskResult {.graph = graph, .worker = worker, .events = std::move(events)};
-
+        TaskResult result =
+            TaskResult {.graph = graph, .worker = worker, .events = std::move(events)};
         (std::get<Is>(processors).finalize(result), ...);
+
         return graph.join_events(result.events);
     });
 }

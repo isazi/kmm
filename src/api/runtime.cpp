@@ -12,10 +12,10 @@ class CopyInTask: public Task {
 
         void* dst_addr = context.accessors[0].address;
 
-        if (auto* device = dynamic_cast<CudaDevice*>(&proc)) {
+        if (auto* device = proc.cast_if<CudaDevice>()) {
             device->copy_bytes(m_src_addr, dst_addr, m_nbytes);
             device->synchronize();
-        } else if (dynamic_cast<HostContext*>(&proc)) {
+        } else if (proc.is<HostContext>()) {
             ::memcpy(dst_addr, m_src_addr, m_nbytes);
         } else {
             throw std::runtime_error("invalid execution context");

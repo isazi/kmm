@@ -1,4 +1,5 @@
 #include "kmm/api/array.hpp"
+#include "kmm/api/runtime.hpp"
 #include "kmm/internals/worker.hpp"
 #include "kmm/utils/integer_fun.hpp"
 
@@ -105,14 +106,13 @@ ArrayChunk<N> ArrayBackend<N>::chunk(size_t index) const {
             fmt::format("index {} is out of range for array of size {}", index, m_buffers.size()));
     }
 
-    size_t remaining = checked_cast<int64_t>(index);
     point<N> offset;
     dim<N> size;
 
     for (size_t j = 0; j < N; j++) {
         size_t i = N - 1 - j;
-        auto k = remaining % m_num_chunks[i];
-        remaining /= m_num_chunks[i];
+        auto k = index % m_num_chunks[i];
+        index /= m_num_chunks[i];
 
         offset[i] = int64_t(k) * m_chunk_size[i];
         size[i] = std::min(m_chunk_size[i], m_array_size[i] - offset[i]);
@@ -122,6 +122,21 @@ ArrayChunk<N> ArrayBackend<N>::chunk(size_t index) const {
     MemoryId owner_id = MemoryId::host();
 
     return {m_buffers[index], owner_id, offset, size};
+}
+
+template<size_t N>
+void ArrayBackend<N>::synchronize() const {
+    auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
+        auto deps = EventList {};
+
+        for (const auto& buffer_id : m_buffers) {
+            graph.access_buffer(buffer_id, AccessMode::ReadWrite, deps);
+        }
+
+        return graph.join_events(deps);
+    });
+
+    m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
 }
 
 template class ArrayBackend<0>;

@@ -34,6 +34,7 @@ class ArrayBackend: public std::enable_shared_from_this<ArrayBackend<N>> {
 
     ArrayChunk<N> find_chunk(rect<N> region) const;
     ArrayChunk<N> chunk(size_t index) const;
+    void synchronize() const;
 
     size_t num_chunks() const {
         return m_buffers.size();
@@ -124,6 +125,12 @@ class Array: ArrayBase {
 
     const Worker& worker() const {
         return inner().worker();
+    }
+
+    void synchronize() const {
+        if (m_backend) {
+            m_backend->synchronize();
+        }
     }
 
   private:

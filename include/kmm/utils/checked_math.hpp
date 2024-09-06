@@ -7,12 +7,12 @@ namespace kmm {
 
 namespace detail {
 
-template<typename T>
+template<typename L, typename R, typename T>
 struct checked_arithmetic_impl;
 
 #define KMM_IMPL_CHECKED_ARITHMETIC(T, ADD_FUN, SUB_FUN, MUL_FUN) \
     template<>                                                    \
-    struct checked_arithmetic_impl<T> {                           \
+    struct checked_arithmetic_impl<T, T, T> {                     \
         static bool add(T lhs, T rhs, T* result) {                \
             return ADD_FUN(lhs, rhs, result) == false;            \
         }                                                         \
@@ -64,7 +64,7 @@ KMM_IMPL_CHECKED_ARITHMETIC(
 
 #define KMM_IMPL_CHECKED_ARITHMETIC_FORWARD(T, R)                         \
     template<>                                                            \
-    struct checked_arithmetic_impl<T> {                                   \
+    struct checked_arithmetic_impl<T, T, T> {                             \
         static bool add(T lhs, T rhs, T* result) {                        \
             R temp = static_cast<R>(lhs) + static_cast<R>(rhs);           \
             *result = static_cast<T>(temp);                               \
@@ -146,7 +146,7 @@ template<typename T>
 T checked_add(T left, T right) {
     T result;
 
-    if (!detail::checked_arithmetic_impl<T>::add(left, right, &result)) {
+    if (!detail::checked_arithmetic_impl<T, T, T>::add(left, right, &result)) {
         throw_overflow_exception();
     }
 
@@ -160,7 +160,7 @@ template<typename T>
 T checked_sub(T left, T right) {
     T result;
 
-    if (!detail::checked_arithmetic_impl<T>::sub(left, right, &result)) {
+    if (!detail::checked_arithmetic_impl<T, T, T>::sub(left, right, &result)) {
         throw_overflow_exception();
     }
 
@@ -174,7 +174,7 @@ template<typename T>
 T checked_mul(T left, T right) {
     T result;
 
-    if (!detail::checked_arithmetic_impl<T>::mul(left, right, &result)) {
+    if (!detail::checked_arithmetic_impl<T, T, T>::mul(left, right, &result)) {
         throw_overflow_exception();
     }
 
@@ -208,7 +208,7 @@ template<typename T>
 T saturating_add(T left, T right) {
     T result;
 
-    if (!detail::checked_arithmetic_impl<T>::add(left, right, &result)) {
+    if (!detail::checked_arithmetic_impl<T, T, T>::add(left, right, &result)) {
         return right < 0 ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
     }
 
@@ -222,7 +222,7 @@ template<typename T>
 T saturating_sub(T left, T right) {
     T result;
 
-    if (!detail::checked_arithmetic_impl<T>::sub(left, right, &result)) {
+    if (!detail::checked_arithmetic_impl<T, T, T>::sub(left, right, &result)) {
         return right >= 0 ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
     }
 
@@ -236,7 +236,7 @@ template<typename T>
 T saturating_mul(T left, T right) {
     T result;
 
-    if (!detail::checked_arithmetic_impl<T>::mul(left, right, &result)) {
+    if (!detail::checked_arithmetic_impl<T, T, T>::mul(left, right, &result)) {
         return (left >= 0) == (right >= 0) ? std::numeric_limits<T>::max()
                                            : std::numeric_limits<T>::min();
     }
@@ -251,7 +251,7 @@ template<typename T>
 T saturating_negate(T value) {
     T result;
 
-    if (!detail::checked_arithmetic_impl<T>::sub(T(0), value, &result)) {
+    if (!detail::checked_arithmetic_impl<T, T, T>::sub(T(0), value, &result)) {
         return value >= 0 ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
     }
 
@@ -336,12 +336,11 @@ U checked_sum(const T* begin, const T* end) {
         return U {};
     }
 
-    U result = static_cast<U>(*begin);
     bool is_valid = in_range<U>(*begin);
+    U result = static_cast<U>(*begin);
 
     for (const T* it = begin + 1; it != end; it++) {
-        is_valid &= in_range<U>(*it);
-        is_valid &= detail::checked_arithmetic_impl<T>::add(result, static_cast<U>(*it), &result);
+        is_valid &= detail::checked_arithmetic_impl<U, T, U>::add(result, *it, &result);
     }
 
     if (!is_valid) {
@@ -365,12 +364,11 @@ U checked_product(const T* begin, const T* end) {
         return static_cast<U>(1);
     }
 
-    U result = static_cast<U>(*begin);
     bool is_valid = in_range<U>(*begin);
+    U result = static_cast<U>(*begin);
 
     for (const T* it = begin + 1; it != end; it++) {
-        is_valid &= in_range<U>(*it);
-        is_valid &= detail::checked_arithmetic_impl<T>::mul(result, static_cast<U>(*it), &result);
+        is_valid &= detail::checked_arithmetic_impl<U, T, U>::mul(result, *it, &result);
     }
 
     if (!is_valid) {
