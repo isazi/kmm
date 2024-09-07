@@ -1,6 +1,7 @@
 #pragma once
 
 #include "partition.hpp"
+#include "spdlog/spdlog.h"
 
 #include "kmm/core/geometry.hpp"
 
@@ -12,6 +13,8 @@ struct IdentityMapping {
         return {chunk.offset, chunk.size};
     }
 };
+
+static constexpr IdentityMapping one_to_one;
 
 struct FullMapping {
     template<size_t N, size_t M>
@@ -102,10 +105,21 @@ struct IndexMapping {
                 n = 1;
             }
 
+            spdlog::debug(
+                "scale={} offset={} length={} maps={},{} to {},{}",
+                m_scale,
+                m_offset,
+                m_length,
+                chunk.offset.get(m_variable),
+                chunk.size.get(m_variable),
+                i,
+                n);
+
             result.offset[0] = i;
             result.sizes[0] = n;
         }
 
+        spdlog::debug("{} intersection {} result {}", result, bounds, result.intersection(bounds));
         return result.intersection(bounds);
     }
 

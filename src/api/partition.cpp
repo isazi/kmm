@@ -1,3 +1,5 @@
+#include "spdlog/spdlog.h"
+
 #include "kmm/api/partition.hpp"
 #include "kmm/utils/integer_fun.hpp"
 
@@ -7,6 +9,10 @@ template<size_t N>
 Partition<N> ChunkPartition<N>::operator()(const SystemInfo& info) const {
     std::vector<Chunk<N>> chunks;
     size_t num_devices = info.num_devices();
+
+    if (num_devices == 0) {
+        throw std::runtime_error("no CUDA devices found, cannot partition work");
+    }
 
     dim<N> num_chunks;
     point<N> current;

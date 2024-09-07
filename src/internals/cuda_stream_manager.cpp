@@ -70,15 +70,6 @@ const CudaEvent* CudaEventSet::end() const {
     return m_events.end();
 }
 
-CudaEventSet& CudaEventSet::operator=(const CudaEventSet& that) {
-    if (this != &that) {
-        clear();
-        m_events.insert_all(that.begin(), that.end());
-    }
-
-    return *this;
-}
-
 CudaEventSet& CudaEventSet::operator=(std::initializer_list<CudaEvent> items) {
     clear();
     m_events.insert_all(items.begin(), items.end());

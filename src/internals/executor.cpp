@@ -1,5 +1,7 @@
 #include <mutex>
 
+#include "spdlog/spdlog.h"
+
 #include "kmm/internals/executor.hpp"
 
 namespace kmm {
@@ -104,7 +106,7 @@ struct HostOperation: public Operation {
 };
 
 struct DeviceOperation: public Operation {
-    enum struct Status { Init, Pending, Running, Done } status = Status::Pending;
+    enum struct Status { Init, Pending, Running, Done } status = Status::Init;
 
     size_t stream_index;
     std::shared_ptr<Task> task;
@@ -163,7 +165,7 @@ struct DeviceOperation: public Operation {
             }
 
             event = executor.m_streams->with_stream(stream, dependencies, [&](auto s) {
-                CudaContextGuard guard {executor.m_streams->get(device->device_id())};
+                CudaContextGuard guard {device->context_handle()};
                 task->execute(*device, TaskContext {accessors});
 
                 // Make sure to wait on default stream if anything was accidentally submitted on the wrong stream
@@ -192,13 +194,26 @@ struct DeviceOperation: public Operation {
 };
 
 Executor::Executor(
+    size_t num_devices,
     std::shared_ptr<CudaStreamManager> streams,
+    std::shared_ptr<BufferManager> buffers,
     std::shared_ptr<MemoryManager> memory,
     std::shared_ptr<Scheduler> scheduler) :
     m_streams(streams),
+    m_buffers(buffers),
     m_memory(memory),
     m_scheduler(scheduler) {
-    KMM_PANIC("TODO: initialize devices");
+    for (size_t i = 0; i < num_devices; i++) {
+        auto device_id = DeviceId(i);
+
+        auto stream = streams->stream_for_device(device_id);
+        auto device = std::make_unique<CudaDevice>(
+            CudaDeviceInfo(device_id, streams->get(device_id)),
+            streams->get(device_id),
+            streams->get(stream));
+
+        m_devices.emplace_back(stream, std::move(device));
+    }
 }
 
 Executor::~Executor() = default;
@@ -229,12 +244,14 @@ void Executor::submit_task(
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
     CudaEventSet dependencies) {
+    spdlog::info("submit task {}: {} buffers", job->id(), buffers.size());
+
     if (processor_id.is_device()) {
         submit_device_task(
             job,
             processor_id.as_device(),
             std::move(task),
-            buffers,
+            std::move(buffers),
             std::move(dependencies));
     } else {
         submit_host_task(job, std::move(task), std::move(buffers), std::move(dependencies));
@@ -260,9 +277,11 @@ void Executor::submit_device_task(
     std::vector<BufferRequirement> buffers,
     CudaEventSet dependencies) {
     // TODO: improve stream selection
+    size_t stream_index = device_id.get();
+
     m_operations.push_back(std::make_unique<DeviceOperation>(
         job,
-        0,
+        stream_index,
         task,
         std::move(buffers),
         std::move(dependencies)));

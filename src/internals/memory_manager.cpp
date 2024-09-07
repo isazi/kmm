@@ -102,15 +102,6 @@ struct MemoryManager::Device {
     KMM_NOT_COPYABLE_OR_MOVABLE(Device);
 
   public:
-    CudaContextHandle context;
-    CUmemoryPool memory_pool;
-    size_t bytes_in_use = 0;
-    size_t bytes_limit = std::numeric_limits<size_t>::max();
-    CudaStream h2d_stream;
-    CudaStream d2h_stream;
-    CudaStream alloc_stream;
-    CudaStream dealloc_stream;
-
     Buffer* lru_oldest = nullptr;
     Buffer* lru_newest = nullptr;
 
@@ -118,72 +109,22 @@ struct MemoryManager::Device {
     Request* allocation_current = nullptr;
     Request* allocation_tail = nullptr;
 
-    Device(MemoryDeviceInfo info) :
-        context(info.context),
-        h2d_stream(info.h2d_stream),
-        d2h_stream(info.d2h_stream),
-        alloc_stream(info.alloc_stream),
-        dealloc_stream(info.dealloc_stream),
-        bytes_limit(info.num_bytes_limit) {
-        CudaContextGuard guard {context};
-
-        CUdevice device;
-        KMM_CUDA_CHECK(cuCtxGetDevice(&device));
-
-        size_t total_bytes;
-        size_t free_bytes;
-        KMM_CUDA_CHECK(cuMemGetInfo(&free_bytes, &total_bytes));
-
-        bytes_limit = std::min(
-            info.num_bytes_limit,
-            saturating_sub(total_bytes, info.num_bytes_keep_available));
-
-        CUmemPoolProps props;
-        ::bzero(&props, sizeof(CUmemPoolProps));
-        props.allocType = CU_MEM_ALLOCATION_TYPE_PINNED;
-        props.handleTypes = CU_MEM_HANDLE_TYPE_NONE;
-        props.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-        props.location.id = device;
-
-        KMM_CUDA_CHECK(cuMemPoolCreate(&memory_pool, &props));
-    }
-
-    ~Device() {
-        CudaContextGuard guard {context};
-        KMM_ASSERT(bytes_in_use == 0);
-        KMM_CUDA_CHECK(cuMemPoolDestroy(memory_pool));
-    }
-};
-
-struct MemoryManager::DeferredDeletion {
-    CudaEventSet dependencies;
-    void* data;
+    Device() = default;
 };
 
 MemoryManager::MemoryManager(
     std::shared_ptr<CudaStreamManager> streams,
-    std::vector<MemoryDeviceInfo> devices) :
-    m_streams(streams) {
-    for (size_t i = 0; i < devices.size() && i < MAX_DEVICES; i++) {
-        m_devices[i] = std::make_unique<Device>(devices[i]);
-    }
-}
+    std::unique_ptr<MemoryAllocator> allocator) :
+    m_streams(streams),
+    m_allocator(std::move(allocator)),
+    m_devices(std::make_unique<Device[]>(MAX_DEVICES)) {}
 
 MemoryManager::~MemoryManager() {
     KMM_ASSERT(m_buffers.empty());
 }
 
 void MemoryManager::make_progress() {
-    while (!m_deferred_deletions.empty()) {
-        auto& p = m_deferred_deletions.back();
-
-        if (!m_streams->is_ready(p.dependencies)) {
-            break;
-        }
-
-        KMM_CUDA_CHECK(cuMemFreeHost(p.data));
-        m_deferred_deletions.pop_back();
-    }
+    m_allocator->make_progress();
 }
 
 bool MemoryManager::is_idle() const {
@@ -337,44 +278,44 @@ void MemoryManager::release_request(std::shared_ptr<Request> req, CudaEvent even
 }
 
 void MemoryManager::add_to_allocation_queue(DeviceId device_id, Request& req) const {
-    const auto& device = m_devices[device_id];
-    auto* tail = device->allocation_tail;
+    auto& device = m_devices[device_id];
+    auto* tail = device.allocation_tail;
 
     if (tail == nullptr) {
-        device->allocation_head = &req;
+        device.allocation_head = &req;
     } else {
         tail->allocation_next = &req;
         req.allocation_prev = tail;
     }
 
-    device->allocation_tail = &req;
+    device.allocation_tail = &req;
 
-    if (device->allocation_current == nullptr) {
-        device->allocation_current = &req;
+    if (device.allocation_current == nullptr) {
+        device.allocation_current = &req;
     }
 }
 
 void MemoryManager::remove_from_allocation_queue(DeviceId device_id, Request& req) const {
-    const auto& device = m_devices[device_id];
+    auto& device = m_devices[device_id];
     auto* prev = std::exchange(req.allocation_prev, nullptr);
     auto* next = std::exchange(req.allocation_next, nullptr);
 
     if (prev != nullptr) {
         prev->allocation_next = next;
     } else {
-        KMM_ASSERT(device->allocation_head == &req);
-        device->allocation_head = next;
+        KMM_ASSERT(device.allocation_head == &req);
+        device.allocation_head = next;
     }
 
     if (next != nullptr) {
         next->allocation_prev = prev;
     } else {
-        KMM_ASSERT(device->allocation_tail == &req);
-        device->allocation_tail = prev;
+        KMM_ASSERT(device.allocation_tail == &req);
+        device.allocation_tail = prev;
     }
 
-    if (device->allocation_current == &req) {
-        device->allocation_current = next;
+    if (device.allocation_current == &req) {
+        device.allocation_current = next;
     }
 }
 
@@ -450,14 +391,14 @@ void MemoryManager::insert_into_lru(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(device_entry.is_allocated);
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
 
-    auto* prev = device->lru_newest;
+    auto* prev = device.lru_newest;
     if (prev != nullptr) {
         prev->device_entry[device_id].lru_newer = &buffer;
     }
 
     device_entry.lru_older = prev;
     device_entry.lru_newer = nullptr;
-    device->lru_newest = &buffer;
+    device.lru_newest = &buffer;
 }
 
 void MemoryManager::remove_from_lru(DeviceId device_id, Buffer& buffer) {
@@ -473,24 +414,24 @@ void MemoryManager::remove_from_lru(DeviceId device_id, Buffer& buffer) {
     if (prev != nullptr) {
         prev->device_entry[device_id].lru_newer = next;
     } else {
-        device->lru_newest = next;
+        device.lru_newest = next;
     }
 
     if (next != nullptr) {
         next->device_entry[device_id].lru_older = prev;
     } else {
-        device->lru_oldest = prev;
+        device.lru_oldest = prev;
     }
 }
 
 bool MemoryManager::try_free_device_memory(DeviceId device_id) {
     auto& device = m_devices[device_id];
 
-    if (device->lru_oldest == nullptr) {
+    if (device.lru_oldest == nullptr) {
         return false;
     }
 
-    auto& victim = *device->lru_oldest;
+    auto& victim = *device.lru_oldest;
 
     if (victim.device_entry[device_id].is_valid) {
         bool valid_anywhere = victim.host_entry.is_valid;
@@ -523,29 +464,12 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
     }
 
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
+    CudaEvent event;
 
-    if (device->bytes_limit - device->bytes_in_use < buffer.layout.size_in_bytes) {
+    if (!m_allocator
+             ->allocate_device(device_id, buffer.layout.size_in_bytes, device_entry.data, event)) {
         return false;
     }
-
-    CUresult result;
-    auto event = m_streams->with_stream(device->alloc_stream, [&](auto stream) {
-        result = cuMemAllocFromPoolAsync(
-            &device_entry.data,
-            buffer.layout.size_in_bytes,
-            device->memory_pool,
-            stream);
-    });
-
-    if (result == CUDA_ERROR_OUT_OF_MEMORY) {
-        return false;
-    }
-
-    if (result != CUDA_SUCCESS) {
-        throw CudaDriverException("`cuMemAllocFromPoolAsync` failed", result);
-    }
-
-    device->bytes_in_use += device->bytes_in_use;
 
     device_entry.is_allocated = true;
     device_entry.is_valid = false;
@@ -569,10 +493,10 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
     KMM_ASSERT(buffer.access_current == nullptr);
     KMM_ASSERT(buffer.access_tail == nullptr);
 
-    m_streams->with_stream(device->dealloc_stream, device_entry.access_events, [&](auto stream) {
-        KMM_CUDA_CHECK(cuMemFreeAsync(device_entry.data, stream));
-    });
-
+    m_allocator->deallocate_device(
+        device_id,
+        device_entry.data,
+        std::move(device_entry.access_events));
     remove_from_lru(device_id, buffer);
 
     device_entry.is_allocated = false;
@@ -590,10 +514,7 @@ void MemoryManager::allocate_host(Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated == false);
     KMM_ASSERT(host_entry.num_allocation_locks == 0);
 
-    KMM_CUDA_CHECK(cuMemHostAlloc(
-        &host_entry.data,  //
-        buffer.layout.size_in_bytes,
-        CU_MEMHOSTALLOC_PORTABLE));
+    host_entry.data = m_allocator->allocate_host(buffer.layout.size_in_bytes);
 
     host_entry.is_allocated = true;
     host_entry.is_valid = false;
@@ -610,10 +531,9 @@ void MemoryManager::deallocate_host(Buffer& buffer) {
     KMM_ASSERT(buffer.access_current == nullptr);
     KMM_ASSERT(buffer.access_tail == nullptr);
 
-    // All events need to be ready before memory can be deallocated. This is why we add the
-    // pointer to the deletion queue to defer it to a later moment in time.
-    m_deferred_deletions.push_back({host_entry.access_events, host_entry.data});
+    m_allocator->deallocate_host(host_entry.data, std::move(host_entry.access_events));
 
+    host_entry.data = nullptr;
     host_entry.is_allocated = false;
     host_entry.is_valid = false;
     host_entry.epoch_event = CudaEvent {};
@@ -635,12 +555,12 @@ void MemoryManager::lock_allocation_host(Buffer& buffer, Request& req) {
 bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req) {
     auto& device = m_devices[device_id];
 
-    if (device->allocation_current != &req) {
+    if (device.allocation_current != &req) {
         return false;
     }
 
     KMM_ASSERT(req.allocation_acquired == false);
-    KMM_ASSERT(device->allocation_current == &req);
+    KMM_ASSERT(device.allocation_current == &req);
 
     auto& device_entry = buffer.device_entry[device_id];
 
@@ -670,7 +590,7 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
     }
 
     req.allocation_acquired = true;
-    device->allocation_current = req.allocation_next;
+    device.allocation_current = req.allocation_next;
     device_entry.num_allocation_locks++;
     return true;
 }
@@ -836,16 +756,16 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated && device_entry.is_allocated);
     KMM_ASSERT(host_entry.is_valid && !device_entry.is_valid);
 
-    m_streams->wait_for_events(device->h2d_stream, device_entry.access_events);
-    m_streams->wait_for_events(device->h2d_stream, host_entry.write_events);
+    CudaEventSet deps;
+    deps.insert(*m_streams, device_entry.access_events);
+    deps.insert(*m_streams, host_entry.write_events);
 
-    auto event = m_streams->with_stream(device->h2d_stream, [&](auto stream) {
-        KMM_CUDA_CHECK(cuMemcpyHtoDAsync(
-            device_entry.data,
-            host_entry.data,
-            buffer.layout.size_in_bytes,
-            stream));
-    });
+    auto event = m_allocator->copy_host_to_device(
+        device_id,
+        host_entry.data,
+        device_entry.data,
+        buffer.layout.size_in_bytes,
+        std::move(deps));
 
     host_entry.access_events.insert(*m_streams, event);
     device_entry.epoch_event = event;
@@ -864,16 +784,16 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated && device_entry.is_allocated);
     KMM_ASSERT(!host_entry.is_valid && device_entry.is_valid);
 
-    m_streams->wait_for_events(device->d2h_stream, device_entry.write_events);
-    m_streams->wait_for_events(device->d2h_stream, host_entry.access_events);
+    CudaEventSet deps;
+    deps.insert(*m_streams, device_entry.write_events);
+    deps.insert(*m_streams, host_entry.access_events);
 
-    auto event = m_streams->with_stream(device->d2h_stream, [&](auto stream) {
-        KMM_CUDA_CHECK(cuMemcpyDtoHAsync(
-            host_entry.data,
-            device_entry.data,
-            buffer.layout.size_in_bytes,
-            stream));
-    });
+    auto event = m_allocator->copy_device_to_host(
+        device_id,
+        device_entry.data,
+        host_entry.data,
+        buffer.layout.size_in_bytes,
+        std::move(deps));
 
     device_entry.access_events.insert(*m_streams, event);
     host_entry.epoch_event = event;
@@ -890,7 +810,7 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Transaction& trans) {
 
     // First, iterate over the requests that are waiting for allocation. Mark all the
     // related transactions as `waiting` by adding them to `waiting_transactions`
-    for (auto* it = device->allocation_current; it != nullptr; it = it->allocation_next) {
+    for (auto* it = device.allocation_current; it != nullptr; it = it->allocation_next) {
         auto* p = it->parent.get();
 
         while (p != nullptr) {
@@ -902,7 +822,7 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Transaction& trans) {
     // Next, iterate over the requests that have been granted an allocation. If the associated
     // transaction of one of the requests has not been marked as waiting, we are not out of memory
     // since that transaction will release its memory again at some point in the future.
-    for (auto* it = device->allocation_head; it != device->allocation_current;
+    for (auto* it = device.allocation_head; it != device.allocation_current;
          it = it->allocation_next) {
         auto* p = it->parent.get();
 

@@ -176,16 +176,37 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
 }
 
 Worker::Worker(std::vector<CudaContextHandle> contexts) {
+    m_streams = std::make_shared<CudaStreamManager>(contexts, 5);
+    m_scheduler = std::make_shared<Scheduler>();
+    m_graph = std::make_shared<TaskGraph>();
+    m_buffers = std::make_shared<BufferManager>();
+
     std::vector<CudaDeviceInfo> device_infos;
-    std::vector<MemoryDeviceInfo> device_mem;
+    std::vector<MemoryDeviceInfo> device_mems;
+
+    for (size_t i = 0; i < contexts.size(); i++) {
+        auto device_id = DeviceId(i);
+        auto context = contexts[i];
+
+        device_infos.push_back(CudaDeviceInfo(device_id, context));
+        device_mems.push_back(MemoryDeviceInfo {
+            .context = context,
+            .alloc_stream = m_streams->stream_for_device(device_id, 1),
+            .dealloc_stream = m_streams->stream_for_device(device_id, 2),
+            .h2d_stream = m_streams->stream_for_device(device_id, 3),
+            .d2h_stream = m_streams->stream_for_device(device_id, 4),
+        });
+    }
 
     m_info = SystemInfo(device_infos);
-    m_scheduler = std::make_shared<Scheduler>();
-    m_streams = std::make_shared<CudaStreamManager>(contexts, 10);
-    m_graph = std::make_shared<TaskGraph>();
-    m_memory = std::make_shared<MemoryManager>(m_streams, device_mem);
-    m_executor = std::make_shared<Executor>(m_streams, m_memory, m_scheduler);
+
+    m_memory = std::make_shared<MemoryManager>(
+        m_streams,
+        std::make_unique<MemoryAllocator>(m_streams, device_mems));
     m_root_transaction = m_memory->create_transaction();
+
+    m_executor =
+        std::make_shared<Executor>(contexts.size(), m_streams, m_buffers, m_memory, m_scheduler);
 }
 
 Worker::~Worker() {

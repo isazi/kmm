@@ -6,25 +6,11 @@
 
 #include "kmm/core/buffer.hpp"
 #include "kmm/internals/cuda_stream_manager.hpp"
+#include "kmm/internals/memory_allocator.hpp"
 
 namespace kmm {
 
 using TransactionId = uint64_t;
-
-struct MemoryDeviceInfo {
-    CudaContextHandle context;
-
-    // Maximum number of bytes that can be allocated
-    size_t num_bytes_limit = std::numeric_limits<size_t>::max();
-
-    // The number of bytes that should remain available on the device for other CUDA frameworks
-    size_t num_bytes_keep_available = 100'000'000;
-
-    CudaStream alloc_stream;
-    CudaStream dealloc_stream;
-    CudaStream h2d_stream;
-    CudaStream d2h_stream;
-};
 
 class MemoryManager {
     KMM_NOT_COPYABLE_OR_MOVABLE(MemoryManager)
@@ -34,11 +20,10 @@ class MemoryManager {
     struct Buffer;
     struct Device;
     struct Transaction;
-    struct DeferredDeletion;
 
     MemoryManager(
         std::shared_ptr<CudaStreamManager> streams,
-        std::vector<MemoryDeviceInfo> devices);
+        std::unique_ptr<MemoryAllocator> allocator);
     ~MemoryManager();
 
     void make_progress();
@@ -104,8 +89,8 @@ class MemoryManager {
     std::shared_ptr<CudaStreamManager> m_streams;
     std::unordered_set<std::shared_ptr<Buffer>> m_buffers;
     std::unordered_set<std::shared_ptr<Request>> m_active_requests;
-    std::unique_ptr<Device> m_devices[MAX_DEVICES];
-    std::vector<DeferredDeletion> m_deferred_deletions;
+    std::unique_ptr<Device[]> m_devices;
+    std::unique_ptr<MemoryAllocator> m_allocator;
 };
 
 using MemoryRequest = std::shared_ptr<MemoryManager::Request>;

@@ -1,6 +1,7 @@
 #include <stdexcept>
 
 #include "fmt/format.h"
+#include "spdlog/spdlog.h"
 
 #include "kmm/core/cuda_device.hpp"
 #include "kmm/utils/checked_math.hpp"
@@ -70,6 +71,7 @@ void CudaDevice::fill_bytes(
     if (is_fill_pattern_repetitive<1>(fill_pattern, fill_pattern_size)) {
         uint8_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint8_t));
+        spdlog::debug("fill async: {} {} {} {}", dest_buffer, pattern, nbytes, (void*)m_stream);
         KMM_CUDA_CHECK(cuMemsetD8Async(CUdeviceptr(dest_buffer), pattern, nbytes, m_stream));
     } else if (is_fill_pattern_repetitive<2>(fill_pattern, fill_pattern_size)) {
         uint16_t pattern;

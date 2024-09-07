@@ -24,6 +24,7 @@ struct CudaEvent {
 class CudaEventSet {
   public:
     CudaEventSet() = default;
+    CudaEventSet(const CudaEventSet&) = default;
     CudaEventSet(CudaEvent);
     CudaEventSet(std::initializer_list<CudaEvent>);
 
@@ -34,7 +35,7 @@ class CudaEventSet {
     const CudaEvent* begin() const;
     const CudaEvent* end() const;
 
-    CudaEventSet& operator=(const CudaEventSet&);
+    CudaEventSet& operator=(const CudaEventSet&) = default;
     CudaEventSet& operator=(std::initializer_list<CudaEvent>);
 
   private:

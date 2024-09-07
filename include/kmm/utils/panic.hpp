@@ -39,7 +39,7 @@ template<typename... Args>
     const void* data[] = {static_cast<const void*>(&args)...};
     auto formatter = [](std::ostream& stream, const void** args) {
         size_t index = 0;
-        ((stream << static_cast<const Args*>(args[index++])), ...);
+        ((stream << *static_cast<const Args*>(args[index++])), ...);
     };
 
     panic_format(filename, line, formatter, data);

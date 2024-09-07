@@ -94,7 +94,7 @@ class CudaDevice: public CudaDeviceInfo, public ExecutionContext {
     template<typename T, typename I>
     void fill(T* dest, I num_elements, T value) const {
         fill_bytes(
-            &dest,
+            dest,
             checked_mul(checked_cast<size_t>(num_elements), sizeof(T)),
             &value,
             sizeof(T));

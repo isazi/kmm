@@ -40,20 +40,14 @@ struct small_vector {
         std::swap(this->m_inline_data, that.m_inline_data);
         std::swap(this->m_size, that.m_size);
         std::swap(this->m_capacity, that.m_capacity);
-
-        auto* this_data = this->m_data;
-        auto* that_data = that.m_data;
+        std::swap(this->m_data, that.m_data);
 
         if (!this->is_heap_allocated()) {
             this->m_data = this->m_inline_data;
-        } else {
-            this->m_data = that_data;
         }
 
         if (!that.is_heap_allocated()) {
             that.m_data = that.m_inline_data;
-        } else {
-            that.m_data = this_data;
         }
 
         return *this;

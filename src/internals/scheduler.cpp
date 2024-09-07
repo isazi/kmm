@@ -76,7 +76,7 @@ void Scheduler::set_complete(std::shared_ptr<TaskNode> node) {
 }
 
 bool Scheduler::is_completed(EventId id) const {
-    return m_events.find(id) != m_events.end();
+    return m_events.find(id) == m_events.end();
 }
 
 bool Scheduler::is_idle() const {

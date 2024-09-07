@@ -1,3 +1,5 @@
+#include "spdlog/spdlog.h"
+
 #include "kmm/api/array.hpp"
 #include "kmm/api/runtime.hpp"
 #include "kmm/internals/worker.hpp"
@@ -10,7 +12,8 @@ ArrayBackend<N>::ArrayBackend(
     std::shared_ptr<Worker> worker,
     dim<N> array_size,
     std::vector<ArrayChunk<N>> chunks) :
-    m_worker(worker) {
+    m_worker(worker),
+    m_array_size(array_size) {
     for (const auto& chunk : chunks) {
         if (chunk.offset == point<N>::zero()) {
             m_chunk_size = chunk.size;
@@ -96,6 +99,7 @@ ArrayChunk<N> ArrayBackend<N>::find_chunk(rect<N> region) const {
     // TODO
     MemoryId owner_id = MemoryId::host();
 
+    spdlog::debug("find_chunk {} -> {} (index: {})", region, rect<N>(offset, sizes), buffer_index);
     return {m_buffers[buffer_index], owner_id, offset, sizes};
 }
 

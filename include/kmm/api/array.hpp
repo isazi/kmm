@@ -3,6 +3,8 @@
 #include <memory>
 #include <vector>
 
+#include "spdlog/spdlog.h"
+
 #include "kmm/api/access.hpp"
 #include "kmm/api/packed_array.hpp"
 #include "kmm/api/task_data.hpp"
@@ -150,6 +152,11 @@ struct TaskDataProcessor<Read<Array<T, N>, SliceMapping<N>>> {
     type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
         auto access_region = m_mapping(chunk, m_backend->array_size());
         auto data_chunk = m_backend->find_chunk(access_region);
+        spdlog::debug(
+            "mapping {} -> {} (buffer={})",
+            rect<M>(chunk.offset, chunk.size),
+            access_region,
+            data_chunk.buffer_id);
 
         size_t buffer_index = builder.buffers.size();
         builder.buffers.emplace_back(BufferRequirement {

@@ -19,7 +19,7 @@ class Worker;
 class Runtime {
   public:
     Runtime(std::shared_ptr<Worker> worker) : m_worker(std::move(worker)) {
-        KMM_ASSERT(worker != nullptr);
+        KMM_ASSERT(m_worker != nullptr);
     }
 
     Runtime(Worker& worker) : Runtime(worker.shared_from_this()) {}
