@@ -21,13 +21,11 @@ class MemoryManager {
     struct Device;
     struct Transaction;
 
-    MemoryManager(
-        std::shared_ptr<CudaStreamManager> streams,
-        std::unique_ptr<MemoryAllocator> allocator);
+    MemoryManager(std::unique_ptr<MemoryAllocator> allocator);
     ~MemoryManager();
 
     void make_progress();
-    bool is_idle() const;
+    bool is_idle(CudaStreamManager& streams) const;
 
     std::shared_ptr<Transaction> create_transaction(std::shared_ptr<Transaction> parent = nullptr);
 
@@ -85,8 +83,9 @@ class MemoryManager {
 
     bool is_out_of_memory(DeviceId device_id, Transaction& trans);
 
+    void check_consistency() const;
+
     uint64_t m_next_transaction_id = 1;
-    std::shared_ptr<CudaStreamManager> m_streams;
     std::unordered_set<std::shared_ptr<Buffer>> m_buffers;
     std::unordered_set<std::shared_ptr<Request>> m_active_requests;
     std::unique_ptr<Device[]> m_devices;

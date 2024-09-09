@@ -3,23 +3,10 @@
 
 namespace kmm {
 
-struct MemoryDeviceInfo {
-    CudaContextHandle context;
-
-    // Maximum number of bytes that can be allocated
-    size_t num_bytes_limit = std::numeric_limits<size_t>::max();
-
-    // The number of bytes that should remain available on the device for other CUDA frameworks
-    size_t num_bytes_keep_available = 100'000'000;
-
-    CudaStream alloc_stream;
-    CudaStream dealloc_stream;
-    CudaStream h2d_stream;
-    CudaStream d2h_stream;
-};
-
 class MemoryAllocator {
   public:
+    virtual ~MemoryAllocator() = default;
+
     virtual void make_progress() {}
 
     virtual void* allocate_host(size_t nbytes) = 0;
@@ -47,6 +34,21 @@ class MemoryAllocator {
         void* dst_addr,
         size_t nbytes,
         CudaEventSet deps) = 0;
+};
+
+struct MemoryDeviceInfo {
+    CudaContextHandle context;
+
+    // Maximum number of bytes that can be allocated
+    size_t num_bytes_limit = std::numeric_limits<size_t>::max();
+
+    // The number of bytes that should remain available on the device for other CUDA frameworks
+    size_t num_bytes_keep_available = 100'000'000;
+
+    CudaStream alloc_stream;
+    CudaStream dealloc_stream;
+    CudaStream h2d_stream;
+    CudaStream d2h_stream;
 };
 
 class MemoryAllocatorImpl: public MemoryAllocator {

@@ -2,6 +2,7 @@
 #include <cstring>
 
 #include "fmt/format.h"
+#include "spdlog/spdlog.h"
 
 #include "kmm/internals/memory_manager.hpp"
 #include "kmm/utils/integer_fun.hpp"
@@ -112,10 +113,7 @@ struct MemoryManager::Device {
     Device() = default;
 };
 
-MemoryManager::MemoryManager(
-    std::shared_ptr<CudaStreamManager> streams,
-    std::unique_ptr<MemoryAllocator> allocator) :
-    m_streams(streams),
+MemoryManager::MemoryManager(std::unique_ptr<MemoryAllocator> allocator) :
     m_allocator(std::move(allocator)),
     m_devices(std::make_unique<Device[]>(MAX_DEVICES)) {}
 
@@ -127,22 +125,22 @@ void MemoryManager::make_progress() {
     m_allocator->make_progress();
 }
 
-bool MemoryManager::is_idle() const {
+bool MemoryManager::is_idle(CudaStreamManager& streams) const {
     bool result = true;
 
     for (const auto& buffer : m_buffers) {
         for (auto& e : buffer->device_entry) {
-            result &= m_streams->is_ready(e.access_events);
-            result &= m_streams->is_ready(e.write_events);
-            result &= m_streams->is_ready(e.epoch_event);
-            result &= m_streams->is_ready(e.allocation_event);
+            result &= streams.is_ready(e.access_events);
+            result &= streams.is_ready(e.write_events);
+            result &= streams.is_ready(e.epoch_event);
+            result &= streams.is_ready(e.allocation_event);
         }
 
         auto& e = buffer->host_entry;
-        result &= m_streams->is_ready(e.access_events);
-        result &= m_streams->is_ready(e.write_events);
-        result &= m_streams->is_ready(e.epoch_event);
-        result &= m_streams->is_ready(e.allocation_event);
+        result &= streams.is_ready(e.access_events);
+        result &= streams.is_ready(e.write_events);
+        result &= streams.is_ready(e.epoch_event);
+        result &= streams.is_ready(e.allocation_event);
     }
 
     return result;
@@ -177,6 +175,8 @@ void MemoryManager::delete_buffer(std::shared_ptr<Buffer> buffer) {
     for (size_t i = 0; i < MAX_DEVICES; i++) {
         deallocate_device_async(DeviceId(i), *buffer);
     }
+
+    check_consistency();
 }
 
 std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
@@ -217,7 +217,7 @@ bool MemoryManager::poll_request(Request& req, CudaEventSet& deps_out) {
             }
         }
 
-        deps_out.insert(*m_streams, buffer.entry(memory_id).allocation_event);
+        deps_out.insert(buffer.entry(memory_id).allocation_event);
         req.status = Request::Status::Allocated;
     }
 
@@ -394,11 +394,15 @@ void MemoryManager::insert_into_lru(DeviceId device_id, Buffer& buffer) {
     auto* prev = device.lru_newest;
     if (prev != nullptr) {
         prev->device_entry[device_id].lru_newer = &buffer;
+    } else {
+        device.lru_oldest = &buffer;
     }
 
     device_entry.lru_older = prev;
     device_entry.lru_newer = nullptr;
     device.lru_newest = &buffer;
+
+    check_consistency();
 }
 
 void MemoryManager::remove_from_lru(DeviceId device_id, Buffer& buffer) {
@@ -408,17 +412,17 @@ void MemoryManager::remove_from_lru(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(device_entry.is_allocated);
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
 
-    auto* prev = device_entry.lru_newer;
-    auto* next = device_entry.lru_older;
+    auto* prev = std::exchange(device_entry.lru_newer, nullptr);
+    auto* next = std::exchange(device_entry.lru_older, nullptr);
 
     if (prev != nullptr) {
-        prev->device_entry[device_id].lru_newer = next;
+        prev->device_entry[device_id].lru_older = next;
     } else {
         device.lru_newest = next;
     }
 
     if (next != nullptr) {
-        next->device_entry[device_id].lru_older = prev;
+        next->device_entry[device_id].lru_newer = prev;
     } else {
         device.lru_oldest = prev;
     }
@@ -506,6 +510,8 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
     device_entry.write_events.clear();
     device_entry.access_events.clear();
     device_entry.data = 0;
+
+    check_consistency();
 }
 
 void MemoryManager::allocate_host(Buffer& buffer) {
@@ -583,10 +589,10 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
 
             return false;
         }
-    }
-
-    if (device_entry.num_allocation_locks == 0) {
-        remove_from_lru(device_id, buffer);
+    } else {
+        if (device_entry.num_allocation_locks == 0) {
+            remove_from_lru(device_id, buffer);
+        }
     }
 
     req.allocation_acquired = true;
@@ -674,10 +680,10 @@ void MemoryManager::unlock_access(
     bool is_writer = req.mode != AccessMode::Read;
     BufferEntry& entry = buffer.entry(memory_id);
 
-    entry.access_events.insert(*m_streams, event);
+    entry.access_events.insert(event);
 
     if (is_writer) {
-        entry.write_events.insert(*m_streams, event);
+        entry.write_events.insert(event);
 
         if (req.mode == AccessMode::Exclusive) {
             entry.epoch_event = event;
@@ -694,24 +700,24 @@ void MemoryManager::initiate_transfers(
     auto& entry = buffer.entry(memory_id);
 
     auto event = make_entry_valid(memory_id, buffer);
-    deps_out.insert(*m_streams, event);
+    deps_out.insert(event);
 
     if (is_writer) {
         if (!memory_id.is_host()) {
             buffer.host_entry.is_valid = false;
-            deps_out.insert(*m_streams, buffer.host_entry.access_events);
+            deps_out.insert(buffer.host_entry.access_events);
         }
 
         // Invalidate all _other_ device entries
         for (auto& peer_entry : buffer.device_entry) {
             if (&peer_entry != &entry) {
                 peer_entry.is_valid = false;
-                deps_out.insert(*m_streams, peer_entry.access_events);
+                deps_out.insert(peer_entry.access_events);
             }
         }
 
         if (req.mode == AccessMode::Exclusive) {
-            deps_out.insert(*m_streams, entry.access_events);
+            deps_out.insert(entry.access_events);
         }
     }
 }
@@ -757,8 +763,8 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_valid && !device_entry.is_valid);
 
     CudaEventSet deps;
-    deps.insert(*m_streams, device_entry.access_events);
-    deps.insert(*m_streams, host_entry.write_events);
+    deps.insert(device_entry.access_events);
+    deps.insert(host_entry.write_events);
 
     auto event = m_allocator->copy_host_to_device(
         device_id,
@@ -767,7 +773,7 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
         buffer.layout.size_in_bytes,
         std::move(deps));
 
-    host_entry.access_events.insert(*m_streams, event);
+    host_entry.access_events.insert(event);
     device_entry.epoch_event = event;
     device_entry.access_events = {event};
     device_entry.write_events = {event};
@@ -785,8 +791,8 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(!host_entry.is_valid && device_entry.is_valid);
 
     CudaEventSet deps;
-    deps.insert(*m_streams, device_entry.write_events);
-    deps.insert(*m_streams, host_entry.access_events);
+    deps.insert(device_entry.write_events);
+    deps.insert(host_entry.access_events);
 
     auto event = m_allocator->copy_device_to_host(
         device_id,
@@ -795,7 +801,7 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
         buffer.layout.size_in_bytes,
         std::move(deps));
 
-    device_entry.access_events.insert(*m_streams, event);
+    device_entry.access_events.insert(event);
     host_entry.epoch_event = event;
     host_entry.access_events = {event};
     host_entry.write_events = {event};
@@ -833,5 +839,42 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Transaction& trans) {
 
     return true;
 }
+
+void MemoryManager::check_consistency() const {}
+
+// This is here to check the consistency of the data structures while debugging.
+/*
+void MemoryManager::check_consistency() const {
+    for (size_t i = 0; i < MAX_DEVICES; i++) {
+        std::unordered_set<Buffer*> available_buffers;
+        auto id = DeviceId(i);
+        auto& device = m_devices[i];
+
+        auto* prev = (Buffer*) nullptr;
+        auto* current = device.lru_oldest;
+
+        while (current != nullptr) {
+            available_buffers.insert(current);
+            auto& entry = current->device_entry[id];
+
+            KMM_ASSERT(entry.num_allocation_locks == 0);
+            KMM_ASSERT(entry.lru_older == prev);
+
+            prev = current;
+            current = entry.lru_newer;
+        }
+
+        KMM_ASSERT(prev == device.lru_newest);
+
+        for (const auto& buffer: m_buffers) {
+            auto& entry = buffer->device_entry[id];
+
+            if (entry.is_allocated && entry.num_allocation_locks == 0) {
+                KMM_ASSERT(available_buffers.find(buffer.get()) != available_buffers.end());
+            }
+        }
+    }
+}
+*/
 
 }  // namespace kmm

@@ -1,10 +1,17 @@
+#include <unordered_map>
+
+#include "spdlog/spdlog.h"
+
 #include "kmm/internals/memory_allocator.hpp"
 
 namespace kmm {
 
 struct MemoryAllocatorImpl::Device {
+    KMM_NOT_COPYABLE(Device)
+
+  public:
     CudaContextHandle context;
-    CUmemoryPool memory_pool;
+    CUmemoryPool memory_pool = nullptr;
     size_t bytes_in_use = 0;
     size_t bytes_limit = std::numeric_limits<size_t>::max();
 
@@ -12,6 +19,9 @@ struct MemoryAllocatorImpl::Device {
     CudaStream d2h_stream;
     CudaStream alloc_stream;
     CudaStream dealloc_stream;
+
+    std::unordered_map<CUdeviceptr, size_t> active_allocations;
+    std::deque<std::pair<CudaEvent, size_t>> pending_deallocations;
 
     Device(MemoryDeviceInfo info) :
         context(info.context),
@@ -43,10 +53,27 @@ struct MemoryAllocatorImpl::Device {
         KMM_CUDA_CHECK(cuMemPoolCreate(&memory_pool, &props));
     }
 
+    Device(Device&& that) :
+        context(that.context),
+        h2d_stream(that.h2d_stream),
+        d2h_stream(that.d2h_stream),
+        alloc_stream(that.alloc_stream),
+        dealloc_stream(that.dealloc_stream),
+        bytes_limit(that.bytes_limit),
+        bytes_in_use(that.bytes_in_use),
+        memory_pool(that.memory_pool),
+        active_allocations(std::move(that.active_allocations)) {
+        that.memory_pool = nullptr;
+        that.bytes_in_use = 0;
+    }
+
     ~Device() {
         CudaContextGuard guard {context};
         KMM_ASSERT(bytes_in_use == 0);
-        KMM_CUDA_CHECK(cuMemPoolDestroy(memory_pool));
+
+        if (memory_pool != nullptr) {
+            KMM_CUDA_CHECK(cuMemPoolDestroy(memory_pool));
+        }
     }
 };
 
@@ -58,9 +85,22 @@ struct MemoryAllocatorImpl::DeferredDeletion {
 MemoryAllocatorImpl::MemoryAllocatorImpl(
     std::shared_ptr<CudaStreamManager> streams,
     std::vector<MemoryDeviceInfo> devices) :
-    m_streams(streams) {}
+    m_streams(streams) {
+    for (auto device : devices) {
+        m_devices.push_back(Device(device));
+    }
+}
 
-MemoryAllocatorImpl::~MemoryAllocatorImpl() = default;
+MemoryAllocatorImpl::~MemoryAllocatorImpl() {
+    for (auto& device : m_devices) {
+        while (!device.pending_deallocations.empty()) {
+            auto [dealloc_event, dealloc_size] = device.pending_deallocations.front();
+
+            m_streams->wait_until_ready(dealloc_event);
+            device.bytes_in_use -= dealloc_size;
+        }
+    }
+}
 
 bool MemoryAllocatorImpl::allocate_device(
     DeviceId device_id,
@@ -69,11 +109,17 @@ bool MemoryAllocatorImpl::allocate_device(
     CudaEvent& event_out) {
     auto& device = m_devices.at(device_id.get());
 
-    if (device.bytes_limit - device.bytes_in_use < nbytes) {
-        return false;
-    }
+    while (device.bytes_limit - device.bytes_in_use < nbytes) {
+        if (device.pending_deallocations.empty()) {
+            return false;
+        }
 
-    device.bytes_in_use += device.bytes_in_use;
+        auto [dealloc_event, dealloc_size] = device.pending_deallocations.front();
+        device.pending_deallocations.pop_front();
+
+        device.bytes_in_use -= dealloc_size;
+        m_streams->wait_for_event(device.alloc_stream, dealloc_event);
+    }
 
     CUresult result;
 
@@ -89,6 +135,8 @@ bool MemoryAllocatorImpl::allocate_device(
         throw CudaDriverException("`cuMemAllocFromPoolAsync` failed", result);
     }
 
+    device.bytes_in_use += nbytes;
+    device.active_allocations.emplace(ptr_out, nbytes);
     return true;
 }
 
@@ -98,9 +146,17 @@ void MemoryAllocatorImpl::deallocate_device(
     CudaEventSet deps) {
     auto& device = m_devices.at(device_id.get());
 
-    m_streams->with_stream(device.dealloc_stream, deps, [&](auto stream) {
+    auto it = device.active_allocations.find(ptr);
+    KMM_ASSERT(it != device.active_allocations.end());
+
+    size_t nbytes = it->second;
+    device.active_allocations.erase(it);
+
+    auto event = m_streams->with_stream(device.dealloc_stream, deps, [&](auto stream) {
         KMM_CUDA_CHECK(cuMemFreeAsync(ptr, stream));
     });
+
+    device.pending_deallocations.emplace_back(event, nbytes);
 }
 
 void* MemoryAllocatorImpl::allocate_host(size_t nbytes) {

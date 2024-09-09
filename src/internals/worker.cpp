@@ -57,7 +57,7 @@ void Worker::shutdown() {
     m_graph->shutdown();
     flush_events_impl();
 
-    while (!m_scheduler->is_idle() || !m_executor->is_idle() || !m_memory->is_idle()) {
+    while (!m_scheduler->is_idle() || !m_executor->is_idle() || !m_memory->is_idle(*m_streams)) {
         make_progress_impl();
 
         guard.unlock();
@@ -191,6 +191,7 @@ Worker::Worker(std::vector<CudaContextHandle> contexts) {
         device_infos.push_back(CudaDeviceInfo(device_id, context));
         device_mems.push_back(MemoryDeviceInfo {
             .context = context,
+            .num_bytes_limit = 5'000'000'000,
             .alloc_stream = m_streams->stream_for_device(device_id, 1),
             .dealloc_stream = m_streams->stream_for_device(device_id, 2),
             .h2d_stream = m_streams->stream_for_device(device_id, 3),
@@ -201,8 +202,7 @@ Worker::Worker(std::vector<CudaContextHandle> contexts) {
     m_info = SystemInfo(device_infos);
 
     m_memory = std::make_shared<MemoryManager>(
-        m_streams,
-        std::make_unique<MemoryAllocator>(m_streams, device_mems));
+        std::make_unique<MemoryAllocatorImpl>(m_streams, device_mems));
     m_root_transaction = m_memory->create_transaction();
 
     m_executor =
