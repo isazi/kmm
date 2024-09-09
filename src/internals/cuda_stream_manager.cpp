@@ -8,50 +8,43 @@ CudaEventSet::CudaEventSet(CudaEvent e) {
     m_events.push_back(e);
 }
 
-CudaEventSet::CudaEventSet(std::initializer_list<CudaEvent> items) {
-    m_events.insert_all(items.begin(), items.end());
+CudaEventSet::CudaEventSet(std::initializer_list<CudaEvent> e) {
+    m_events.insert_all(e.begin(), e.end());
 }
 
-void CudaEventSet::insert(CudaStreamManager& manager, CudaEvent new_event) {
-    if (manager.is_ready(new_event)) {
-        return;
-    }
+CudaEventSet& CudaEventSet::operator=(std::initializer_list<CudaEvent> e) {
+    clear();
+    m_events.insert_all(e.begin(), e.end());
+    return *this;
+}
 
-    for (auto& event : m_events) {
-        if (manager.is_ready(event) || manager.event_happens_before(event, new_event)) {
-            event = new_event;
+void CudaEventSet::insert(CudaEvent e) {
+    for (CudaEvent& p : m_events) {
+        if (p.stream() == e.stream()) {
+            p = std::max(e, p);
             return;
         }
     }
 
-    m_events.push_back(new_event);
+    m_events.push_back(e);
 }
 
-void CudaEventSet::insert(CudaStreamManager& manager, CudaEventSet& new_events) {
-    for (CudaEvent event : new_events) {
-        insert(manager, event);
+void CudaEventSet::insert(const CudaEventSet& events) {
+    for (CudaEvent e : events) {
+        insert(e);
     }
 }
 
-void CudaEventSet::prune(CudaStreamManager& manager) {
-    size_t n = m_events.size();
-    size_t first_ready = n;
+void CudaEventSet::remove_completed(const CudaStreamManager& m) {
+    size_t index = 0;
+    size_t new_size = m_events.size();
 
-    for (size_t i = 0; i < n; i++) {
-        if (manager.is_ready(m_events[i])) {
-            first_ready = i;
-            break;
-        }
-    }
-
-    if (first_ready == n) {
-        return;
-    }
-
-    size_t new_size = first_ready;
-    for (size_t i = first_ready + 1; i < n; i++) {
-        if (!manager.is_ready(m_events[i])) {
-            m_events[new_size++] = m_events[i];
+    while (index < new_size) {
+        if (m.is_ready(m_events[index])) {
+            m_events[index] = m_events[new_size - 1];
+            new_size--;
+        } else {
+            index++;
         }
     }
 
@@ -68,12 +61,6 @@ const CudaEvent* CudaEventSet::begin() const {
 
 const CudaEvent* CudaEventSet::end() const {
     return m_events.end();
-}
-
-CudaEventSet& CudaEventSet::operator=(std::initializer_list<CudaEvent> items) {
-    clear();
-    m_events.insert_all(items.begin(), items.end());
-    return *this;
 }
 
 struct CudaStreamManager::StreamState {
@@ -112,9 +99,9 @@ CudaStreamManager::CudaStreamManager(
         const auto& context = contexts[i];
         m_event_pools.emplace_back(context);
 
-        CudaContextGuard guard {context};
-
         for (size_t j = 0; j < streams_per_device; j++) {
+            CudaContextGuard guard {context};
+
             CUstream cuda_stream;
             KMM_CUDA_CHECK(cuStreamCreate(&cuda_stream, CU_STREAM_NON_BLOCKING));
             m_streams.emplace_back(DeviceId(i), context, cuda_stream);
@@ -145,8 +132,8 @@ CudaStream CudaStreamManager::stream_for_device(DeviceId device_id, size_t strea
 }
 
 DeviceId CudaStreamManager::device_from_stream(CudaStream stream) const {
-    KMM_ASSERT(stream.stream_index < m_streams.size());
-    return m_streams[stream.stream_index].device_id;
+    KMM_ASSERT(stream < m_streams.size());
+    return m_streams[stream].device_id;
 }
 
 void CudaStreamManager::wait_until_idle() const {
@@ -160,35 +147,35 @@ void CudaStreamManager::wait_until_ready(CudaStream stream) const {
 }
 
 void CudaStreamManager::wait_until_ready(CudaEvent event) const {
-    auto device_id = device_from_stream(event.stream);
-    const auto& src_stream = m_streams[event.stream.stream_index];
+    auto device_id = device_from_stream(event.stream());
+    const auto& src_stream = m_streams[event.stream()];
 
-    if (event.event_index < src_stream.first_pending_index) {
+    if (event.event() < src_stream.first_pending_index) {
         return;
     }
 
-    auto offset = event.event_index - src_stream.first_pending_index;
+    auto offset = event.event() - src_stream.first_pending_index;
     CUevent cuda_event = src_stream.pending_events.at(offset);
 
     CudaContextGuard guard {m_event_pools[device_id].m_context};
     KMM_CUDA_CHECK(cuEventSynchronize(cuda_event));
 }
 
-void CudaStreamManager::wait_until_ready(CudaEventSet events) const {
+void CudaStreamManager::wait_until_ready(const CudaEventSet& events) const {
     for (CudaEvent e : events) {
         wait_until_ready(e);
     }
 }
 
 bool CudaStreamManager::is_ready(CudaStream stream) const {
-    return m_streams.at(stream.stream_index).pending_events.empty();
+    return m_streams.at(stream).pending_events.empty();
 }
 
 bool CudaStreamManager::is_ready(CudaEvent event) const {
-    return m_streams.at(event.stream.stream_index).first_pending_index > event.event_index;
+    return m_streams.at(event.stream()).first_pending_index > event.event();
 }
 
-bool CudaStreamManager::is_ready(CudaEventSet events) const {
+bool CudaStreamManager::is_ready(const CudaEventSet& events) const {
     for (CudaEvent e : events) {
         if (!is_ready(e)) {
             return false;
@@ -198,10 +185,15 @@ bool CudaStreamManager::is_ready(CudaEventSet events) const {
     return true;
 }
 
-void CudaStreamManager::attach_callback(CudaEvent event, NotifyHandle callback) {
-    auto& stream = m_streams[event.stream.stream_index];
+bool CudaStreamManager::is_ready(CudaEventSet& events) const {
+    events.remove_completed(*this);
+    return events.begin() == events.end();
+}
 
-    stream.callbacks_heap.emplace_back(event.event_index, std::move(callback));
+void CudaStreamManager::attach_callback(CudaEvent event, NotifyHandle callback) {
+    auto& stream = m_streams[event.stream()];
+
+    stream.callbacks_heap.emplace_back(event.event(), std::move(callback));
 
     std::push_heap(
         stream.callbacks_heap.begin(),
@@ -215,7 +207,7 @@ void CudaStreamManager::attach_callback(CudaStream stream, NotifyHandle callback
 
 CudaEvent CudaStreamManager::record_event(CudaStream stream_id) {
     DeviceId device_id = device_from_stream(stream_id);
-    auto& stream = m_streams.at(stream_id.stream_index);
+    auto& stream = m_streams.at(stream_id);
     CUevent event = m_event_pools[device_id].pop();
 
     uint64_t event_index = stream.first_pending_index + stream.pending_events.size();
@@ -227,7 +219,7 @@ CudaEvent CudaStreamManager::record_event(CudaStream stream_id) {
 }
 
 void CudaStreamManager::wait_on_default_stream(CudaStream stream_id) {
-    auto& stream = m_streams.at(stream_id.stream_index);
+    auto& stream = m_streams.at(stream_id);
 
     CUevent cuda_event = m_event_pools[stream.device_id].pop();
     m_event_pools[stream.device_id].push(cuda_event);
@@ -237,14 +229,14 @@ void CudaStreamManager::wait_on_default_stream(CudaStream stream_id) {
 }
 
 void CudaStreamManager::wait_for_event(CudaStream stream, CudaEvent event) const {
-    const auto& src_stream = m_streams.at(event.stream.stream_index);
-    const auto& dst_stream = m_streams.at(stream.stream_index);
+    const auto& src_stream = m_streams.at(event.stream());
+    const auto& dst_stream = m_streams.at(stream);
 
-    if (event.event_index < src_stream.first_pending_index) {
+    if (event.event() < src_stream.first_pending_index) {
         return;
     }
 
-    auto offset = event.event_index - src_stream.first_pending_index;
+    auto offset = event.event() - src_stream.first_pending_index;
     CUevent cuda_event = src_stream.pending_events.at(offset);
 
     KMM_CUDA_CHECK(cuStreamWaitEvent(dst_stream.cuda_stream, cuda_event, CU_EVENT_WAIT_DEFAULT));
@@ -268,8 +260,7 @@ void CudaStreamManager::wait_for_events(CudaStream stream, const std::vector<Cud
 }
 
 bool CudaStreamManager::event_happens_before(CudaEvent source, CudaEvent target) const {
-    return source.stream.stream_index == target.stream.stream_index
-        && source.event_index <= target.event_index;
+    return source.stream() == target.stream() && source.event() <= target.event();
 }
 
 CudaContextHandle CudaStreamManager::get(DeviceId id) const {
@@ -278,8 +269,8 @@ CudaContextHandle CudaStreamManager::get(DeviceId id) const {
 }
 
 CUstream CudaStreamManager::get(CudaStream stream) const {
-    KMM_ASSERT(stream.stream_index < m_streams.size());
-    return m_streams[stream.stream_index].cuda_stream;
+    KMM_ASSERT(stream < m_streams.size());
+    return m_streams[stream].cuda_stream;
 }
 
 bool CudaStreamManager::make_progress() {

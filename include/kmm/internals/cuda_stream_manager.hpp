@@ -12,34 +12,77 @@ namespace kmm {
 
 class CudaStreamManager;
 
-struct CudaStream {
-    uint8_t stream_index = 0;
+class CudaStream {
+  public:
+    CudaStream(uint8_t i = 0) : m_index(i) {}
+
+    uint8_t get() const {
+        return m_index;
+    }
+
+    operator uint8_t() const {
+        return m_index;
+    }
+
+  private:
+    uint8_t m_index;
 };
 
-struct CudaEvent {
-    CudaStream stream;
-    uint64_t event_index = 0;
+class CudaEvent {
+  public:
+    CudaEvent() = default;
+
+    CudaEvent(CudaStream stream, uint64_t event) {
+        KMM_ASSERT(event < (1ULL << 56));
+        m_event_and_stream = (uint64_t(stream.get()) << 56) | event;
+    }
+
+    CudaStream stream() const {
+        return static_cast<uint8_t>(m_event_and_stream >> 56);
+    }
+
+    uint64_t event() const {
+        return m_event_and_stream & uint64_t(0x00FFFFFFFFFFFFFF);
+    }
+
+    constexpr bool operator==(const CudaEvent& that) const {
+        return that.m_event_and_stream == m_event_and_stream;
+    }
+
+    constexpr bool operator<(const CudaEvent& that) const {
+        // This is equivalent to tuple(this.stream, this.event) < tuple(that.stream, that.event)
+        return that.m_event_and_stream < m_event_and_stream;
+    }
+
+    KMM_IMPL_COMPARISON_OPS(CudaEvent)
+
+  private:
+    uint64_t m_event_and_stream = 0;
 };
 
 class CudaEventSet {
   public:
     CudaEventSet() = default;
     CudaEventSet(const CudaEventSet&) = default;
+    CudaEventSet(CudaEventSet&&) noexcept = default;
+
     CudaEventSet(CudaEvent);
     CudaEventSet(std::initializer_list<CudaEvent>);
 
-    void insert(CudaStreamManager& manager, CudaEvent new_event);
-    void insert(CudaStreamManager& manager, CudaEventSet& new_events);
-    void prune(CudaStreamManager& manager);
+    CudaEventSet& operator=(const CudaEventSet&) = default;
+    CudaEventSet& operator=(CudaEventSet&&) noexcept = default;
+    CudaEventSet& operator=(std::initializer_list<CudaEvent>);
+
+    void insert(CudaEvent e);
+    void insert(const CudaEventSet& e);
+    void remove_completed(const CudaStreamManager&);
     void clear();
+
     const CudaEvent* begin() const;
     const CudaEvent* end() const;
 
-    CudaEventSet& operator=(const CudaEventSet&) = default;
-    CudaEventSet& operator=(std::initializer_list<CudaEvent>);
-
   private:
-    small_vector<CudaEvent, 2> m_events;
+    small_vector<CudaEvent, 4> m_events;
 };
 
 class CudaStreamManager {
@@ -56,11 +99,12 @@ class CudaStreamManager {
 
     void wait_until_ready(CudaStream stream) const;
     void wait_until_ready(CudaEvent event) const;
-    void wait_until_ready(CudaEventSet events) const;
+    void wait_until_ready(const CudaEventSet& events) const;
 
     bool is_ready(CudaStream stream) const;
     bool is_ready(CudaEvent event) const;
-    bool is_ready(CudaEventSet events) const;
+    bool is_ready(const CudaEventSet& events) const;
+    bool is_ready(CudaEventSet& events) const;
 
     void attach_callback(CudaEvent event, NotifyHandle callback);
     void attach_callback(CudaStream event, NotifyHandle callback);
@@ -83,7 +127,7 @@ class CudaStreamManager {
     CUstream get(CudaStream stream) const;
 
     template<typename F>
-    CudaEvent with_stream(CudaStream stream, CudaEventSet deps, F fun) {
+    CudaEvent with_stream(CudaStream stream, const CudaEventSet& deps, F fun) {
         wait_for_events(stream, deps);
 
         try {
