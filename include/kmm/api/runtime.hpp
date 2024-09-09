@@ -24,57 +24,139 @@ class Runtime {
 
     Runtime(Worker& worker) : Runtime(worker.shared_from_this()) {}
 
-    template<typename P, typename L, typename... Args>
-    EventId parallel_submit(P partition, L launcher, Args&&... args) {
+    /**
+     * Submit a single task to the runtime system.
+     *
+     * @param index_space The index space defining the task dimensions.
+     * @param target The target processor for the task.
+     * @param launcher The task launcher.
+     * @param args The arguments that are forwarded to the launcher.
+     * @return The event identifier for the submitted task.
+     */
+    template<size_t N = 1, typename L, typename... Args>
+    EventId submit(rect<N> index_space, ProcessorId target, L launcher, Args&&... args) {
+        Partition<N> partition = {Chunk<N> {
+            .owner_id = target,  //
+            .offset = index_space.offset,
+            .size = index_space.sizes}};
+
+        return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
+    }
+
+    /**
+     * Submit a set of tasks to the runtime systems.
+     *
+     * @param partition The partition describing how the work is split.
+     * @param launcher The task launcher.
+     * @param args The arguments that are forwarded to the launcher.
+     * @return The event identifier for the submitted task.
+     */
+    template<size_t N = 1, typename L, typename... Args>
+    EventId parallel_submit(Partition<N> partition, L launcher, Args&&... args) {
+        return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
+    }
+
+    /**
+     * Submit a set of tasks to the runtime systems.
+     *
+     * @param index_space The index space defining the loop dimensions.
+     * @param partitioner The partition describing how the work is split.
+     * @param launcher The task launcher.
+     * @param args The arguments that are forwarded to the launcher.
+     * @return The event identifier for the submitted task.
+     */
+    template<size_t N = 1, typename P = ChunkPartition<N>, typename L, typename... Args>
+    EventId parallel_for(rect<N> index_space, P partitioner, L launcher, Args&&... args) {
         return kmm::parallel_submit(
             *m_worker,
-            partition(info()),
+            partitioner(index_space, info()),
             launcher,
             std::forward<Args>(args)...);
     }
 
-    MemoryId memory_affinity_for_address(const void* address) const;
-
+    /**
+     * Allocates an array in memory with the given shape and memory affinity.
+     *
+     * The pointer to the given buffer should contain `shape[0] * shape[1] * shape[2]...`
+     * elements.
+     *
+     * @param data Pointer to the array data.
+     * @param shape Shape of the array.
+     * @param memory_id Identifier of the memory region.
+     * @return The allocated Array object.
+     */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, dim<N> shape) {
-        MemoryId memory_id = memory_affinity_for_address(data);
+    Array<T, N> allocate(const T* data, dim<N> shape, MemoryId memory_id) {
         BufferLayout layout = BufferLayout::for_type<T>(checked_cast<size_t>(shape.volume()));
         BufferId buffer_id = allocate_bytes(data, layout, memory_id);
 
         std::vector<ArrayChunk<N>> chunks = {{buffer_id, memory_id, point<N>::zero(), shape}};
-
         return std::make_shared<ArrayBackend<N>>(m_worker, shape, chunks);
     }
 
-    template<typename T, size_t N = 1>
-    Array<T, N> allocate(view<T, N> data) {
-        return allocate(data.data(), data.sizes());
+    /**
+     * Allocates an array in memory with the given shape.
+     *
+     * The pointer to the given buffer should contain `shape[0] * shape[1] * shape[2]...`
+     * elements.
+     *
+     * In which memory the data will be allocated is determined by `memory_affinity_for_address`.
+     *
+     * @param data Pointer to the array data.
+     * @param shape Shape of the array.
+     * @return The allocated Array object.
+     */
+    template<size_t N = 1, typename T>
+    Array<T, N> allocate(const T* data, dim<N> shape) {
+        return allocate(data, shape, memory_affinity_for_address(data));
     }
 
+    /**
+     * Alias for `allocate(v.data(), v.sizes())`
+     */
+    template<typename T, size_t N = 1>
+    Array<T, N> allocate(view<T, N> v) {
+        return allocate(v.data(), v.sizes());
+    }
+
+    /**
+     * Alias for `allocate(data, dim<N>{sizes...})`
+     */
     template<typename T, typename... Sizes>
     Array<T> allocate(const T* data, Sizes... num_elements) {
         return allocate(data, dim<sizeof...(Sizes)> {checked_cast<int64_t>(num_elements)...});
     }
 
+    /**
+     * Alias for `allocate(v.data(), v.size())`
+     */
     template<typename T>
     Array<T> allocate(const std::vector<T>& v) {
         return allocate(v.data(), v.size());
     }
 
+    /**
+     * Alias for `allocate(v.begin(), v.size())`
+     */
     template<typename T>
     Array<T> allocate(std::initializer_list<T> v) {
         return allocate(v.begin(), v.size());
     }
 
+    /**
+     * Returns the memory affinity for a given address.
+     */
+    MemoryId memory_affinity_for_address(const void* address) const;
+
     BufferId allocate_bytes(const void* data, BufferLayout layout, MemoryId memory_id);
 
     /**
-     * Returns `true` if the event with the provided id has finished, otherwise returns `false`.
+     * Returns `true` if the event with the provided identifier has finished, or `false` otherwise.
      */
     bool is_done(EventId) const;
 
     /**
-     * Block the current thread until the event with the provided id completes.
+     * Block the current thread until the event with the provided identifier completes.
      */
     void wait(EventId id) const;
 

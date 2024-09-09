@@ -135,6 +135,10 @@ class Array: ArrayBase {
         }
     }
 
+    void clear() {
+        m_backend = nullptr;
+    }
+
   private:
     std::shared_ptr<ArrayBackend<N>> m_backend;
     dim<N> m_shape;
@@ -152,11 +156,6 @@ struct TaskDataProcessor<Read<Array<T, N>, SliceMapping<N>>> {
     type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
         auto access_region = m_mapping(chunk, m_backend->array_size());
         auto data_chunk = m_backend->find_chunk(access_region);
-        spdlog::debug(
-            "mapping {} -> {} (buffer={})",
-            rect<M>(chunk.offset, chunk.size),
-            access_region,
-            data_chunk.buffer_id);
 
         size_t buffer_index = builder.buffers.size();
         builder.buffers.emplace_back(BufferRequirement {
@@ -184,7 +183,11 @@ struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
     TaskDataProcessor(Write<Array<T, N>, SliceMapping<N>> arg) :
         m_array(arg.argument),
         m_mapping(arg.index_mapping),
-        m_sizes(arg.argument.shape()) {}
+        m_sizes(arg.argument.shape()) {
+        if (m_array.is_valid()) {
+            throw std::runtime_error("array has already been written to, cannot overwrite array");
+        }
+    }
 
     template<size_t M>
     type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
@@ -254,7 +257,11 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
 
     TaskDataProcessor(Write<Array<T, N>, SliceMapping<N>> arg) :
         m_array(arg.argument),
-        m_sizes(arg.argument.shape()) {}
+        m_sizes(arg.argument.shape()) {
+        if (m_array.is_valid()) {
+            throw std::runtime_error("array has already been written to, cannot overwrite array");
+        }
+    }
 
     template<size_t M>
     type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {

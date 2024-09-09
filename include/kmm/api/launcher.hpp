@@ -4,36 +4,49 @@
 
 namespace kmm {
 
+template<typename F>
 struct Host {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Host;
+
+    Host(F fun) : m_fun(fun) {}
 
     template<size_t N>
     ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
         return ProcessorId::host();
     }
 
-    template<size_t N, typename F, typename... Args>
-    void operator()(ExecutionContext& exec, Chunk<N> chunk, F fun, Args... args) {
+    template<size_t N, typename... Args>
+    void operator()(ExecutionContext& exec, Chunk<N> chunk, Args... args) {
         auto region = rect<N>(chunk.offset, chunk.size);
-        fun(region, args...);
+        m_fun(region, args...);
     }
+
+  private:
+    std::decay_t<F> m_fun;
 };
 
+template<typename F>
 struct Cuda {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Cuda;
+
+    Cuda(F fun) : m_fun(fun) {}
 
     template<size_t N>
     ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
         return chunk.owner_id.is_device() ? chunk.owner_id : ProcessorId(DeviceId(0));
     }
 
-    template<size_t N, typename F, typename... Args>
-    void operator()(ExecutionContext& exec, Chunk<N> chunk, F fun, Args... args) {
+    template<size_t N, typename... Args>
+    void operator()(ExecutionContext& exec, Chunk<N> chunk, Args... args) {
         auto region = rect<N>(chunk.offset, chunk.size);
-        fun(exec.cast<CudaDevice>(), region, args...);
+        m_fun(exec.cast<CudaDevice>(), region, args...);
     }
+
+  private:
+    std::decay_t<F> m_fun;
 };
 
+template<typename F>
 struct CudaKernel {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Cuda;
 
@@ -41,24 +54,27 @@ struct CudaKernel {
     dim3 elements_per_block;
     uint32_t shared_memory;
 
-    CudaKernel(dim3 block_size) : CudaKernel(block_size, block_size) {}
+    CudaKernel(F kernel, dim3 block_size) : CudaKernel(kernel, block_size, block_size) {}
 
-    CudaKernel(dim3 block_size, dim3 elements_per_block, uint32_t shared_memory = 0) :
+    CudaKernel(F kernel, dim3 block_size, dim3 elements_per_block, uint32_t shared_memory = 0) :
+        kernel(kernel),
         block_size(block_size),
         elements_per_block(elements_per_block),
         shared_memory(shared_memory) {}
 
     template<size_t N>
     ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
-        return Cuda {}.find_processor(info, chunk);
+        return chunk.owner_id.is_device() ? chunk.owner_id : DeviceId(0);
     }
 
-    template<size_t N, typename K, typename... Args>
-    void operator()(ExecutionContext& exec, Chunk<N> chunk, K kernel, Args... args) {
+    template<size_t N, typename... Args>
+    void operator()(ExecutionContext& exec, Chunk<N> chunk, Args... args) {
+        int64_t g[3] = {chunk.size.get(0), chunk.size.get(1), chunk.size.get(2)};
+        int64_t b[3] = {elements_per_block.x, elements_per_block.y, elements_per_block.z};
         dim3 grid_dim = {
-            checked_cast<unsigned int>(chunk.size.get(0) / long(elements_per_block.x) + 1),
-            checked_cast<unsigned int>(chunk.size.get(1) / long(elements_per_block.y) + 1),
-            checked_cast<unsigned int>(chunk.size.get(2) / long(elements_per_block.z) + 1),
+            checked_cast<unsigned int>((g[0] / b[0]) + int64_t(g[0] % b[0] != 0)),
+            checked_cast<unsigned int>((g[1] / b[1]) + int64_t(g[1] % b[1] != 0)),
+            checked_cast<unsigned int>((g[2] / b[2]) + int64_t(g[2] % b[2] != 0)),
         };
 
         auto region = rect<N>(chunk.offset, chunk.size);
@@ -70,6 +86,9 @@ struct CudaKernel {
             region,
             args...);
     }
+
+  private:
+    std::decay_t<F> kernel;
 };
 
 template<size_t N, typename Launcher, typename... Args>

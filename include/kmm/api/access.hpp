@@ -105,21 +105,10 @@ struct IndexMapping {
                 n = 1;
             }
 
-            spdlog::debug(
-                "scale={} offset={} length={} maps={},{} to {},{}",
-                m_scale,
-                m_offset,
-                m_length,
-                chunk.offset.get(m_variable),
-                chunk.size.get(m_variable),
-                i,
-                n);
-
             result.offset[0] = i;
             result.sizes[0] = n;
         }
 
-        spdlog::debug("{} intersection {} result {}", result, bounds, result.intersection(bounds));
         return result.intersection(bounds);
     }
 

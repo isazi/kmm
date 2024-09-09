@@ -19,18 +19,13 @@ struct Chunk {
 template<size_t N>
 struct Partition {
     std::vector<Chunk<N>> chunks;
-
-    Partition<N> operator()(const SystemInfo& info) const {
-        return *this;
-    }
 };
 
 template<size_t N>
 struct ChunkPartition {
-    dim<N> global_size;
     dim<N> chunk_size;
 
-    Partition<N> operator()(const SystemInfo& info) const;
+    Partition<N> operator()(rect<N> index_space, const SystemInfo& info) const;
 };
 
 }  // namespace kmm

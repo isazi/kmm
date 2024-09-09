@@ -1,11 +1,31 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/api/array.hpp"
-#include "kmm/api/runtime.hpp"
 #include "kmm/internals/worker.hpp"
 #include "kmm/utils/integer_fun.hpp"
 
 namespace kmm {
+
+template<size_t N>
+rect<N> index2region(
+    size_t index,
+    std::array<size_t, N> num_chunks,
+    dim<N> chunk_size,
+    dim<N> array_size) {
+    point<N> offset;
+    dim<N> sizes;
+
+    for (size_t j = 0; j < N; j++) {
+        size_t i = N - 1 - j;
+        auto k = index % num_chunks[i];
+        index /= num_chunks[i];
+
+        offset[i] = int64_t(k) * chunk_size[i];
+        sizes[i] = std::min(chunk_size[i], array_size[i] - offset[i]);
+    }
+
+    return {offset, sizes};
+}
 
 template<size_t N>
 ArrayBackend<N>::ArrayBackend(
@@ -31,35 +51,45 @@ ArrayBackend<N>::ArrayBackend(
         num_total_chunks *= m_num_chunks[i];
     }
 
-    static constexpr size_t invalid_index = static_cast<size_t>(-1);
-    std::vector<size_t> buffer_locs(num_total_chunks, invalid_index);
+    static constexpr size_t INVALID_INDEX = static_cast<size_t>(-1);
+    std::vector<size_t> buffer_locs(num_total_chunks, INVALID_INDEX);
 
     for (const auto& chunk : chunks) {
         size_t buffer_index = 0;
+        bool is_valid = true;
+        point<N> expected_offset;
+        dim<N> expected_size;
 
         for (size_t i = 0; i < N; i++) {
             auto k = div_floor(chunk.offset[i], m_chunk_size[i]);
-            auto i0 = k * m_chunk_size[i];
-            auto i1 = std::min(m_chunk_size[i], array_size[i] - i0);
 
-            // check if in bounds
-            if (chunk.offset[i] != i0 || chunk.size[i] != i1) {
-                KMM_PANIC("out of bounds");
-            }
+            expected_offset[i] = k * m_chunk_size[i];
+            expected_size[i] = std::min(m_chunk_size[i], array_size[i] - expected_offset[i]);
 
             buffer_index = buffer_index * m_num_chunks[i] + static_cast<size_t>(k);
         }
 
-        if (buffer_locs[buffer_index] != invalid_index) {
-            KMM_TODO();
+        if (chunk.offset != expected_offset || chunk.size != expected_size) {
+            throw std::runtime_error(fmt::format(
+                "invalid write access pattern, the region {} is not aligned to the chunk size of {}",
+                rect<N>(expected_offset, expected_size),
+                m_chunk_size));
+        }
+
+        if (buffer_locs[buffer_index] != INVALID_INDEX) {
+            throw std::runtime_error(fmt::format(
+                "invalid write access pattern, the region {} is written to by more one task",
+                rect<N>(expected_offset, expected_size)));
         }
 
         buffer_locs[buffer_index] = buffer_index;
     }
 
     for (size_t index : buffer_locs) {
-        if (index == invalid_index) {
-            KMM_TODO();
+        if (index == INVALID_INDEX) {
+            auto region = index2region(index, m_num_chunks, m_chunk_size, m_array_size);
+            throw std::runtime_error(
+                fmt::format("invalid write access pattern, no task writes to region {}", region));
         }
     }
 
@@ -84,7 +114,7 @@ ArrayChunk<N> ArrayBackend<N>::find_chunk(rect<N> region) const {
     dim<N> sizes;
 
     for (size_t i = 0; i < N; i++) {
-        auto k = region.offset[i] / m_chunk_size[i];
+        auto k = div_floor(region.offset[i], m_chunk_size[i]);
         auto w = region.offset[i] % m_chunk_size[i] + region.sizes[i];
 
         if (!in_range(k, m_num_chunks[i]) || w > m_chunk_size[i]) {
@@ -96,36 +126,26 @@ ArrayChunk<N> ArrayBackend<N>::find_chunk(rect<N> region) const {
         sizes[i] = m_chunk_size[i];
     }
 
-    // TODO
-    MemoryId owner_id = MemoryId::host();
+    // TODO?
+    MemoryId memory_id = MemoryId::host();
 
-    spdlog::debug("find_chunk {} -> {} (index: {})", region, rect<N>(offset, sizes), buffer_index);
-    return {m_buffers[buffer_index], owner_id, offset, sizes};
+    return {m_buffers[buffer_index], memory_id, offset, sizes};
 }
 
 template<size_t N>
 ArrayChunk<N> ArrayBackend<N>::chunk(size_t index) const {
     if (index >= m_buffers.size()) {
-        throw std::runtime_error(
-            fmt::format("index {} is out of range for array of size {}", index, m_buffers.size()));
+        throw std::runtime_error(fmt::format(
+            "chunk {} is out of range, there are only {} chunks",
+            index,
+            m_buffers.size()));
     }
 
-    point<N> offset;
-    dim<N> size;
+    // TODO?
+    MemoryId memory_id = MemoryId::host();
+    auto region = index2region(index, m_num_chunks, m_chunk_size, m_array_size);
 
-    for (size_t j = 0; j < N; j++) {
-        size_t i = N - 1 - j;
-        auto k = index % m_num_chunks[i];
-        index /= m_num_chunks[i];
-
-        offset[i] = int64_t(k) * m_chunk_size[i];
-        size[i] = std::min(m_chunk_size[i], m_array_size[i] - offset[i]);
-    }
-
-    // TODO
-    MemoryId owner_id = MemoryId::host();
-
-    return {m_buffers[index], owner_id, offset, size};
+    return {m_buffers[index], memory_id, region.offset, region.sizes};
 }
 
 template<size_t N>
@@ -141,6 +161,12 @@ void ArrayBackend<N>::synchronize() const {
     });
 
     m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
+
+    // Access each buffer once to check for errors.
+    for (size_t i = 0; i < m_buffers.size(); i++) {
+        auto memory_id = this->chunk(i).owner_id;
+        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
+    }
 }
 
 template class ArrayBackend<0>;

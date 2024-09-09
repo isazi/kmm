@@ -6,7 +6,7 @@
 namespace kmm {
 
 template<size_t N>
-Partition<N> ChunkPartition<N>::operator()(const SystemInfo& info) const {
+Partition<N> ChunkPartition<N>::operator()(rect<N> index_space, const SystemInfo& info) const {
     std::vector<Chunk<N>> chunks;
     size_t num_devices = info.num_devices();
 
@@ -19,7 +19,7 @@ Partition<N> ChunkPartition<N>::operator()(const SystemInfo& info) const {
     size_t num_total_chunks = 1;
 
     for (size_t i = 0; i < N; i++) {
-        num_chunks[i] = div_ceil(global_size[i], chunk_size[i]);
+        num_chunks[i] = div_ceil(index_space.sizes[i], chunk_size[i]);
         num_total_chunks *= checked_cast<size_t>(num_chunks[i]);
     }
 
@@ -30,8 +30,8 @@ Partition<N> ChunkPartition<N>::operator()(const SystemInfo& info) const {
         dim<N> size;
 
         for (size_t i = 0; i < N; i++) {
-            offset[i] = current[i] * chunk_size[i];
-            size[i] = std::min(chunk_size[i], global_size[i] - offset[i]);
+            offset[i] = current[i] * chunk_size[i] + index_space.offset[i];
+            size[i] = std::min(chunk_size[i], index_space.sizes[i] - offset[i]);
         }
 
         chunks.push_back(Chunk<N> {DeviceId(owner_id), offset, size});

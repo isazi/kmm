@@ -95,6 +95,7 @@ MemoryAllocatorImpl::~MemoryAllocatorImpl() {
     for (auto& device : m_devices) {
         while (!device.pending_deallocations.empty()) {
             auto [dealloc_event, dealloc_size] = device.pending_deallocations.front();
+            device.pending_deallocations.pop_front();
 
             m_streams->wait_until_ready(dealloc_event);
             device.bytes_in_use -= dealloc_size;
@@ -121,7 +122,7 @@ bool MemoryAllocatorImpl::allocate_device(
         m_streams->wait_for_event(device.alloc_stream, dealloc_event);
     }
 
-    CUresult result;
+    CUresult result = CUDA_ERROR_UNKNOWN;
 
     event_out = m_streams->with_stream(device.alloc_stream, [&](auto stream) {
         result = cuMemAllocFromPoolAsync(&ptr_out, nbytes, device.memory_pool, stream);

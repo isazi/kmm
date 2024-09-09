@@ -25,7 +25,6 @@
 
 namespace kmm {
 
-static constexpr size_t MAX_DEVICES = 4;
 using index_t = int;
 
 struct NodeId {
@@ -54,13 +53,24 @@ struct NodeId {
     uint8_t m_value;
 };
 
+// Maximum of 4 devices per node
+static constexpr size_t MAX_DEVICES = 4;
+
 struct DeviceId {
     explicit constexpr DeviceId(uint8_t v) : m_value(v) {}
 
     template<typename T>
-    explicit constexpr DeviceId(T v) : m_value(checked_cast<uint8_t>(v)) {}
+    explicit constexpr DeviceId(T v) : m_value(static_cast<uint8_t>(v)) {
+        if (!in_range(v, MAX_DEVICES)) {
+            throw std::runtime_error("device index out of range");
+        }
+    }
 
     constexpr uint8_t get() const {
+        if (m_value >= MAX_DEVICES) {
+            __builtin_unreachable();
+        }
+
         return m_value;
     }
 
