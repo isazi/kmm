@@ -1,8 +1,12 @@
+#include "spdlog/spdlog.h"
+
 #include "kmm/internals/scheduler.hpp"
 
 namespace kmm {
 
 void Scheduler::insert_event(EventId event_id, Command command, const EventList& deps) {
+    spdlog::debug("submit event {} (command={}, dependencies={})", event_id, command, deps);
+
     auto node = std::make_shared<TaskNode>(event_id, std::move(command));
     size_t num_not_scheduled = 0;
     size_t num_not_completed = 0;
@@ -47,11 +51,19 @@ std::optional<std::shared_ptr<TaskNode>> Scheduler::pop_ready() {
         return std::nullopt;
     }
 
+    spdlog::debug("scheduling event {} (command={})", result->id(), result->command);
+
     result->status = TaskNode::Status::Scheduled;
     return result;
 }
 
 void Scheduler::set_scheduled(std::shared_ptr<TaskNode> node, CudaEvent event) {
+    spdlog::debug(
+        "scheduled event {} (command={}, cuda event={})",
+        node->id(),
+        node->command,
+        event);
+
     KMM_ASSERT(node->status == TaskNode::Status::Scheduled);
     KMM_ASSERT(node->cuda_event == std::nullopt);
     node->cuda_event = event;
@@ -64,6 +76,8 @@ void Scheduler::set_scheduled(std::shared_ptr<TaskNode> node, CudaEvent event) {
 }
 
 void Scheduler::set_complete(std::shared_ptr<TaskNode> node) {
+    spdlog::debug("completed event {} (command={})", node->id(), node->command);
+
     KMM_ASSERT(node->status == TaskNode::Status::Scheduled);
     node->status = TaskNode::Status::Done;
     node->cuda_event = std::nullopt;

@@ -222,15 +222,10 @@ bool MemoryManager::poll_request(Request& req, CudaEventSet& deps_out) {
     }
 
     if (req.status == Request::Status::Allocated) {
-        if (!try_lock_access(buffer, req)) {
+        if (!try_lock_access(memory_id, buffer, req, deps_out)) {
             return false;
         }
 
-        req.status = Request::Status::Locked;
-    }
-
-    if (req.status == Request::Status::Locked) {
-        initiate_transfers(req.memory_id, buffer, req, deps_out);
         req.status = Request::Status::Ready;
     }
 
@@ -467,6 +462,12 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
         return true;
     }
 
+    spdlog::trace(
+        "allocate {} bytes from device for buffer {}",
+        buffer.layout.size_in_bytes,
+        device_id,
+        (void*)&buffer);
+
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
     CudaEvent event;
 
@@ -491,6 +492,13 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
     if (!device_entry.is_allocated) {
         return;
     }
+
+    spdlog::trace(
+        "free {} bytes for buffer {} on device {} (dependencies={})",
+        buffer.layout.size_in_bytes,
+        (void*)&buffer,
+        device_id,
+        device_entry.access_events);
 
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
     KMM_ASSERT(buffer.access_head == nullptr);
@@ -520,6 +528,8 @@ void MemoryManager::allocate_host(Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated == false);
     KMM_ASSERT(host_entry.num_allocation_locks == 0);
 
+    spdlog::trace("allocate {} bytes from host", buffer.layout.size_in_bytes, (void*)&buffer);
+
     host_entry.data = m_allocator->allocate_host(buffer.layout.size_in_bytes);
 
     host_entry.is_allocated = true;
@@ -536,6 +546,12 @@ void MemoryManager::deallocate_host(Buffer& buffer) {
     KMM_ASSERT(buffer.access_head == nullptr);
     KMM_ASSERT(buffer.access_current == nullptr);
     KMM_ASSERT(buffer.access_tail == nullptr);
+
+    spdlog::trace(
+        "free {} bytes on host (dependencies={})",
+        buffer.layout.size_in_bytes,
+        (void*)&buffer,
+        host_entry.access_events);
 
     m_allocator->deallocate_host(host_entry.data, std::move(host_entry.access_events));
 
@@ -556,6 +572,10 @@ void MemoryManager::lock_allocation_host(Buffer& buffer, Request& req) {
     }
 
     host_entry.num_allocation_locks++;
+    spdlog::trace(
+        "lock allocation on host of buffer {} for request {}",
+        (void*)&buffer,
+        (void*)&req);
 }
 
 bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req) {
@@ -572,15 +592,17 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
 
     if (!device_entry.is_allocated) {
         while (true) {
+            // Try to allocate
             if (try_allocate_device_async(device_id, buffer)) {
                 break;
             }
 
+            // No memory available, try to free memory
             if (try_free_device_memory(device_id)) {
                 continue;
             }
 
-            if (is_out_of_memory(device_id, *req.parent)) {
+            if (is_out_of_memory(device_id, req)) {
                 throw std::runtime_error(fmt::format(
                     "cannot allocate {} bytes on device {}, out of memory",
                     buffer.layout.size_in_bytes,
@@ -598,6 +620,13 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
     req.allocation_acquired = true;
     device.allocation_current = req.allocation_next;
     device_entry.num_allocation_locks++;
+
+    spdlog::trace(
+        "lock allocation on device {} of buffer {} for request {}",
+        device_id,
+        (void*)&buffer,
+        (void*)&req);
+
     return true;
 }
 
@@ -609,6 +638,10 @@ void MemoryManager::unlock_allocation_host(Buffer& buffer, Request& req) {
     KMM_ASSERT(host_entry.num_allocation_locks > 0);
 
     host_entry.num_allocation_locks--;
+    spdlog::trace(
+        "unlock allocation on host of buffer {} for request {}",
+        (void*)&buffer,
+        (void*)&req);
 }
 
 void MemoryManager::unlock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req) {
@@ -619,6 +652,11 @@ void MemoryManager::unlock_allocation_device(DeviceId device_id, Buffer& buffer,
     KMM_ASSERT(device_entry.num_allocation_locks > 0);
 
     device_entry.num_allocation_locks--;
+    spdlog::trace(
+        "unlock allocation on device {} of buffer {} for request {}",
+        device_id,
+        (void*)&buffer,
+        (void*)&req);
 
     if (device_entry.num_allocation_locks == 0) {
         insert_into_lru(device_id, buffer);
@@ -663,13 +701,15 @@ void MemoryManager::poll_access_queue(Buffer& buffer) const {
         }
 
         req->access_acquired = true;
+        spdlog::trace(
+            "access to buffer {} was granted to request {} (memory={}, mode={})",
+            (void*)&buffer,
+            (void*)&req,
+            req->memory_id,
+            req->mode);
+
         buffer.access_current = buffer.access_current->access_next;
     }
-}
-
-bool MemoryManager::try_lock_access(Buffer& buffer, Request& req) {
-    poll_access_queue(buffer);
-    return req.access_acquired;
 }
 
 void MemoryManager::unlock_access(
@@ -677,6 +717,14 @@ void MemoryManager::unlock_access(
     Buffer& buffer,
     Request& req,
     CudaEvent event) {
+    spdlog::trace(
+        "access to buffer {} was revoked from request {} (memory={}, mode={}, CUDA event={})",
+        (void*)&buffer,
+        (void*)&req,
+        req.memory_id,
+        req.mode,
+        event);
+
     bool is_writer = req.mode != AccessMode::Read;
     BufferEntry& entry = buffer.entry(memory_id);
 
@@ -691,11 +739,19 @@ void MemoryManager::unlock_access(
     }
 }
 
-void MemoryManager::initiate_transfers(
+bool MemoryManager::try_lock_access(
     MemoryId memory_id,
     Buffer& buffer,
     Request& req,
     CudaEventSet& deps_out) {
+    if (!req.access_acquired) {
+        poll_access_queue(buffer);
+
+        if (!req.access_acquired) {
+            return false;
+        }
+    }
+
     bool is_writer = req.mode != AccessMode::Read;
     auto& entry = buffer.entry(memory_id);
 
@@ -720,6 +776,8 @@ void MemoryManager::initiate_transfers(
             deps_out.insert(entry.access_events);
         }
     }
+
+    return true;
 }
 
 CudaEvent MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer) {
@@ -755,6 +813,12 @@ CudaEvent MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer) {
 }
 
 CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
+    spdlog::trace(
+        "copy {} bytes from host to device {} for buffer {}",
+        buffer.layout.size_in_bytes,
+        device_id,
+        (void*)&buffer);
+
     auto& device = m_devices[device_id];
     auto& host_entry = buffer.host_entry;
     auto& device_entry = buffer.device_entry[device_id];
@@ -783,6 +847,12 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
 }
 
 CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
+    spdlog::trace(
+        "copy {} bytes from device to host {} for buffer {}",
+        buffer.layout.size_in_bytes,
+        device_id,
+        (void*)&buffer);
+
     auto& device = m_devices[device_id];
     auto& host_entry = buffer.host_entry;
     auto& device_entry = buffer.device_entry[device_id];
@@ -810,7 +880,7 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     return event;
 }
 
-bool MemoryManager::is_out_of_memory(DeviceId device_id, Transaction& trans) {
+bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
     std::unordered_set<const Transaction*> waiting_transactions;
     auto& device = m_devices[device_id];
 
@@ -834,6 +904,27 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Transaction& trans) {
 
         if (waiting_transactions.find(p) == waiting_transactions.end()) {
             return false;
+        }
+    }
+
+    spdlog::error(
+        "out of memory for device {}, failed to allocate {} bytes of buffer {} for request {}",
+        device_id,
+        req.buffer->layout.size_in_bytes,
+        (void*)req.buffer.get(),
+        (void*)&req);
+
+    spdlog::error("following buffers are currently allocated: ");
+
+    for (const auto& buffer : m_buffers) {
+        auto entry = buffer->entry(device_id);
+
+        if (entry.is_allocated) {
+            spdlog::error(
+                " - buffer {} ({} bytes, {} allocation locks)",
+                (void*)buffer.get(),
+                buffer->layout.size_in_bytes,
+                entry.num_allocation_locks);
         }
     }
 

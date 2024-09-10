@@ -1,8 +1,9 @@
 
+#include "spdlog/spdlog.h"
 #include "kmm/api/access.hpp"
-#include "kmm/api/runtime.hpp"
 #include "kmm/api/array.hpp"
 #include "kmm/api/partition.hpp"
+#include "kmm/api/runtime.hpp"
 
 void fill_range(
     kmm::rect<1> subrange,
@@ -18,6 +19,8 @@ void cuda_fill_zeros(
     kmm::rect<1> subrange,
     kmm::cuda_subview_mut<float> view
 ) {
+    spdlog::debug("cuda_fill_zeros: {} {} {}", (void*)view.data(), (void*)view.data_at(subrange.begin()), subrange.begin());
+
     device.fill(
         view.data_at(subrange.begin()),
         subrange.size(),
@@ -41,37 +44,44 @@ __global__ void vector_add(
 
 int main() {
     using namespace kmm::placeholders;
+    spdlog::set_level(spdlog::level::trace);
+
     auto rt = kmm::make_runtime();
 
-    int n = 1024 * 1024;
-    int chunk_size = n / 10;
+    for (size_t repeat = 2; repeat > 0; repeat--) {
+        int64_t n = (5L * 1000 * 1000 * 1000) / 4;
+        int64_t chunk_size = n / 20;
 
-    auto A = kmm::Array<float>(n);
-    auto B = kmm::Array<float>(n);
-    auto C = kmm::Array<float>(n);
+        auto A = kmm::Array<float>(n);
+        auto B = kmm::Array<float>(n);
+        auto C = kmm::Array<float>(n);
 
-    rt.parallel_submit(
-        kmm::ChunkPartition<1>{n, chunk_size},
-        kmm::Host(),
-        fill_range,
-        write(A, slice(_x))
-    );
+        rt.parallel_for(
+            {n},
+            {chunk_size},
+            kmm::Host(fill_range),
+            write(A, slice(_x))
+        );
 
-    rt.parallel_submit(
-        kmm::ChunkPartition<1>{n, chunk_size},
-        kmm::Cuda(),
-        cuda_fill_zeros,
-        write(B, slice(_x))
-    );
+        rt.parallel_for(
+            {n},
+            {chunk_size},
+            kmm::Cuda(cuda_fill_zeros),
+            write(B, slice(_x))
+        );
 
-    rt.parallel_submit(
-        kmm::ChunkPartition<1>{n, chunk_size},
-        kmm::CudaKernel(256),
-        vector_add,
-        write(C, slice(_x)),
-        read(A, slice(_x)),
-        read(B, slice(_x))
-    );
+        for (size_t x = 0; x < 10; x++) {
+            C = kmm::Array<float>(n);
 
-    rt.synchronize();
+            rt.parallel_for(
+                {n},
+                {chunk_size},
+                kmm::CudaKernel(vector_add, 256),
+                write(C, slice(_x)),
+                read(A, slice(_x)),
+                read(B, slice(_x)));
+        }
+
+        rt.synchronize();
+    }
 }

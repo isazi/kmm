@@ -1,8 +1,19 @@
 #include <algorithm>
+#include <sstream>
+
+#include "spdlog/spdlog.h"
 
 #include "kmm/internals/cuda_stream_manager.hpp"
 
 namespace kmm {
+
+std::ostream& operator<<(std::ostream& f, const CudaStream& e) {
+    return f << uint32_t(e.get());
+}
+
+std::ostream& operator<<(std::ostream& f, const CudaEvent& e) {
+    return f << e.stream() << ":" << e.event();
+}
 
 CudaEventSet::CudaEventSet(CudaEvent e) {
     m_events.push_back(e);
@@ -61,6 +72,31 @@ const CudaEvent* CudaEventSet::begin() const {
 
 const CudaEvent* CudaEventSet::end() const {
     return m_events.end();
+}
+
+std::ostream& operator<<(std::ostream& f, const CudaEventSet& events) {
+    // Sort events
+    auto sorted_events = std::vector<CudaEvent> {events.begin(), events.end()};
+    std::sort(sorted_events.begin(), sorted_events.end());
+
+    // Remove duplicates
+    auto it = std::unique(sorted_events.begin(), sorted_events.end());
+    sorted_events.erase(it, sorted_events.end());
+
+    bool is_first = true;
+    f << "[";
+
+    for (auto e : sorted_events) {
+        if (!is_first) {
+            f << ", ";
+        }
+
+        is_first = false;
+        f << e;
+    }
+
+    f << "]";
+    return f;
 }
 
 struct CudaStreamManager::StreamState {
@@ -246,6 +282,15 @@ void CudaStreamManager::wait_for_events(
     CudaStream stream,
     const CudaEvent* begin,
     const CudaEvent* end) {
+    std::vector<CudaEvent> events = {begin, end};
+    std::sort(events.begin(), events.end());
+    CudaEventSet deps;
+    for (auto e : events) {
+        deps.insert(e);
+    }
+
+    spdlog::warn("stream {} waits for events: {}", stream.get(), deps);
+
     for (const auto* it = begin; it != end; it++) {
         wait_for_event(stream, *it);
     }
@@ -346,4 +391,5 @@ CUevent CudaStreamManager::EventPool::pop() {
 void CudaStreamManager::EventPool::push(CUevent event) {
     m_events.push_back(event);
 }
+
 }  // namespace kmm

@@ -24,6 +24,8 @@ class CudaStream {
         return m_index;
     }
 
+    friend std::ostream& operator<<(std::ostream&, const CudaStream& e);
+
   private:
     uint8_t m_index;
 };
@@ -56,6 +58,8 @@ class CudaEvent {
 
     KMM_IMPL_COMPARISON_OPS(CudaEvent)
 
+    friend std::ostream& operator<<(std::ostream&, const CudaEvent& e);
+
   private:
     uint64_t m_event_and_stream = 0;
 };
@@ -80,6 +84,8 @@ class CudaEventSet {
 
     const CudaEvent* begin() const;
     const CudaEvent* end() const;
+
+    friend std::ostream& operator<<(std::ostream&, const CudaEventSet& e);
 
   private:
     small_vector<CudaEvent, 4> m_events;
@@ -157,3 +163,10 @@ class CudaStreamManager {
 };
 
 }  // namespace kmm
+
+template<>
+struct fmt::formatter<kmm::CudaStream>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::CudaEvent>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::CudaEventSet>: fmt::ostream_formatter {};

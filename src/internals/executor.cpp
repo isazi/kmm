@@ -244,8 +244,6 @@ void Executor::submit_task(
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
     CudaEventSet dependencies) {
-    spdlog::info("submit task {}: {} buffers", job->id(), buffers.size());
-
     if (processor_id.is_device()) {
         submit_device_task(
             job,
@@ -263,6 +261,11 @@ void Executor::submit_host_task(
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
     CudaEventSet dependencies) {
+    spdlog::debug(
+        "submit host task {} (buffers={}, dependencies={})",
+        job->id(),
+        buffers.size(),
+        dependencies);
     m_operations.push_back(std::make_unique<HostOperation>(
         std::move(job),
         std::move(task),
@@ -278,6 +281,12 @@ void Executor::submit_device_task(
     CudaEventSet dependencies) {
     // TODO: improve stream selection
     size_t stream_index = device_id.get();
+    spdlog::debug(
+        "submit device task {} (device={}, buffers={}, dependencies={})",
+        job->id(),
+        device_id,
+        buffers.size(),
+        dependencies);
 
     m_operations.push_back(std::make_unique<DeviceOperation>(
         job,

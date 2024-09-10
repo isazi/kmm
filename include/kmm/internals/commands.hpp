@@ -2,6 +2,8 @@
 
 #include <variant>
 
+#include "fmt/ostream.h"
+
 #include "kmm/core/buffer.hpp"
 #include "kmm/core/copy_description.hpp"
 #include "kmm/core/identifiers.hpp"
@@ -47,4 +49,23 @@ using Command = std::variant<
     CommandCopy,
     CommandExecute>;
 
+inline const char* command_name(const Command& cmd) {
+    static constexpr const char* names[] = {
+        "CommandEmpty",
+        "CommandBufferCreate",
+        "CommandBufferDelete",
+        "CommandPrefetch",
+        "CommandCopy",
+        "CommandExecute"};
+
+    return names[cmd.index()];
+}
+
+inline std::ostream& operator<<(std::ostream& f, const Command& cmd) {
+    return f << command_name(cmd);
+}
+
 }  // namespace kmm
+
+template<>
+struct fmt::formatter<kmm::Command>: fmt::ostream_formatter {};

@@ -64,4 +64,18 @@ struct BufferGuard: public BufferAccessor {
     std::shared_ptr<void> m_tracker;
 };
 
+inline std::ostream& operator<<(std::ostream& f, AccessMode mode) {
+    switch (mode) {
+        case AccessMode::Read:
+            return f << "Read";
+        case AccessMode::ReadWrite:
+            return f << "ReadWrite";
+        case AccessMode::Exclusive:
+            return f << "Exclusive";
+    }
+}
+
 }  // namespace kmm
+
+template<>
+struct fmt::formatter<kmm::AccessMode>: fmt::ostream_formatter {};

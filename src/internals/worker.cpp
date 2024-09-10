@@ -1,5 +1,7 @@
 #include <thread>
 
+#include "spdlog/spdlog.h"
+
 #include "kmm/internals/worker.hpp"
 
 namespace kmm {
@@ -150,16 +152,22 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
 
     if (const auto* e = std::get_if<CommandEmpty>(&command)) {
         m_scheduler->set_complete(node);
+
     } else if (const auto* e = std::get_if<CommandBufferCreate>(&command)) {
+        spdlog::debug("create buffer {} (size={})", e->id, e->layout.size_in_bytes);
         auto buffer = m_memory->create_buffer(e->layout);
         m_buffers->add(e->id, buffer);
         m_scheduler->set_complete(node);
+
     } else if (const auto* e = std::get_if<CommandBufferDelete>(&command)) {
+        spdlog::debug("delete buffer {}", e->id);
         auto buffer = m_buffers->remove(e->id);
         m_memory->delete_buffer(buffer);
         m_scheduler->set_complete(node);
+
     } else if (const auto* e = std::get_if<CommandPrefetch>(&command)) {
         m_executor->submit_prefetch(node, e->buffer_id, e->memory_id);
+
     } else if (const auto* e = std::get_if<CommandCopy>(&command)) {
         m_executor->submit_copy(
             node,
@@ -168,8 +176,10 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
             e->dst_buffer,
             e->dst_memory,
             e->spec);
+
     } else if (const auto* e = std::get_if<CommandExecute>(&command)) {
         m_executor->submit_task(node, e->processor_id, e->task, e->buffers);
+
     } else {
         KMM_PANIC("invalid command");
     }

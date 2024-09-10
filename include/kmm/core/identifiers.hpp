@@ -49,6 +49,8 @@ struct NodeId {
 
     KMM_IMPL_COMPARISON_OPS(NodeId)
 
+    friend std::ostream& operator<<(std::ostream&, const NodeId&);
+
   private:
     uint8_t m_value;
 };
@@ -87,6 +89,8 @@ struct DeviceId {
     }
 
     KMM_IMPL_COMPARISON_OPS(DeviceId)
+
+    friend std::ostream& operator<<(std::ostream&, const DeviceId&);
 
   private:
     uint8_t m_value;
@@ -130,6 +134,8 @@ struct MemoryId {
     }
 
     KMM_IMPL_COMPARISON_OPS(MemoryId)
+
+    friend std::ostream& operator<<(std::ostream&, const MemoryId&);
 
   private:
     static constexpr uint8_t HOST_ID = 0xff;
@@ -179,6 +185,8 @@ class ProcessorId {
 
     KMM_IMPL_COMPARISON_OPS(ProcessorId)
 
+    friend std::ostream& operator<<(std::ostream&, const ProcessorId&);
+
   private:
     Type m_type = Type::Host;
     uint8_t m_value = 0;
@@ -205,6 +213,8 @@ struct BufferId {
 
     KMM_IMPL_COMPARISON_OPS(BufferId)
 
+    friend std::ostream& operator<<(std::ostream&, const BufferId&);
+
   private:
     uint64_t m_value;
 };
@@ -230,35 +240,38 @@ struct EventId {
 
     KMM_IMPL_COMPARISON_OPS(EventId)
 
+    friend std::ostream& operator<<(std::ostream&, const EventId&);
+
   private:
     uint64_t m_value;
 };
 
 using EventList = small_vector<EventId, 2>;
+std::ostream& operator<<(std::ostream&, const EventList&);
 
 }  // namespace kmm
 
 template<>
 struct std::hash<kmm::NodeId>: std::hash<uint8_t> {};
-
 template<>
 struct std::hash<kmm::DeviceId>: std::hash<uint8_t> {};
-
 template<>
 struct std::hash<kmm::BufferId>: std::hash<uint64_t> {};
-
 template<>
 struct std::hash<kmm::EventId>: std::hash<uint64_t> {};
 
 template<>
-struct fmt::formatter<kmm::NodeId>: fmt::ostream_formatter {};
+struct fmt::formatter<kmm::NodeId>: fmt::formatter<uint64_t> {};
 template<>
-struct fmt::formatter<kmm::DeviceId>: fmt::ostream_formatter {};
+struct fmt::formatter<kmm::DeviceId>: fmt::formatter<uint64_t> {};
+template<>
+struct fmt::formatter<kmm::BufferId>: fmt::formatter<uint64_t> {};
+template<>
+struct fmt::formatter<kmm::EventId>: fmt::formatter<uint64_t> {};
+
 template<>
 struct fmt::formatter<kmm::MemoryId>: fmt::ostream_formatter {};
 template<>
 struct fmt::formatter<kmm::ProcessorId>: fmt::ostream_formatter {};
 template<>
-struct fmt::formatter<kmm::BufferId>: fmt::ostream_formatter {};
-template<>
-struct fmt::formatter<kmm::EventId>: fmt::ostream_formatter {};
+struct fmt::formatter<kmm::EventList>: fmt::ostream_formatter {};
