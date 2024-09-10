@@ -37,18 +37,11 @@ class MemoryAllocator {
 };
 
 struct MemoryDeviceInfo {
-    CudaContextHandle context;
-
     // Maximum number of bytes that can be allocated
     size_t num_bytes_limit = std::numeric_limits<size_t>::max();
 
     // The number of bytes that should remain available on the device for other CUDA frameworks
     size_t num_bytes_keep_available = 100'000'000;
-
-    CudaStream alloc_stream;
-    CudaStream dealloc_stream;
-    CudaStream h2d_stream;
-    CudaStream d2h_stream;
 };
 
 class MemoryAllocatorImpl: public MemoryAllocator {

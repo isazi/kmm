@@ -106,7 +106,8 @@ struct HostOperation: public Operation {
 };
 
 struct DeviceOperation: public Operation {
-    enum struct Status { Init, Pending, Running, Done } status = Status::Init;
+    enum struct Status { Init, Pending, Running, Done };
+    Status status = Status::Init;
 
     size_t stream_index;
     std::shared_ptr<Task> task;
@@ -206,10 +207,11 @@ Executor::Executor(
     for (size_t i = 0; i < num_devices; i++) {
         auto device_id = DeviceId(i);
 
-        auto stream = streams->stream_for_device(device_id);
+        auto context = streams->get(device_id);
+        auto stream = streams->create_stream(device_id);
         auto device = std::make_unique<CudaDevice>(
-            CudaDeviceInfo(device_id, streams->get(device_id)),
-            streams->get(device_id),
+            CudaDeviceInfo(device_id, context),
+            context,
             streams->get(stream));
 
         m_devices.emplace_back(stream, std::move(device));
@@ -266,6 +268,7 @@ void Executor::submit_host_task(
         job->id(),
         buffers.size(),
         dependencies);
+
     m_operations.push_back(std::make_unique<HostOperation>(
         std::move(job),
         std::move(task),
@@ -279,14 +282,15 @@ void Executor::submit_device_task(
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
     CudaEventSet dependencies) {
-    // TODO: improve stream selection
-    size_t stream_index = device_id.get();
     spdlog::debug(
         "submit device task {} (device={}, buffers={}, dependencies={})",
         job->id(),
         device_id,
         buffers.size(),
         dependencies);
+
+    // TODO: improve stream selection
+    size_t stream_index = device_id.get();
 
     m_operations.push_back(std::make_unique<DeviceOperation>(
         job,

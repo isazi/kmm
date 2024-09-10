@@ -95,11 +95,11 @@ class CudaStreamManager {
     KMM_NOT_COPYABLE_OR_MOVABLE(CudaStreamManager)
 
   public:
-    CudaStreamManager(const std::vector<CudaContextHandle>& contexts, size_t streams_per_device);
+    CudaStreamManager(const std::vector<CudaContextHandle>& contexts);
     ~CudaStreamManager();
 
-    CudaStream stream_for_device(DeviceId device_id, size_t stream_index = 0) const;
     DeviceId device_from_stream(CudaStream stream) const;
+    CudaStream create_stream(DeviceId device_id, bool high_priority = false);
 
     void wait_until_idle() const;
 
@@ -159,7 +159,6 @@ class CudaStreamManager {
 
     std::vector<StreamState> m_streams;
     std::vector<EventPool> m_event_pools;
-    size_t m_streams_per_device;
 };
 
 }  // namespace kmm

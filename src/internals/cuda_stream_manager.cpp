@@ -127,22 +127,26 @@ struct CudaStreamManager::EventPool {
     std::vector<CUevent> m_events;
 };
 
-CudaStreamManager::CudaStreamManager(
-    const std::vector<CudaContextHandle>& contexts,
-    size_t streams_per_device) :
-    m_streams_per_device(streams_per_device) {
+CudaStreamManager::CudaStreamManager(const std::vector<CudaContextHandle>& contexts) {
     for (size_t i = 0; i < contexts.size(); i++) {
         const auto& context = contexts[i];
         m_event_pools.emplace_back(context);
-
-        for (size_t j = 0; j < streams_per_device; j++) {
-            CudaContextGuard guard {context};
-
-            CUstream cuda_stream;
-            KMM_CUDA_CHECK(cuStreamCreate(&cuda_stream, CU_STREAM_NON_BLOCKING));
-            m_streams.emplace_back(DeviceId(i), context, cuda_stream);
-        }
     }
+}
+
+CudaStream CudaStreamManager::create_stream(DeviceId device_id, bool high_priority) {
+    auto context = m_event_pools.at(device_id).m_context;
+
+    CudaContextGuard guard {context};
+
+    int least_priority;
+    int greatest_priority;
+    KMM_CUDA_CHECK(cuCtxGetStreamPriorityRange(&least_priority, &greatest_priority));
+    int priority = high_priority ? greatest_priority : least_priority;
+
+    CUstream cuda_stream;
+    KMM_CUDA_CHECK(cuStreamCreateWithPriority(&cuda_stream, CU_STREAM_NON_BLOCKING, priority));
+    m_streams.emplace_back(device_id, context, cuda_stream);
 }
 
 CudaStreamManager::~CudaStreamManager() {
@@ -161,10 +165,6 @@ CudaStreamManager::~CudaStreamManager() {
             m_event_pools[stream.device_id].push(cuda_event);
         }
     }
-}
-
-CudaStream CudaStreamManager::stream_for_device(DeviceId device_id, size_t stream_index) const {
-    return {checked_cast<uint8_t>(device_id.get() + (stream_index % m_streams_per_device))};
 }
 
 DeviceId CudaStreamManager::device_from_stream(CudaStream stream) const {

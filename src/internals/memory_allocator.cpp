@@ -17,18 +17,22 @@ struct MemoryAllocatorImpl::Device {
 
     CudaStream h2d_stream;
     CudaStream d2h_stream;
+    CudaStream h2d_hi_stream;  // high priority stream
+    CudaStream d2h_hi_stream;  // high priority stream
     CudaStream alloc_stream;
     CudaStream dealloc_stream;
 
     std::unordered_map<CUdeviceptr, size_t> active_allocations;
     std::deque<std::pair<CudaEvent, size_t>> pending_deallocations;
 
-    Device(MemoryDeviceInfo info) :
-        context(info.context),
-        h2d_stream(info.h2d_stream),
-        d2h_stream(info.d2h_stream),
-        alloc_stream(info.alloc_stream),
-        dealloc_stream(info.dealloc_stream),
+    Device(DeviceId device_id, MemoryDeviceInfo info, CudaStreamManager& streams) :
+        context(streams.get(device_id)),
+        h2d_stream(streams.create_stream(device_id, false)),
+        d2h_stream(streams.create_stream(device_id, false)),
+        h2d_hi_stream(streams.create_stream(device_id, true)),
+        d2h_hi_stream(streams.create_stream(device_id, true)),
+        alloc_stream(streams.create_stream(device_id)),
+        dealloc_stream(streams.create_stream(device_id)),
         bytes_limit(info.num_bytes_limit) {
         CudaContextGuard guard {context};
 
@@ -57,6 +61,8 @@ struct MemoryAllocatorImpl::Device {
         context(that.context),
         h2d_stream(that.h2d_stream),
         d2h_stream(that.d2h_stream),
+        h2d_hi_stream(that.h2d_hi_stream),
+        d2h_hi_stream(that.d2h_hi_stream),
         alloc_stream(that.alloc_stream),
         dealloc_stream(that.dealloc_stream),
         bytes_limit(that.bytes_limit),
@@ -86,8 +92,8 @@ MemoryAllocatorImpl::MemoryAllocatorImpl(
     std::shared_ptr<CudaStreamManager> streams,
     std::vector<MemoryDeviceInfo> devices) :
     m_streams(streams) {
-    for (auto device : devices) {
-        m_devices.push_back(Device(device));
+    for (size_t i = 0; i < devices.size(); i++) {
+        m_devices.emplace_back(DeviceId(i), devices[i], *streams);
     }
 }
 
@@ -198,6 +204,11 @@ void MemoryAllocatorImpl::make_progress() {
     }
 }
 
+// Copies smaller than this threshold are put onto a high priority stream. This can improve
+// performance since small copy jobs (like copying a single number) are prioritized over large
+// slow copy jobs of several gigabytes.
+static constexpr size_t HIGH_PRIORITY_THRESHOLD = 1024L * 1024;
+
 CudaEvent MemoryAllocatorImpl::copy_host_to_device(
     DeviceId device_id,
     const void* src_addr,
@@ -205,8 +216,9 @@ CudaEvent MemoryAllocatorImpl::copy_host_to_device(
     size_t nbytes,
     CudaEventSet deps) {
     auto& device = m_devices.at(device_id);
+    auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.h2d_hi_stream : device.h2d_stream;
 
-    return m_streams->with_stream(device.h2d_stream, deps, [&](auto stream) {
+    return m_streams->with_stream(stream, deps, [&](auto stream) {
         KMM_CUDA_CHECK(cuMemcpyHtoDAsync(dst_addr, src_addr, nbytes, stream));
     });
 }
@@ -218,8 +230,9 @@ CudaEvent MemoryAllocatorImpl::copy_device_to_host(
     size_t nbytes,
     CudaEventSet deps) {
     auto& device = m_devices.at(device_id);
+    auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.d2h_hi_stream : device.d2h_stream;
 
-    return m_streams->with_stream(device.d2h_stream, deps, [&](auto stream) {
+    return m_streams->with_stream(stream, deps, [&](auto stream) {
         KMM_CUDA_CHECK(cuMemcpyDtoHAsync(dst_addr, src_addr, nbytes, stream));
     });
 }
