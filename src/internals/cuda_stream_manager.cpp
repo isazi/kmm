@@ -144,9 +144,12 @@ CudaStream CudaStreamManager::create_stream(DeviceId device_id, bool high_priori
     KMM_CUDA_CHECK(cuCtxGetStreamPriorityRange(&least_priority, &greatest_priority));
     int priority = high_priority ? greatest_priority : least_priority;
 
+    size_t index = m_streams.size();
     CUstream cuda_stream;
     KMM_CUDA_CHECK(cuStreamCreateWithPriority(&cuda_stream, CU_STREAM_NON_BLOCKING, priority));
     m_streams.emplace_back(device_id, context, cuda_stream);
+
+    return CudaStream(index);
 }
 
 CudaStreamManager::~CudaStreamManager() {
@@ -251,6 +254,7 @@ CudaEvent CudaStreamManager::record_event(CudaStream stream_id) {
 
     KMM_CUDA_CHECK(cuEventRecord(event, stream.cuda_stream));
 
+    spdlog::trace("CUDA stream {} records new CUDA event {}", stream_id, event_index);
     return CudaEvent {stream_id, event_index};
 }
 
@@ -265,32 +269,30 @@ void CudaStreamManager::wait_on_default_stream(CudaStream stream_id) {
 }
 
 void CudaStreamManager::wait_for_event(CudaStream stream, CudaEvent event) const {
+    // Stream never needs to wait on events from itself
+    if (event.stream() == stream) {
+        return;
+    }
+
     const auto& src_stream = m_streams.at(event.stream());
     const auto& dst_stream = m_streams.at(stream);
 
+    // Event has already completed, no need to wait.
     if (event.event() < src_stream.first_pending_index) {
         return;
     }
 
     auto offset = event.event() - src_stream.first_pending_index;
     CUevent cuda_event = src_stream.pending_events.at(offset);
-
     KMM_CUDA_CHECK(cuStreamWaitEvent(dst_stream.cuda_stream, cuda_event, CU_EVENT_WAIT_DEFAULT));
+
+    spdlog::trace("CUDA stream {} must wait on CUDA event {}", stream, event);
 }
 
 void CudaStreamManager::wait_for_events(
     CudaStream stream,
     const CudaEvent* begin,
     const CudaEvent* end) {
-    std::vector<CudaEvent> events = {begin, end};
-    std::sort(events.begin(), events.end());
-    CudaEventSet deps;
-    for (auto e : events) {
-        deps.insert(e);
-    }
-
-    spdlog::warn("stream {} waits for events: {}", stream.get(), deps);
-
     for (const auto* it = begin; it != end; it++) {
         wait_for_event(stream, *it);
     }
@@ -321,7 +323,9 @@ CUstream CudaStreamManager::get(CudaStream stream) const {
 bool CudaStreamManager::make_progress() {
     bool update_happened = false;
 
-    for (auto& stream : m_streams) {
+    for (size_t i = 0; i < m_streams.size(); i++) {
+        auto& stream = m_streams[i];
+
         if (!stream.pending_events.empty()) {
             CudaContextGuard guard {stream.context};
 
@@ -336,6 +340,8 @@ bool CudaStreamManager::make_progress() {
                 if (result != CUDA_SUCCESS) {
                     throw CudaDriverException("`cuEventQuery` failed", result);
                 }
+
+                spdlog::trace("CUDA event {} completed", CudaEvent(i, stream.first_pending_index));
 
                 stream.first_pending_index += 1;
                 stream.pending_events.pop_front();

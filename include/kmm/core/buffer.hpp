@@ -73,6 +73,8 @@ inline std::ostream& operator<<(std::ostream& f, AccessMode mode) {
         case AccessMode::Exclusive:
             return f << "Exclusive";
     }
+
+    return f;
 }
 
 }  // namespace kmm

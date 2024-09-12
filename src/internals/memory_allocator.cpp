@@ -15,24 +15,24 @@ struct MemoryAllocatorImpl::Device {
     size_t bytes_in_use = 0;
     size_t bytes_limit = std::numeric_limits<size_t>::max();
 
+    CudaStream alloc_stream;
+    CudaStream dealloc_stream;
     CudaStream h2d_stream;
     CudaStream d2h_stream;
     CudaStream h2d_hi_stream;  // high priority stream
     CudaStream d2h_hi_stream;  // high priority stream
-    CudaStream alloc_stream;
-    CudaStream dealloc_stream;
 
     std::unordered_map<CUdeviceptr, size_t> active_allocations;
     std::deque<std::pair<CudaEvent, size_t>> pending_deallocations;
 
     Device(DeviceId device_id, MemoryDeviceInfo info, CudaStreamManager& streams) :
         context(streams.get(device_id)),
+        alloc_stream(streams.create_stream(device_id)),
+        dealloc_stream(streams.create_stream(device_id)),
         h2d_stream(streams.create_stream(device_id, false)),
         d2h_stream(streams.create_stream(device_id, false)),
         h2d_hi_stream(streams.create_stream(device_id, true)),
         d2h_hi_stream(streams.create_stream(device_id, true)),
-        alloc_stream(streams.create_stream(device_id)),
-        dealloc_stream(streams.create_stream(device_id)),
         bytes_limit(info.num_bytes_limit) {
         CudaContextGuard guard {context};
 

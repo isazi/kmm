@@ -187,7 +187,7 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
 
 Worker::Worker(std::vector<CudaContextHandle> contexts) {
     m_streams = std::make_shared<CudaStreamManager>(contexts);
-    m_scheduler = std::make_shared<Scheduler>();
+    m_scheduler = std::make_shared<Scheduler>(contexts.size());
     m_graph = std::make_shared<TaskGraph>();
     m_buffers = std::make_shared<BufferManager>();
 
@@ -200,12 +200,7 @@ Worker::Worker(std::vector<CudaContextHandle> contexts) {
 
         device_infos.push_back(CudaDeviceInfo(device_id, context));
         device_mems.push_back(MemoryDeviceInfo {
-            .context = context,
             .num_bytes_limit = 5'000'000'000,
-            .alloc_stream = m_streams->create_stream(device_id),
-            .dealloc_stream = m_streams->create_stream(device_id),
-            .h2d_stream = m_streams->create_stream(device_id),
-            .d2h_stream = m_streams->create_stream(device_id),
         });
     }
 

@@ -463,7 +463,7 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
     }
 
     spdlog::trace(
-        "allocate {} bytes from device for buffer {}",
+        "allocate {} bytes from device {} for buffer {}",
         buffer.layout.size_in_bytes,
         device_id,
         (void*)&buffer);
@@ -704,7 +704,7 @@ void MemoryManager::poll_access_queue(Buffer& buffer) const {
         spdlog::trace(
             "access to buffer {} was granted to request {} (memory={}, mode={})",
             (void*)&buffer,
-            (void*)&req,
+            (void*)req,
             req->memory_id,
             req->mode);
 
