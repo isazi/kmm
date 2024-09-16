@@ -31,12 +31,14 @@ class ArrayBackend: public std::enable_shared_from_this<ArrayBackend<N>> {
     ArrayBackend(
         std::shared_ptr<Worker> worker,
         dim<N> array_size,
+        dim<N> chunk_size,
         std::vector<ArrayChunk<N>> chunks);
     ~ArrayBackend();
 
     ArrayChunk<N> find_chunk(rect<N> region) const;
     ArrayChunk<N> chunk(size_t index) const;
     void synchronize() const;
+    void copy_bytes(void* dest_addr, size_t element_size) const;
 
     size_t num_chunks() const {
         return m_buffers.size();
@@ -76,17 +78,14 @@ class ArrayBase {
 template<typename T, size_t N = 1>
 class Array: ArrayBase {
   public:
+    Array(dim<N> shape, dim<N> chunk_size) : m_shape(shape), m_chunk_size(chunk_size) {}
+    Array(dim<N> shape) : Array(shape, shape) {}
     Array() = default;
-    Array(dim<N> shape) : m_shape(shape) {}
 
-    template<
-        typename... Sizes,
-        std::enable_if_t<
-            sizeof...(Sizes) == N && (N > 0) && (std::is_convertible_v<Sizes, int64_t> && ...),
-            int> = 0>
-    Array(Sizes... sizes) : m_shape(dim<N> {checked_cast<int64_t>(sizes)...}) {}
-
-    Array(std::shared_ptr<ArrayBackend<N>> b) : m_backend(b), m_shape(m_backend->array_size()) {}
+    Array(std::shared_ptr<ArrayBackend<N>> b) :
+        m_backend(b),
+        m_shape(m_backend->array_size()),
+        m_chunk_size(m_backend->chunk_size()) {}
 
     size_t rank() const final {
         return N;
@@ -118,11 +117,11 @@ class Array: ArrayBase {
     }
 
     dim<N> chunk_size() const {
-        return inner().chunk_size();
+        return m_chunk_size;
     }
 
     int64_t chunk_size(size_t axis) const {
-        return inner().chunk_size().get(axis);
+        return m_chunk_size.get(axis);
     }
 
     const Worker& worker() const {
@@ -139,9 +138,14 @@ class Array: ArrayBase {
         m_backend = nullptr;
     }
 
+    void copy_to(T* output) const {
+        inner().copy_bytes(output, sizeof(T));
+    }
+
   private:
     std::shared_ptr<ArrayBackend<N>> m_backend;
     dim<N> m_shape;
+    dim<N> m_chunk_size;
 };
 
 template<typename T, size_t N>
@@ -183,7 +187,8 @@ struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
     TaskDataProcessor(Write<Array<T, N>, SliceMapping<N>> arg) :
         m_array(arg.argument),
         m_mapping(arg.index_mapping),
-        m_sizes(arg.argument.shape()) {
+        m_sizes(arg.argument.shape()),
+        m_chunk_size(arg.argument.chunk_size()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -213,12 +218,14 @@ struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
 
     void finalize(const TaskResult& result) {
         std::shared_ptr<Worker> worker = result.worker.shared_from_this();
-        m_array = std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(m_chunks));
+        m_array =
+            std::make_shared<ArrayBackend<N>>(worker, m_sizes, m_chunk_size, std::move(m_chunks));
     }
 
   private:
     Array<T, N>& m_array;
     dim<N> m_sizes;
+    dim<N> m_chunk_size;
     std::vector<ArrayChunk<N>> m_chunks;
     SliceMapping<N> m_mapping;
 };
@@ -282,7 +289,7 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
 
     void finalize(const TaskResult& result) {
         std::shared_ptr<Worker> worker = result.worker.shared_from_this();
-        m_array = std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(m_chunks));
+        m_array = std::make_shared<ArrayBackend<N>>(worker, m_sizes, m_sizes, std::move(m_chunks));
     }
 
   private:

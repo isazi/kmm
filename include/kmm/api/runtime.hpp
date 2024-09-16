@@ -60,12 +60,12 @@ class Runtime {
      * Submit a set of tasks to the runtime systems.
      *
      * @param index_space The index space defining the loop dimensions.
-     * @param partitioner The partition describing how the work is split.
+     * @param partitioner The partitioner describing how the work is split.
      * @param launcher The task launcher.
      * @param args The arguments that are forwarded to the launcher.
      * @return The event identifier for the submitted task.
      */
-    template<size_t N = 1, typename P = ChunkPartition<N>, typename L, typename... Args>
+    template<size_t N = 1, typename P = ChunkPartitioner<N>, typename L, typename... Args>
     EventId parallel_for(rect<N> index_space, P partitioner, L launcher, Args&&... args) {
         return kmm::parallel_submit(
             *m_worker,

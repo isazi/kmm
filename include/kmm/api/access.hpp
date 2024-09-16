@@ -199,6 +199,16 @@ SliceMapping<sizeof...(Is)> slice(const Is&... slices) {
     return {into_index_mapping(slices)...};
 }
 
+template<typename... Is>
+SliceMapping<sizeof...(Is)> tile(const Is&... length) {
+    size_t variable = 0;
+    return {IndexMapping(
+        AxesMapping {variable++},
+        checked_cast<int64_t>(length),
+        0,
+        checked_cast<int64_t>(length))...};
+}
+
 template<typename T, typename I = FullMapping>
 struct Read {
     T argument;

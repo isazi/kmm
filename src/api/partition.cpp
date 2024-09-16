@@ -6,7 +6,7 @@
 namespace kmm {
 
 template<size_t N>
-Partition<N> ChunkPartition<N>::operator()(rect<N> index_space, const SystemInfo& info) const {
+Partition<N> ChunkPartitioner<N>::operator()(rect<N> index_space, const SystemInfo& info) const {
     std::vector<Chunk<N>> chunks;
     size_t num_devices = info.num_devices();
 
@@ -52,12 +52,12 @@ Partition<N> ChunkPartition<N>::operator()(rect<N> index_space, const SystemInfo
     return {std::move(chunks)};
 }
 
-template struct ChunkPartition<0>;
-template struct ChunkPartition<1>;
-template struct ChunkPartition<2>;
-template struct ChunkPartition<3>;
-template struct ChunkPartition<4>;
-template struct ChunkPartition<5>;
-template struct ChunkPartition<6>;
+template struct ChunkPartitioner<0>;
+template struct ChunkPartitioner<1>;
+template struct ChunkPartitioner<2>;
+template struct ChunkPartitioner<3>;
+template struct ChunkPartitioner<4>;
+template struct ChunkPartitioner<5>;
+template struct ChunkPartitioner<6>;
 
 }  // namespace kmm

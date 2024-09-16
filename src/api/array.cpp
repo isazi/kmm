@@ -2,6 +2,7 @@
 
 #include "kmm/api/array.hpp"
 #include "kmm/internals/worker.hpp"
+#include "kmm/memops/host_copy.hpp"
 #include "kmm/utils/integer_fun.hpp"
 
 namespace kmm {
@@ -31,15 +32,11 @@ template<size_t N>
 ArrayBackend<N>::ArrayBackend(
     std::shared_ptr<Worker> worker,
     dim<N> array_size,
+    dim<N> chunk_size,
     std::vector<ArrayChunk<N>> chunks) :
     m_worker(worker),
+    m_chunk_size(chunk_size),
     m_array_size(array_size) {
-    for (const auto& chunk : chunks) {
-        if (chunk.offset == point<N>::zero()) {
-            m_chunk_size = chunk.size;
-        }
-    }
-
     if (m_chunk_size.is_empty()) {
         throw std::runtime_error("chunk size cannot be empty");
     }
@@ -167,6 +164,72 @@ void ArrayBackend<N>::synchronize() const {
         auto memory_id = this->chunk(i).owner_id;
         m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
     }
+}
+
+template<size_t N>
+class CopyOutTask: public Task {
+  public:
+    CopyOutTask(void* data, size_t element_size, dim<N> array_size, rect<N> region) :
+        m_dst_addr(data),
+        m_element_size(element_size),
+        m_array_size(array_size),
+        m_region(region) {}
+
+    void execute(ExecutionContext& proc, TaskContext context) override {
+        KMM_ASSERT(context.accessors.size() == 1);
+        const void* src_addr = context.accessors[0].address;
+        size_t src_stride = 1;
+        size_t dst_stride = 1;
+
+        CopyDescription copy(m_element_size);
+
+        for (size_t i = 0; i < N; i++) {
+            copy.add_dimension(
+                checked_cast<size_t>(m_region.size(i)),
+                checked_cast<size_t>(0),
+                checked_cast<size_t>(m_region.begin(i)),
+                src_stride,
+                dst_stride);
+
+            src_stride *= checked_cast<size_t>(m_region.size(i));
+            dst_stride *= checked_cast<size_t>(m_array_size.get(i));
+        }
+
+        execute_copy(src_addr, m_dst_addr, copy);
+    }
+
+  private:
+    void* m_dst_addr;
+    size_t m_element_size;
+    dim<N> m_array_size;
+    rect<N> m_region;
+};
+
+template<size_t N>
+void ArrayBackend<N>::copy_bytes(void* dest_addr, size_t element_size) const {
+    auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
+        EventList deps;
+
+        for (size_t i = 0; i < m_buffers.size(); i++) {
+            auto region = index2region(i, m_num_chunks, m_chunk_size, m_array_size);
+
+            auto task =
+                std::make_shared<CopyOutTask<N>>(dest_addr, element_size, m_array_size, region);
+            auto buffer = BufferRequirement {
+                .buffer_id = m_buffers[i],
+                .memory_id = MemoryId::host(),
+                .access_mode = AccessMode::Read,
+            };
+
+            auto event_id = graph.insert_task(ProcessorId::host(), std::move(task), {buffer});
+
+            deps.push_back(event_id);
+        }
+
+        return graph.join_events(deps);
+    });
+
+    m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
 }
 
 template class ArrayBackend<0>;

@@ -22,7 +22,7 @@ struct Partition {
 };
 
 template<size_t N>
-struct ChunkPartition {
+struct ChunkPartitioner {
     dim<N> chunk_size;
 
     Partition<N> operator()(rect<N> index_space, const SystemInfo& info) const;
