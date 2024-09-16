@@ -19,8 +19,8 @@ struct BufferEntry {
     // * allocation_event <= epoch_event
     // * epoch_event <= write_events
     // * write_events <= access_events
-    CudaEvent allocation_event;
-    CudaEvent epoch_event;
+    CudaEventSet allocation_event;
+    CudaEventSet epoch_event;
     CudaEventSet write_events;
     CudaEventSet access_events;
 };
@@ -113,7 +113,7 @@ struct MemoryManager::Device {
     Device() = default;
 };
 
-MemoryManager::MemoryManager(std::unique_ptr<MemoryAllocator> allocator) :
+MemoryManager::MemoryManager(std::unique_ptr<MemorySystem> allocator) :
     m_allocator(std::move(allocator)),
     m_devices(std::make_unique<Device[]>(MAX_DEVICES)) {}
 
@@ -462,26 +462,28 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
         return true;
     }
 
+    KMM_ASSERT(device_entry.num_allocation_locks == 0);
     spdlog::trace(
         "allocate {} bytes from device {} for buffer {}",
         buffer.layout.size_in_bytes,
         device_id,
         (void*)&buffer);
 
-    KMM_ASSERT(device_entry.num_allocation_locks == 0);
-    CudaEvent event;
+    void* ptr_out;
+    CudaEventSet events;
+    auto result = m_allocator->allocate(device_id, buffer.layout.size_in_bytes, ptr_out, events);
 
-    if (!m_allocator
-             ->allocate_device(device_id, buffer.layout.size_in_bytes, device_entry.data, event)) {
+    if (!result) {
         return false;
     }
 
+    device_entry.data = (CUdeviceptr)ptr_out;
     device_entry.is_allocated = true;
     device_entry.is_valid = false;
-    device_entry.allocation_event = event;
-    device_entry.epoch_event = event;
-    device_entry.access_events = {event};
-    device_entry.write_events = {event};
+    device_entry.allocation_event = events;
+    device_entry.epoch_event = events;
+    device_entry.access_events = events;
+    device_entry.write_events = events;
     return true;
 }
 
@@ -493,9 +495,10 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
         return;
     }
 
+    size_t size_in_bytes = buffer.layout.size_in_bytes;
     spdlog::trace(
         "free {} bytes for buffer {} on device {} (dependencies={})",
-        buffer.layout.size_in_bytes,
+        size_in_bytes,
         (void*)&buffer,
         device_id,
         device_entry.access_events);
@@ -505,16 +508,17 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
     KMM_ASSERT(buffer.access_current == nullptr);
     KMM_ASSERT(buffer.access_tail == nullptr);
 
-    m_allocator->deallocate_device(
+    m_allocator->deallocate(
         device_id,
-        device_entry.data,
+        (void*)device_entry.data,
+        size_in_bytes,
         std::move(device_entry.access_events));
     remove_from_lru(device_id, buffer);
 
     device_entry.is_allocated = false;
     device_entry.is_valid = false;
-    device_entry.allocation_event = CudaEvent {};
-    device_entry.epoch_event = CudaEvent {};
+    device_entry.allocation_event.clear();
+    device_entry.epoch_event.clear();
     device_entry.write_events.clear();
     device_entry.access_events.clear();
     device_entry.data = 0;
@@ -524,16 +528,28 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
 
 void MemoryManager::allocate_host(Buffer& buffer) {
     auto& host_entry = buffer.host_entry;
+    size_t size_in_bytes = buffer.layout.size_in_bytes;
 
     KMM_ASSERT(host_entry.is_allocated == false);
     KMM_ASSERT(host_entry.num_allocation_locks == 0);
 
-    spdlog::trace("allocate {} bytes from host", buffer.layout.size_in_bytes, (void*)&buffer);
+    spdlog::trace("allocate {} bytes from host", size_in_bytes, (void*)&buffer);
 
-    host_entry.data = m_allocator->allocate_host(buffer.layout.size_in_bytes);
+    CudaEventSet events;
+    void* ptr;
+    bool success = m_allocator->allocate(MemoryId::host(), size_in_bytes, ptr, events);
 
+    if (!success) {
+        throw std::runtime_error("could not allocate, out of host memory");
+    }
+
+    host_entry.data = ptr;
     host_entry.is_allocated = true;
     host_entry.is_valid = false;
+    host_entry.allocation_event = events;
+    host_entry.epoch_event = events;
+    host_entry.access_events = events;
+    host_entry.write_events = events;
 }
 
 void MemoryManager::deallocate_host(Buffer& buffer) {
@@ -547,18 +563,23 @@ void MemoryManager::deallocate_host(Buffer& buffer) {
     KMM_ASSERT(buffer.access_current == nullptr);
     KMM_ASSERT(buffer.access_tail == nullptr);
 
+    size_t size_in_bytes = buffer.layout.size_in_bytes;
     spdlog::trace(
         "free {} bytes on host (dependencies={})",
-        buffer.layout.size_in_bytes,
+        size_in_bytes,
         (void*)&buffer,
         host_entry.access_events);
 
-    m_allocator->deallocate_host(host_entry.data, std::move(host_entry.access_events));
+    m_allocator->deallocate(
+        MemoryId::host(),
+        host_entry.data,
+        size_in_bytes,
+        std::move(host_entry.access_events));
 
     host_entry.data = nullptr;
     host_entry.is_allocated = false;
     host_entry.is_valid = false;
-    host_entry.epoch_event = CudaEvent {};
+    host_entry.epoch_event.clear();
     host_entry.write_events.clear();
     host_entry.access_events.clear();
     host_entry.data = nullptr;
@@ -734,7 +755,7 @@ void MemoryManager::unlock_access(
         entry.write_events.insert(event);
 
         if (req.mode == AccessMode::Exclusive) {
-            entry.epoch_event = event;
+            entry.epoch_event.insert(event);
         }
     }
 }
@@ -755,8 +776,7 @@ bool MemoryManager::try_lock_access(
     bool is_writer = req.mode != AccessMode::Read;
     auto& entry = buffer.entry(memory_id);
 
-    auto event = make_entry_valid(memory_id, buffer);
-    deps_out.insert(event);
+    make_entry_valid(memory_id, buffer, deps_out);
 
     if (is_writer) {
         if (!memory_id.is_host()) {
@@ -780,7 +800,7 @@ bool MemoryManager::try_lock_access(
     return true;
 }
 
-CudaEvent MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer) {
+void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEventSet& deps_out) {
     auto& entry = buffer.entry(memory_id);
 
     KMM_ASSERT(entry.is_allocated);
@@ -788,13 +808,15 @@ CudaEvent MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer) {
     if (!entry.is_valid) {
         if (memory_id.is_host()) {
             if (auto src_id = find_valid_device_entry(buffer)) {
-                return copy_d2h(*src_id, buffer);
+                deps_out.insert(copy_d2h(*src_id, buffer));
+                return;
             }
         } else {
             auto device_id = memory_id.as_device();
 
             if (buffer.host_entry.is_valid) {
-                return copy_h2d(device_id, buffer);
+                deps_out.insert(copy_h2d(device_id, buffer));
+                return;
             }
 
             if (auto src_id = find_valid_device_entry(buffer)) {
@@ -802,14 +824,14 @@ CudaEvent MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer) {
                     allocate_host(buffer);
                 }
 
-                copy_d2h(*src_id, buffer);
-                return copy_h2d(device_id, buffer);
+                deps_out.insert(copy_h2d(device_id, buffer));
+                return;
             }
         }
     }
 
     entry.is_valid = true;
-    return entry.epoch_event;
+    deps_out.insert(entry.epoch_event);
 }
 
 CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
@@ -838,7 +860,7 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
         std::move(deps));
 
     host_entry.access_events.insert(event);
-    device_entry.epoch_event = event;
+    device_entry.epoch_event = {event};
     device_entry.access_events = {event};
     device_entry.write_events = {event};
 
@@ -872,9 +894,9 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
         std::move(deps));
 
     device_entry.access_events.insert(event);
-    host_entry.epoch_event = event;
-    host_entry.access_events = {event};
-    host_entry.write_events = {event};
+    host_entry.epoch_event.insert(event);
+    host_entry.access_events.insert(event);
+    host_entry.write_events.insert(event);
 
     host_entry.is_valid = true;
     return event;

@@ -6,7 +6,7 @@
 
 #include "kmm/core/buffer.hpp"
 #include "kmm/internals/cuda_stream_manager.hpp"
-#include "kmm/internals/memory_allocator.hpp"
+#include "kmm/internals/memory_system.hpp"
 
 namespace kmm {
 
@@ -21,7 +21,7 @@ class MemoryManager {
     struct Device;
     struct Transaction;
 
-    MemoryManager(std::unique_ptr<MemoryAllocator> allocator);
+    MemoryManager(std::unique_ptr<MemorySystem> memory);
     ~MemoryManager();
 
     void make_progress();
@@ -64,7 +64,7 @@ class MemoryManager {
     void poll_access_queue(Buffer& buffer) const;
     void unlock_access(MemoryId memory_id, Buffer& buffer, Request& req, CudaEvent event);
 
-    CudaEvent make_entry_valid(MemoryId memory_id, Buffer& buffer);
+    void make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEventSet& deps_out);
     bool try_lock_access(MemoryId memory_id, Buffer& buffer, Request& req, CudaEventSet& deps_out);
 
     CudaEvent copy_h2d(DeviceId device_id, Buffer& buffer);
@@ -84,7 +84,7 @@ class MemoryManager {
     std::unordered_set<std::shared_ptr<Buffer>> m_buffers;
     std::unordered_set<std::shared_ptr<Request>> m_active_requests;
     std::unique_ptr<Device[]> m_devices;
-    std::unique_ptr<MemoryAllocator> m_allocator;
+    std::unique_ptr<MemorySystem> m_allocator;
 };
 
 using MemoryRequest = std::shared_ptr<MemoryManager::Request>;
