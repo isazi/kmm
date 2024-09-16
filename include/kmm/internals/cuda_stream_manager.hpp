@@ -11,6 +11,65 @@
 namespace kmm {
 
 class CudaStreamManager;
+class CudaStream;
+class CudaEvent;
+class CudaEventSet;
+
+class CudaStreamManager {
+    KMM_NOT_COPYABLE_OR_MOVABLE(CudaStreamManager)
+
+  public:
+    CudaStreamManager();
+    ~CudaStreamManager();
+
+    bool make_progress();
+
+    CudaStream create_stream(CudaContextHandle context, bool high_priority = false);
+
+    void wait_until_idle() const;
+
+    void wait_until_ready(CudaStream stream) const;
+    void wait_until_ready(CudaEvent event) const;
+    void wait_until_ready(const CudaEventSet& events) const;
+
+    bool is_ready(CudaStream stream) const;
+    bool is_ready(CudaEvent event) const;
+    bool is_ready(const CudaEventSet& events) const;
+    bool is_ready(CudaEventSet& events) const;
+
+    void attach_callback(CudaEvent event, NotifyHandle callback);
+    void attach_callback(CudaStream event, NotifyHandle callback);
+
+    CudaEvent record_event(CudaStream stream);
+    void wait_on_default_stream(CudaStream stream);
+
+    void wait_for_event(CudaStream stream, CudaEvent event) const;
+    void wait_for_events(CudaStream stream, const CudaEventSet& events);
+    void wait_for_events(CudaStream stream, const CudaEvent* begin, const CudaEvent* end);
+    void wait_for_events(CudaStream stream, const std::vector<CudaEvent>& events);
+
+    /**
+     * Check if the given `source` event must occur before the given `target` event. In other words,
+     * if this function returns true, then `source` must be triggered before `target` can trigger.
+     */
+    bool event_happens_before(CudaEvent source, CudaEvent target) const;
+
+    CudaContextHandle context(CudaStream device_id) const;
+    CUstream get(CudaStream stream) const;
+
+    template<typename F>
+    CudaEvent with_stream(CudaStream stream, const CudaEventSet& deps, F fun);
+
+    template<typename F>
+    CudaEvent with_stream(CudaStream stream, F fun);
+
+  private:
+    struct StreamState;
+    struct EventPool;
+
+    std::vector<StreamState> m_streams;
+    std::vector<EventPool> m_event_pools;
+};
 
 class CudaStream {
   public:
@@ -34,16 +93,16 @@ class CudaEvent {
   public:
     CudaEvent() = default;
 
-    CudaEvent(CudaStream stream, uint64_t event) {
-        KMM_ASSERT(event < (1ULL << 56));
-        m_event_and_stream = (uint64_t(stream.get()) << 56) | event;
+    CudaEvent(CudaStream stream, uint64_t index) {
+        KMM_ASSERT(index < (1ULL << 56));
+        m_event_and_stream = (uint64_t(stream.get()) << 56) | index;
     }
 
     CudaStream stream() const {
         return static_cast<uint8_t>(m_event_and_stream >> 56);
     }
 
-    uint64_t event() const {
+    uint64_t index() const {
         return m_event_and_stream & uint64_t(0x00FFFFFFFFFFFFFF);
     }
 
@@ -79,6 +138,7 @@ class CudaEventSet {
 
     void insert(CudaEvent e);
     void insert(const CudaEventSet& e);
+    void insert(CudaEventSet&& e);
     void remove_completed(const CudaStreamManager&);
     void clear();
 
@@ -91,75 +151,24 @@ class CudaEventSet {
     small_vector<CudaEvent, 4> m_events;
 };
 
-class CudaStreamManager {
-    KMM_NOT_COPYABLE_OR_MOVABLE(CudaStreamManager)
+template<typename F>
+CudaEvent CudaStreamManager::with_stream(CudaStream stream, const CudaEventSet& deps, F fun) {
+    wait_for_events(stream, deps);
 
-  public:
-    CudaStreamManager(const std::vector<CudaContextHandle>& contexts);
-    ~CudaStreamManager();
-
-    DeviceId device_from_stream(CudaStream stream) const;
-    CudaStream create_stream(DeviceId device_id, bool high_priority = false);
-
-    void wait_until_idle() const;
-
-    void wait_until_ready(CudaStream stream) const;
-    void wait_until_ready(CudaEvent event) const;
-    void wait_until_ready(const CudaEventSet& events) const;
-
-    bool is_ready(CudaStream stream) const;
-    bool is_ready(CudaEvent event) const;
-    bool is_ready(const CudaEventSet& events) const;
-    bool is_ready(CudaEventSet& events) const;
-
-    void attach_callback(CudaEvent event, NotifyHandle callback);
-    void attach_callback(CudaStream event, NotifyHandle callback);
-
-    CudaEvent record_event(CudaStream stream);
-    void wait_on_default_stream(CudaStream stream);
-
-    void wait_for_event(CudaStream stream, CudaEvent event) const;
-    void wait_for_events(CudaStream stream, const CudaEventSet& events);
-    void wait_for_events(CudaStream stream, const CudaEvent* begin, const CudaEvent* end);
-    void wait_for_events(CudaStream stream, const std::vector<CudaEvent>& events);
-
-    /**
-     * Check if the given `source` event must occur before the given `target` event. In other words,
-     * if this function returns true, then `source` must be triggered before `target` can trigger.
-     */
-    bool event_happens_before(CudaEvent source, CudaEvent target) const;
-
-    CudaContextHandle get(DeviceId device_id) const;
-    CUstream get(CudaStream stream) const;
-
-    template<typename F>
-    CudaEvent with_stream(CudaStream stream, const CudaEventSet& deps, F fun) {
-        wait_for_events(stream, deps);
-
-        try {
-            fun(get(stream));
-        } catch (...) {
-            wait_until_ready(stream);
-            throw;
-        }
-
-        return record_event(stream);
+    try {
+        fun(get(stream));
+    } catch (...) {
+        wait_until_ready(stream);
+        throw;
     }
 
-    template<typename F>
-    CudaEvent with_stream(CudaStream stream, F fun) {
-        return with_stream(stream, {}, fun);
-    }
+    return record_event(stream);
+}
 
-    bool make_progress();
-
-  private:
-    struct StreamState;
-    struct EventPool;
-
-    std::vector<StreamState> m_streams;
-    std::vector<EventPool> m_event_pools;
-};
+template<typename F>
+CudaEvent CudaStreamManager::with_stream(CudaStream stream, F fun) {
+    return with_stream(stream, {}, fun);
+}
 
 }  // namespace kmm
 

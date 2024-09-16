@@ -2,6 +2,8 @@
 
 #include "spdlog/spdlog.h"
 
+#include "kmm/internals/allocator/cuda.hpp"
+#include "kmm/internals/allocator/system.hpp"
 #include "kmm/internals/worker.hpp"
 
 namespace kmm {
@@ -186,32 +188,43 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
 }
 
 Worker::Worker(std::vector<CudaContextHandle> contexts) {
-    m_streams = std::make_shared<CudaStreamManager>(contexts);
+    m_streams = std::make_shared<CudaStreamManager>();
     m_scheduler = std::make_shared<Scheduler>(contexts.size());
     m_graph = std::make_shared<TaskGraph>();
     m_buffers = std::make_shared<BufferManager>();
 
+    std::unique_ptr<MemoryAllocator> host_mem;
+    std::vector<std::unique_ptr<MemoryAllocator>> device_mems;
     std::vector<CudaDeviceInfo> device_infos;
-    std::vector<MemoryDeviceInfo> device_mems;
 
-    for (size_t i = 0; i < contexts.size(); i++) {
-        auto device_id = DeviceId(i);
-        auto context = contexts[i];
+    if (!contexts.empty()) {
+        host_mem = std::make_unique<PinnedMemoryAllocator>(contexts.at(0), m_streams);
 
-        device_infos.push_back(CudaDeviceInfo(device_id, context));
-        device_mems.push_back(MemoryDeviceInfo {
-            .num_bytes_limit = 5'000'000'000,
-        });
+        for (size_t i = 0; i < contexts.size(); i++) {
+            auto device_id = DeviceId(i);
+            auto context = contexts[i];
+
+            device_infos.push_back(CudaDeviceInfo(device_id, context));
+            device_mems.push_back(std::make_unique<DevicePoolAllocator>(contexts[i], m_streams));
+        }
+    } else {
+        host_mem = std::make_unique<SystemAllocator>(m_streams);
+    }
+
+    spdlog::info("detected {} CUDA device(s):", device_infos.size());
+    for (auto f : device_infos) {
+        spdlog::info(" - {} ({:.2} GB)", f.name(), f.total_memory_size() / 1e9);
     }
 
     m_info = SystemInfo(device_infos);
-
-    m_memory = std::make_shared<MemoryManager>(
-        std::make_unique<MemoryAllocatorImpl>(m_streams, device_mems));
+    m_memory = std::make_shared<MemoryManager>(std::make_unique<MemorySystem>(
+        m_streams,
+        contexts,
+        std::move(host_mem),
+        std::move(device_mems)));
     m_root_transaction = m_memory->create_transaction();
 
-    m_executor =
-        std::make_shared<Executor>(contexts.size(), m_streams, m_buffers, m_memory, m_scheduler);
+    m_executor = std::make_shared<Executor>(contexts, m_streams, m_buffers, m_memory, m_scheduler);
 }
 
 Worker::~Worker() {

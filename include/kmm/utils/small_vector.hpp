@@ -26,13 +26,22 @@ struct small_vector {
         insert_all(items.begin(), items.end());
     }
 
-    small_vector& operator=(const small_vector& that) {
-        if (this == &that) {
-            return *this;
+    template<typename U, size_t K>
+    small_vector& operator=(const small_vector<U, K>& that) {
+        if (this != &that) {
+            clear();
+            insert_all(that);
         }
 
-        clear();
-        insert_all(that.begin(), that.end());
+        return *this;
+    }
+
+    small_vector& operator=(const small_vector& that) {
+        if (this != &that) {
+            clear();
+            insert_all(that);
+        }
+
         return *this;
     }
 

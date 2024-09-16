@@ -195,7 +195,7 @@ struct DeviceOperation: public Operation {
 };
 
 Executor::Executor(
-    size_t num_devices,
+    std::vector<CudaContextHandle> contexts,
     std::shared_ptr<CudaStreamManager> streams,
     std::shared_ptr<BufferManager> buffers,
     std::shared_ptr<MemoryManager> memory,
@@ -204,11 +204,11 @@ Executor::Executor(
     m_buffers(buffers),
     m_memory(memory),
     m_scheduler(scheduler) {
-    for (size_t i = 0; i < num_devices; i++) {
+    for (size_t i = 0; i < contexts.size(); i++) {
         auto device_id = DeviceId(i);
 
-        auto context = streams->get(device_id);
-        auto stream = streams->create_stream(device_id);
+        auto context = contexts[i];
+        auto stream = streams->create_stream(context);
         auto device = std::make_unique<CudaDevice>(
             CudaDeviceInfo(device_id, context),
             context,

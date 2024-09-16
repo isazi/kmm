@@ -17,7 +17,7 @@ class Executor {
     KMM_NOT_COPYABLE_OR_MOVABLE(Executor)
   public:
     Executor(
-        size_t num_devices,
+        std::vector<CudaContextHandle> contexts,
         std::shared_ptr<CudaStreamManager> streams,
         std::shared_ptr<BufferManager> buffers,
         std::shared_ptr<MemoryManager> memory,
