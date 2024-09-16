@@ -1,45 +1,43 @@
-
-#include "spdlog/spdlog.h"
 #include "kmm/api/access.hpp"
-#include "kmm/api/array.hpp"
-#include "kmm/api/partition.hpp"
 #include "kmm/api/runtime.hpp"
 
-void fill_range(
+__global__ void initialize_range(
     kmm::rect<1> subrange,
-    kmm::subview_mut<float> view
+    kmm::cuda_subview_mut<float> output
 ) {
-    for (long i = subrange.begin(); i < subrange.end(); i++) {
-        view[i] = float(i);
+    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + subrange.begin();
+    if (i >= subrange.end()) {
+        return;
     }
+
+    output[i] = float(i);
 }
 
-void cuda_fill_zeros(
-    kmm::CudaDevice& device,
+__global__ void fill_range(
     kmm::rect<1> subrange,
-    kmm::cuda_subview_mut<float> view
+    float value,
+    kmm::cuda_subview_mut<float> output
 ) {
-    spdlog::debug("cuda_fill_zeros: {} {} {}", (void*)view.data(), (void*)view.data_at(subrange.begin()), subrange.begin());
+    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + subrange.begin();
+    if (i >= subrange.end()) {
+        return;
+    }
 
-    device.fill(
-        view.data_at(subrange.begin()),
-        subrange.size(),
-        0.0F
-   );
+    output[i] = value;
 }
 
 __global__ void vector_add(
     kmm::rect<1> subrange,
-    kmm::cuda_subview_mut<float> C,
-    kmm::cuda_subview<float> A,
-    kmm::cuda_subview<float> B
+    kmm::cuda_subview_mut<float> output,
+    kmm::cuda_subview<float> left,
+    kmm::cuda_subview<float> right
 ) {
-    int x = blockIdx.x * blockDim.x + threadIdx.x + subrange.begin();
-    if (x >= subrange.end()) {
+    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + subrange.begin();
+    if (i >= subrange.end()) {
         return;
     }
 
-    C[x] = A[x] + B[x];
+    output[i] = left[i] + right[i];
 }
 
 int main() {
@@ -47,41 +45,40 @@ int main() {
     spdlog::set_level(spdlog::level::trace);
 
     auto rt = kmm::make_runtime();
+    int n = 2'000'000'000;
+    int chunk_size = n / 10;
+    dim3 block_size = 256;
 
-    for (size_t repeat = 2; repeat > 0; repeat--) {
-        int64_t n = (5L * 1000 * 1000 * 1000) / 4;
-        int64_t chunk_size = n / 20;
+    auto A = kmm::Array<float>{n, chunk_size};
+    auto B = kmm::Array<float>{n, chunk_size};
+    auto C = kmm::Array<float>{n, chunk_size};
 
-        auto A = kmm::Array<float>(n);
-        auto B = kmm::Array<float>(n);
-        auto C = kmm::Array<float>(n);
+    rt.parallel_for(
+        {n},
+        {chunk_size},
+        kmm::CudaKernel(initialize_range, block_size),
+        write(A, slice(_x))
+    );
 
-        rt.parallel_for(
-            {n},
-            {chunk_size},
-            kmm::Host(fill_range),
-            write(A, slice(_x))
-        );
+    rt.parallel_for(
+        {n},
+        {chunk_size},
+        kmm::CudaKernel(fill_range, block_size),
+        float(M_PI),
+        write(B, slice(_x))
+    );
 
-        rt.parallel_for(
-            {n},
-            {chunk_size},
-            kmm::Cuda(cuda_fill_zeros),
-            write(B, slice(_x))
-        );
+    rt.parallel_for(
+        {n},
+        {chunk_size},
+        kmm::CudaKernel(vector_add, block_size),
+        write(C, slice(_x)),
+        read(A, slice(_x)),
+        read(B, slice(_x))
+    );
 
-        for (size_t x = 0; x < 10; x++) {
-            C = kmm::Array<float>(n);
+    std::vector<float> result(n);
+    C.copy_to(result.data());
 
-            rt.parallel_for(
-                {n},
-                {chunk_size},
-                kmm::CudaKernel(vector_add, 256),
-                write(C, slice(_x)),
-                read(A, slice(_x)),
-                read(B, slice(_x)));
-        }
-
-        rt.synchronize();
-    }
+    return 0;
 }
