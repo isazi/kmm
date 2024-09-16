@@ -11,10 +11,10 @@ inline void execute_copy_impl(
     const void* src_buffer,
     void* dst_buffer,
     CopyDescription copy_description) {
-    for (size_t i0 = 0; i0 < copy_description.counts[0]; i0++) {
-        for (size_t i1 = 0; i1 < copy_description.counts[1]; i1++) {
-            for (size_t i2 = 0; i2 < copy_description.counts[2]; i2++) {
-                for (size_t i3 = 0; i3 < copy_description.counts[3]; i3++) {
+    for (size_t i3 = 0; i3 < copy_description.counts[3]; i3++) {
+        for (size_t i2 = 0; i2 < copy_description.counts[2]; i2++) {
+            for (size_t i1 = 0; i1 < copy_description.counts[1]; i1++) {
+                for (size_t i0 = 0; i0 < copy_description.counts[0]; i0++) {
                     size_t src_offset = copy_description.src_offset
                         + i0 * copy_description.src_strides[0]
                         + i1 * copy_description.src_strides[1]

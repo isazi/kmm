@@ -10,7 +10,7 @@ NotifyHandle::~NotifyHandle() {
     notify_and_clear();
 }
 
-void NotifyHandle::notify() noexcept {
+void NotifyHandle::notify() const noexcept {
     if (m_impl) {
         m_impl->notify();
     }

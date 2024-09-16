@@ -22,4 +22,19 @@ void execute_cuda_d2d_copy_async(
     void* dst_buffer,
     CopyDescription copy_description);
 
+void execute_cuda_h2d_copy(
+    const void* src_buffer,
+    void* dst_buffer,
+    CopyDescription copy_description);
+
+void execute_cuda_d2h_copy(
+    const void* src_buffer,
+    void* dst_buffer,
+    CopyDescription copy_description);
+
+void execute_cuda_d2d_copy(
+    const void* src_buffer,
+    void* dst_buffer,
+    CopyDescription copy_description);
+
 }  // namespace kmm

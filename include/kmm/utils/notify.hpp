@@ -61,7 +61,7 @@ class NotifyHandle {
     /**
      * If the underlying `Notify` object exists, this calls its `notify()` method.
      */
-    void notify() noexcept;
+    void notify() const noexcept;
 
     /**
      * Resets the managed `shared_ptr<Notify>` to null, effectively clearing the
