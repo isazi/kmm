@@ -72,9 +72,11 @@ std::vector<CUdevice> get_cuda_devices() {
         int count = 0;
         KMM_CUDA_CHECK(cuDeviceGetCount(&count));
 
-        std::vector<CUdevice> devices {count};
+        std::vector<CUdevice> devices {};
         for (int i = 0; i < count; i++) {
-            KMM_CUDA_CHECK(cuDeviceGet(&devices[static_cast<size_t>(i)], i));
+            CUdevice device;
+            KMM_CUDA_CHECK(cuDeviceGet(&device, i));
+            devices.push_back(device);
         }
 
         return devices;
