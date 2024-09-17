@@ -35,10 +35,10 @@ class Runtime {
      */
     template<size_t N = 1, typename L, typename... Args>
     EventId submit(rect<N> index_space, ProcessorId target, L launcher, Args&&... args) {
-        Partition<N> partition = {Chunk<N> {
+        Partition<N> partition = {{Chunk<N> {
             .owner_id = target,  //
             .offset = index_space.offset,
-            .size = index_space.sizes}};
+            .size = index_space.sizes}}};
 
         return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
     }

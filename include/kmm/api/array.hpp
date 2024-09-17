@@ -262,7 +262,7 @@ template<typename T, size_t N>
 struct TaskDataProcessor<Write<Array<T, N>>> {
     using type = PackedArray<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
 
-    TaskDataProcessor(Write<Array<T, N>, SliceMapping<N>> arg) :
+    TaskDataProcessor(Write<Array<T, N>> arg) :
         m_array(arg.argument),
         m_sizes(arg.argument.shape()) {
         if (m_array.is_valid()) {
@@ -282,7 +282,12 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
             .size = m_sizes});
 
         auto domain = views::domains::bounds<N> {m_sizes};
-        size_t buffer_index = 0;
+
+        size_t buffer_index = builder.buffers.size();
+        builder.buffers.emplace_back(BufferRequirement {
+            .buffer_id = buffer_id,
+            .memory_id = builder.memory_id,
+            .access_mode = AccessMode::Exclusive});
 
         return {buffer_index, domain};
     }

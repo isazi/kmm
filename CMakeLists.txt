@@ -112,20 +112,12 @@ endif()
 # Compile examples
 if(KMM_BUILD_EXAMPLES)
   if(DEFINED CMAKE_CUDA_COMPILER)
-    add_executable(
-      vector_add
-      ${PROJECT_SOURCE_DIR}/examples/vector_add.cu
-    )
+    add_executable(vector_add ${PROJECT_SOURCE_DIR}/examples/vector_add.cu)
     target_compile_features(vector_add PRIVATE cxx_std_17)
-    target_include_directories(
-      vector_add
-      PRIVATE
-      ${PROJECT_SOURCE_DIR}/include
-    )
-    target_link_libraries(
-      vector_add
-      PRIVATE
-      kmm
-    )
+    target_link_libraries(vector_add PRIVATE kmm)
+
+    add_executable(point_in_poly ${PROJECT_SOURCE_DIR}/examples/point_in_poly.cu)
+    target_compile_features(point_in_poly PRIVATE cxx_std_17)
+    target_link_libraries(point_in_poly PRIVATE kmm)
   endif()
 endif()

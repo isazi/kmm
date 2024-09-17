@@ -131,7 +131,7 @@ EventId parallel_submit_impl(
         EventList events;
 
         std::tuple<TaskDataProcessor<typename std::decay<Args>::type>...> processors = {
-            std::forward<Args>(args)...};
+            TaskDataProcessor<typename std::decay<Args>::type> {std::forward<Args>(args)}...};
 
         for (const Chunk<N>& chunk : partition.chunks) {
             ProcessorId processor_id = launcher.find_processor(worker.system_info(), chunk);

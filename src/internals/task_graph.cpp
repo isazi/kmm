@@ -1,5 +1,7 @@
 #include <algorithm>
 
+#include "spdlog/spdlog.h"
+
 #include "kmm/internals/task_graph.hpp"
 
 namespace kmm {
@@ -128,10 +130,10 @@ void TaskGraph::commit() {
         m_buffer_accesses.end(),
         [](const auto& a, const auto& b) { return a.buffer_id < b.buffer_id; });
 
-    EventList write_events;
     auto current = m_buffer_accesses.begin();
 
     while (current != m_buffer_accesses.end()) {
+        EventList write_events;
         auto buffer_id = current->buffer_id;
         auto& meta = m_buffers.at(buffer_id);
 
@@ -145,7 +147,7 @@ void TaskGraph::commit() {
         } while (current != m_buffer_accesses.end() && current->buffer_id == buffer_id);
 
         if (!write_events.is_empty()) {
-            meta.last_writes = write_events;
+            meta.last_writes = std::move(write_events);
         }
     }
 
