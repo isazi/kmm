@@ -4,6 +4,7 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/core/geometry.hpp"
+#include "kmm/utils/integer_fun.hpp"
 
 namespace kmm {
 
@@ -70,19 +71,19 @@ static constexpr AxesMapping _4 = AxesMapping(4);
 
 }  // namespace placeholders
 
+// (scale * variable + offset + [0...length]) / divisor
 struct IndexMapping {
-    constexpr IndexMapping(
+    IndexMapping(
         AxesMapping variable = {},
         int64_t scale = 1,
         int64_t offset = 0,
-        int64_t length = 1) :
-        m_variable(variable),
-        m_scale(scale),
-        m_offset(offset),
-        m_length(length) {}
+        int64_t length = 1,
+        int64_t divisor = 1);
 
+    static IndexMapping range(IndexMapping begin, IndexMapping end);
     IndexMapping offset_by(int64_t offset) const;
     IndexMapping scale_by(int64_t factor) const;
+    IndexMapping divide_by(int64_t divisor) const;
     IndexMapping negate() const;
 
     template<size_t N, size_t M>
@@ -90,20 +91,30 @@ struct IndexMapping {
         rect<M> result = bounds;
 
         if (M > 0) {
-            int64_t i;
-            int64_t n;
+            int64_t a0 = chunk.offset.get(m_variable);
+            int64_t a1 = a0 + chunk.size.get(m_variable) - 1;
+
+            int64_t b0;
+            int64_t b1;
 
             if (m_scale > 0) {
-                i = chunk.offset.get(m_variable) * m_scale + m_offset;
-                n = (chunk.size.get(m_variable) - 1) * m_scale + 1;
+                b0 = m_scale * a0 + m_offset;
+                b1 = m_scale * a1 + m_offset + m_length - 1;
             } else if (m_scale < 0) {
-                i = (chunk.offset.get(m_variable) + chunk.size.get(m_variable) - 1) * m_scale
-                    + m_offset;
-                n = (chunk.size.get(m_variable) - 1) * -m_scale + 1;
+                b0 = m_scale * a1 + m_offset;
+                b1 = m_scale * a0 + m_offset + m_length - 1;
             } else {
-                i = m_offset;
-                n = 1;
+                b0 = m_offset;
+                b1 = m_offset + m_length - 1;
             }
+
+            if (m_divisor != 1) {
+                b0 = div_floor(b0, m_divisor);
+                b1 = div_floor(b1, m_divisor);
+            }
+
+            int64_t i = b0;
+            int64_t n = b1 - b0 + 1;
 
             result.offset[0] = i;
             result.sizes[0] = n;
@@ -112,12 +123,27 @@ struct IndexMapping {
         return result.intersection(bounds);
     }
 
+    friend std::ostream& operator<<(std::ostream& f, const IndexMapping& that);
+
   private:
     AxesMapping m_variable;
     int64_t m_scale;
     int64_t m_offset;
     int64_t m_length;
+    int64_t m_divisor;
 };
+
+inline IndexMapping range(IndexMapping begin, IndexMapping end) {
+    return IndexMapping::range(begin, end);
+}
+
+inline IndexMapping range(int64_t begin, int64_t end) {
+    return {AxesMapping {}, 0, begin, end - begin};
+}
+
+inline IndexMapping range(int64_t end) {
+    return range(0, end);
+}
 
 inline IndexMapping operator+(IndexMapping a) {
     return a;
@@ -149,6 +175,10 @@ inline IndexMapping operator*(IndexMapping a, int64_t b) {
 
 inline IndexMapping operator*(int64_t a, IndexMapping b) {
     return b.scale_by(a);
+}
+
+inline IndexMapping operator/(IndexMapping a, int64_t b) {
+    return a.divide_by(b);
 }
 
 inline IndexMapping into_index_mapping(int64_t m) {
@@ -232,3 +262,6 @@ Write<T, I> write(T& argument, I index_mapping = {}) {
 }
 
 }  // namespace kmm
+
+template<>
+struct fmt::formatter<kmm::IndexMapping>: fmt::ostream_formatter {};
