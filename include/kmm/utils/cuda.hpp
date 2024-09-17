@@ -28,7 +28,7 @@ void cuda_throw_exception(
     int line,
     const char* expression);
 
-class CudaException: std::exception {
+class CudaException: public std::exception {
   public:
     CudaException(std::string message = {}) : m_message(std::move(message)) {}
 
@@ -40,7 +40,7 @@ class CudaException: std::exception {
     std::string m_message;
 };
 
-class CudaDriverException: CudaException {
+class CudaDriverException: public CudaException {
   public:
     CudaDriverException(const std::string& message, CUresult result);
     CudaDriverException(const char* message, CUresult result) :
@@ -48,13 +48,13 @@ class CudaDriverException: CudaException {
     CUresult status;
 };
 
-class CudaRuntimeException: CudaException {
+class CudaRuntimeException: public CudaException {
   public:
     CudaRuntimeException(const std::string& message, cudaError_t result);
     cudaError_t status;
 };
 
-class CudaBlasException: CudaException {
+class CudaBlasException: public CudaException {
   public:
     CudaBlasException(const std::string& message, cublasStatus_t result);
     cublasStatus_t status;
@@ -68,7 +68,7 @@ std::vector<CUdevice> get_cuda_devices();
 /**
  * If the given address points to memory allocation that has been allocated on a CUDA device, then
  * this function returns the device ordinal as a `CUdevice`. If the address points ot an invalid
- * memory location or a non-CUDA buffer, then returns `std::nullopt`.
+ * memory location or a non-CUDA buffer, then it returns `std::nullopt`.
  */
 std::optional<CUdevice> get_cuda_device_by_address(const void* address);
 

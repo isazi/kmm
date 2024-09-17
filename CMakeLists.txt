@@ -6,6 +6,7 @@ project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
 # User options (features)
 option(KMM_USE_CUDA "Build the CUDA backend" OFF)
 option(KMM_STATIC "Build a static library" OFF)
+
 # User options (development)
 option(KMM_ENABLE_LINTER "Enable clang-tidy linter" OFF)
 option(KMM_BUILD_TESTS "Build tests" OFF)
@@ -38,10 +39,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 add_subdirectory(external/fmt)
+target_link_libraries(${PROJECT_NAME} PUBLIC fmt)
+
 set(SPDLOG_FMT_EXTERNAL ON)
 set(SPDLOG_BUILD_PIC ON)
 add_subdirectory(external/spdlog)
-target_link_libraries(${PROJECT_NAME} PUBLIC spdlog fmt)
+target_link_libraries(${PROJECT_NAME} PUBLIC spdlog)
 
 # Install
 set_target_properties(
@@ -57,12 +60,13 @@ install(
 )
 
 install(
-DIRECTORY include/kmm DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.hpp"
+  DIRECTORY include/kmm
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  FILES_MATCHING PATTERN "*.hpp"
 )
 
-target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
-
 # Enable PIC
+target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
 set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 if(KMM_ENABLE_LINTER)
@@ -84,40 +88,10 @@ endif()
 
 # Unit testing
 if(KMM_BUILD_TESTS)
-  find_package(GTest)
-  include(GoogleTest)
-  enable_testing()
-  add_executable(
-    kmmTest
-    ${PROJECT_SOURCE_DIR}/test/test_integer_fun.cpp
-    ${PROJECT_SOURCE_DIR}/test/test_checked_math.cpp
-    ${PROJECT_SOURCE_DIR}/test/test_small_vector.cpp
-    ${PROJECT_SOURCE_DIR}/test/test_geom.cpp
-  )
-  target_compile_features(kmmTest PRIVATE cxx_std_17)
-  target_include_directories(
-    kmmTest
-    PRIVATE
-    ${GTEST_INCLUDE_DIRS}
-    ${PROJECT_SOURCE_DIR}/include
-  )
-  target_link_libraries(
-    kmmTest
-    PRIVATE
-    GTest::gtest_main
-    kmm
-  )
+  add_subdirectory(test)
 endif()
 
 # Compile examples
 if(KMM_BUILD_EXAMPLES)
-  if(DEFINED CMAKE_CUDA_COMPILER)
-    add_executable(vector_add ${PROJECT_SOURCE_DIR}/examples/vector_add.cu)
-    target_compile_features(vector_add PRIVATE cxx_std_17)
-    target_link_libraries(vector_add PRIVATE kmm)
-
-    add_executable(point_in_poly ${PROJECT_SOURCE_DIR}/examples/point_in_poly.cu)
-    target_compile_features(point_in_poly PRIVATE cxx_std_17)
-    target_link_libraries(point_in_poly PRIVATE kmm)
-  endif()
+  add_subdirectory(examples)
 endif()

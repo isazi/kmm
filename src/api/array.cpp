@@ -69,7 +69,7 @@ ArrayBackend<N>::ArrayBackend(
         if (chunk.offset != expected_offset || chunk.size != expected_size) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is not aligned to the chunk size of {}",
-                rect<N>(expected_offset, expected_size),
+                rect<N>(chunk.offset, chunk.size),
                 m_chunk_size));
         }
 
@@ -114,8 +114,18 @@ ArrayChunk<N> ArrayBackend<N>::find_chunk(rect<N> region) const {
         auto k = div_floor(region.offset[i], m_chunk_size[i]);
         auto w = region.offset[i] % m_chunk_size[i] + region.sizes[i];
 
-        if (!in_range(k, m_num_chunks[i]) || w > m_chunk_size[i]) {
-            throw std::out_of_range("invalid chunk");
+        if (!in_range(k, m_num_chunks[i])) {
+            throw std::out_of_range(fmt::format(
+                "invalid read pattern, the region {} exceeds the array dimensions {}",
+                region,
+                m_array_size));
+        }
+
+        if (w > m_chunk_size[i]) {
+            throw std::out_of_range(fmt::format(
+                "invalid read pattern, the region {} does not align to the chunk size of {}",
+                region,
+                m_chunk_size));
         }
 
         buffer_index = buffer_index * m_num_chunks[i] + static_cast<size_t>(k);
@@ -183,7 +193,9 @@ class CopyOutTask: public Task {
 
         CopyDescription copy(m_element_size);
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t j = 0; j < N; j++) {
+            size_t i = N - j - 1;
+
             copy.add_dimension(
                 checked_cast<size_t>(m_region.size(i)),
                 checked_cast<size_t>(0),
