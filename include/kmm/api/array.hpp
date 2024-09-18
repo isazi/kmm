@@ -31,7 +31,6 @@ class ArrayBackend: public std::enable_shared_from_this<ArrayBackend<N>> {
     ArrayBackend(
         std::shared_ptr<Worker> worker,
         dim<N> array_size,
-        dim<N> chunk_size,
         std::vector<ArrayChunk<N>> chunks);
     ~ArrayBackend();
 
@@ -78,14 +77,11 @@ class ArrayBase {
 template<typename T, size_t N = 1>
 class Array: ArrayBase {
   public:
-    Array(dim<N> shape, dim<N> chunk_size) : m_shape(shape), m_chunk_size(chunk_size) {}
-    Array(dim<N> shape) : Array(shape, shape) {}
-    Array() = default;
+    Array(dim<N> shape = {}) : m_shape(shape) {}
 
-    Array(std::shared_ptr<ArrayBackend<N>> b) :
+    explicit Array(std::shared_ptr<ArrayBackend<N>> b) :
         m_backend(b),
-        m_shape(m_backend->array_size()),
-        m_chunk_size(m_backend->chunk_size()) {}
+        m_shape(m_backend->array_size()) {}
 
     size_t rank() const final {
         return N;
@@ -117,11 +113,11 @@ class Array: ArrayBase {
     }
 
     dim<N> chunk_size() const {
-        return m_chunk_size;
+        return inner().chunk_size();
     }
 
     int64_t chunk_size(size_t axis) const {
-        return m_chunk_size.get(axis);
+        return inner().chunk_size().get(axis);
     }
 
     const Worker& worker() const {
@@ -145,7 +141,6 @@ class Array: ArrayBase {
   private:
     std::shared_ptr<ArrayBackend<N>> m_backend;
     dim<N> m_shape;
-    dim<N> m_chunk_size;
 };
 
 template<typename T, size_t N>
@@ -187,8 +182,7 @@ struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
     TaskDataProcessor(Write<Array<T, N>, SliceMapping<N>> arg) :
         m_array(arg.argument),
         m_mapping(arg.index_mapping),
-        m_sizes(arg.argument.shape()),
-        m_chunk_size(arg.argument.chunk_size()) {
+        m_sizes(arg.argument.shape()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -219,13 +213,12 @@ struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
     void finalize(const TaskResult& result) {
         std::shared_ptr<Worker> worker = result.worker.shared_from_this();
         m_array =
-            std::make_shared<ArrayBackend<N>>(worker, m_sizes, m_chunk_size, std::move(m_chunks));
+            Array<T, N>(std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(m_chunks)));
     }
 
   private:
     Array<T, N>& m_array;
     dim<N> m_sizes;
-    dim<N> m_chunk_size;
     std::vector<ArrayChunk<N>> m_chunks;
     SliceMapping<N> m_mapping;
 };
@@ -294,7 +287,8 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
 
     void finalize(const TaskResult& result) {
         std::shared_ptr<Worker> worker = result.worker.shared_from_this();
-        m_array = std::make_shared<ArrayBackend<N>>(worker, m_sizes, m_sizes, std::move(m_chunks));
+        m_array =
+            Array<T, N>(std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(m_chunks)));
     }
 
   private:
@@ -306,6 +300,48 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
 template<typename T, size_t N>
 struct TaskDataProcessor<Array<T, N>>: public TaskDataProcessor<Read<Array<T, N>>> {
     TaskDataProcessor(Array<T, N> arg) : TaskDataProcessor<Read<Array<T, N>>>(read(arg)) {}
+};
+
+template<typename T, size_t N>
+struct TaskDataProcessor<Reduce<Array<T, N>>> {
+    using type = PackedArray<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
+
+    TaskDataProcessor(Reduce<Array<T, N>> arg) :
+        m_array(arg.argument),
+        m_sizes(arg.argument.shape()) {}
+
+    template<size_t M>
+    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+        KMM_TODO();
+    }
+
+    void finalize(const TaskResult& result) {}
+
+  private:
+    Array<T, N>& m_array;
+    dim<N> m_sizes;
+};
+
+template<typename T, size_t N>
+struct TaskDataProcessor<Reduce<Array<T, N>, SliceMapping<N>>> {
+    using type = PackedArray<T, views::layouts::right_to_left<views::domains::subbounds<N>>>;
+
+    TaskDataProcessor(Reduce<Array<T, N>, SliceMapping<N>> arg) :
+        m_array(arg.argument),
+        m_sizes(arg.argument.shape()),
+        m_mapping(arg.index_mapping) {}
+
+    template<size_t M>
+    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+        KMM_TODO();
+    }
+
+    void finalize(const TaskResult& result) {}
+
+  private:
+    Array<T, N>& m_array;
+    dim<N> m_sizes;
+    SliceMapping<N> m_mapping;
 };
 
 }  // namespace kmm

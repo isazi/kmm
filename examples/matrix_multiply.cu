@@ -57,13 +57,13 @@ int main() {
     int k = 500;
     int chunk_size = 100;
 
-    auto A = kmm::Array<float, 2>{{n, k}, {chunk_size, k}};
-    auto B = kmm::Array<float, 2>{{k, m}, {k, chunk_size}};
-    auto C = kmm::Array<float, 2>{{n, m}, {chunk_size, chunk_size}};
+    auto A = kmm::Array<float, 2>{{n, k}};
+    auto B = kmm::Array<float, 2>{{k, m}};
+    auto C = kmm::Array<float, 2>{{n, m}};
 
     rt.parallel_for<2>(
         {{n, k}},
-        {{chunk_size, k}},
+        {{chunk_size, chunk_size}},
         kmm::Host(fill_array),
         write(A, slice(_x, _y)),
         1.0F
@@ -71,7 +71,7 @@ int main() {
 
     rt.parallel_for<2>(
         {{k, m}},
-        {{k, chunk_size}},
+        {{chunk_size, chunk_size}},
         kmm::Host(fill_array),
         write(B, slice(_x, _y)),
         1.0F
@@ -79,10 +79,10 @@ int main() {
 
     rt.parallel_for<3>(
         {{n, m, k}},
-        {{chunk_size, chunk_size, k}},
+        {{chunk_size, chunk_size, chunk_size}},
         kmm::Cuda(matrix_multiply),
         n, m, k,
-        write(C, slice(_x, _y)),
+        reduce(C, kmm::ReductionOp::Sum, slice(_x, _y)),
         read(A, slice(_x, _y)),
         read(B, slice(_z, _x))
     );

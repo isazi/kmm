@@ -49,9 +49,9 @@ int main() {
     int chunk_size = n / 10;
     dim3 block_size = 256;
 
-    auto A = kmm::Array<float>{n, chunk_size};
-    auto B = kmm::Array<float>{n, chunk_size};
-    auto C = kmm::Array<float>{n, chunk_size};
+    auto A = kmm::Array<float>{n};
+    auto B = kmm::Array<float>{n};
+    auto C = kmm::Array<float>{n};
 
     rt.parallel_for(
         {n},

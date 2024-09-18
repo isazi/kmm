@@ -32,11 +32,15 @@ template<size_t N>
 ArrayBackend<N>::ArrayBackend(
     std::shared_ptr<Worker> worker,
     dim<N> array_size,
-    dim<N> chunk_size,
     std::vector<ArrayChunk<N>> chunks) :
     m_worker(worker),
-    m_chunk_size(chunk_size),
     m_array_size(array_size) {
+    for (const auto& chunk : chunks) {
+        if (chunk.offset == point<N>::zero()) {
+            m_chunk_size = chunk.size;
+        }
+    }
+
     if (m_chunk_size.is_empty()) {
         throw std::runtime_error("chunk size cannot be empty");
     }

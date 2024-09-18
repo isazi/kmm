@@ -317,6 +317,12 @@ class rect {
             auto bi = that.offset[i];
             auto bn = that.sizes[i];
 
+            // We should have: `ai <= bi && ai+an >= bi+bn`.
+            // The inverse is: `ai > bi || ai+an < bi+bn`
+            // Rewritten we get these conditions:
+            // * `ai > bi`, or
+            // * `an <= bi - ai`, or
+            // * `an - (bi - ai) < + bn`
             if (ai > bi) {
                 contain = false;
             }
@@ -441,7 +447,16 @@ std::ostream& operator<<(std::ostream& stream, const dim<N, T>& p) {
 
 template<size_t N, typename T>
 std::ostream& operator<<(std::ostream& stream, const rect<N, T>& p) {
-    return stream << p.offset << "..." << (p.offset + p.sizes.to_point());
+    stream << "{";
+    for (size_t i = 0; i < N; i++) {
+        if (i != 0) {
+            stream << ", ";
+        }
+
+        stream << p.offset[i] << "..." << (p.offset[i] + p.sizes[i]);
+    }
+
+    return stream << "}";
 }
 }  // namespace kmm
 

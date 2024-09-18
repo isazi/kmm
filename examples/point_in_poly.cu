@@ -68,9 +68,9 @@ int main() {
     int npoints_per_chunk = npoints / 10;
     dim3 block_size = 256;
 
-    auto vertices = kmm::Array<float2>{nvertices};
-    auto points = kmm::Array<float2>{npoints, npoints_per_chunk};
-    auto bitmap = kmm::Array<int>{npoints, npoints_per_chunk};
+    auto vertices = kmm::Array<float2> {nvertices};
+    auto points = kmm::Array<float2> {npoints};
+    auto bitmap = kmm::Array<int> {npoints};
 
     rt.submit(
         {nvertices},
@@ -94,7 +94,7 @@ int main() {
         write(bitmap, slice(_x)),
         read(points, slice(_x)),
         nvertices,
-        vertices
+        read(vertices)
     );
 
     rt.synchronize();

@@ -261,6 +261,18 @@ Write<T, I> write(T& argument, I index_mapping = {}) {
     return {argument, index_mapping};
 }
 
+template<typename T, typename I = FullMapping>
+struct Reduce {
+    T& argument;
+    ReductionOp op;
+    I index_mapping;
+};
+
+template<typename I = FullMapping, typename T>
+Reduce<T, I> reduce(T& argument, ReductionOp op, I index_mapping = {}) {
+    return {argument, op, index_mapping};
+}
+
 }  // namespace kmm
 
 template<>
