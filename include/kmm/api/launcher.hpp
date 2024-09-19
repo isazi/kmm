@@ -10,14 +10,13 @@ struct Host {
 
     Host(F fun) : m_fun(fun) {}
 
-    template<size_t N>
-    ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
+    ProcessorId find_processor(const SystemInfo& info, Chunk chunk) {
         return ProcessorId::host();
     }
 
-    template<size_t N, typename... Args>
-    void operator()(ExecutionContext& exec, Chunk<N> chunk, Args... args) {
-        auto region = rect<N>(chunk.offset, chunk.size);
+    template<typename... Args>
+    void operator()(ExecutionContext& exec, Chunk chunk, Args... args) {
+        auto region = WorkChunk(chunk.offset, chunk.size);
         m_fun(region, args...);
     }
 
@@ -31,14 +30,13 @@ struct Cuda {
 
     Cuda(F fun) : m_fun(fun) {}
 
-    template<size_t N>
-    ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
+    ProcessorId find_processor(const SystemInfo& info, Chunk chunk) {
         return chunk.owner_id.is_device() ? chunk.owner_id : ProcessorId(DeviceId(0));
     }
 
-    template<size_t N, typename... Args>
-    void operator()(ExecutionContext& exec, Chunk<N> chunk, Args... args) {
-        auto region = rect<N>(chunk.offset, chunk.size);
+    template<typename... Args>
+    void operator()(ExecutionContext& exec, Chunk chunk, Args... args) {
+        auto region = WorkChunk(chunk.offset, chunk.size);
         m_fun(exec.cast<CudaDevice>(), region, args...);
     }
 
@@ -62,13 +60,12 @@ struct CudaKernel {
         elements_per_block(elements_per_block),
         shared_memory(shared_memory) {}
 
-    template<size_t N>
-    ProcessorId find_processor(const SystemInfo& info, Chunk<N> chunk) {
+    ProcessorId find_processor(const SystemInfo& info, Chunk chunk) {
         return chunk.owner_id.is_device() ? chunk.owner_id : DeviceId(0);
     }
 
-    template<size_t N, typename... Args>
-    void operator()(ExecutionContext& exec, Chunk<N> chunk, Args... args) {
+    template<typename... Args>
+    void operator()(ExecutionContext& exec, Chunk chunk, Args... args) {
         int64_t g[3] = {chunk.size.get(0), chunk.size.get(1), chunk.size.get(2)};
         int64_t b[3] = {elements_per_block.x, elements_per_block.y, elements_per_block.z};
         dim3 grid_dim = {
@@ -77,7 +74,7 @@ struct CudaKernel {
             checked_cast<unsigned int>((g[2] / b[2]) + int64_t(g[2] % b[2] != 0)),
         };
 
-        auto region = rect<N>(chunk.offset, chunk.size);
+        auto region = WorkChunk(chunk.offset, chunk.size);
         exec.cast<CudaDevice>().launch(  //
             grid_dim,
             block_size,
@@ -91,10 +88,10 @@ struct CudaKernel {
     std::decay_t<F> kernel;
 };
 
-template<size_t N, typename Launcher, typename... Args>
+template<typename Launcher, typename... Args>
 class TaskImpl: public Task {
   public:
-    TaskImpl(Chunk<N> chunk, Launcher launcher, Args... args) :
+    TaskImpl(Chunk chunk, Launcher launcher, Args... args) :
         m_chunk(chunk),
         m_launcher(std::move(launcher)),
         m_args(std::move(args)...) {}
@@ -114,17 +111,17 @@ class TaskImpl: public Task {
     }
 
   private:
-    Chunk<N> m_chunk;
+    Chunk m_chunk;
     Launcher m_launcher;
     std::tuple<Args...> m_args;
 };
 
 namespace detail {
-template<size_t... Is, size_t N, typename Launcher, typename... Args>
+template<size_t... Is, typename Launcher, typename... Args>
 EventId parallel_submit_impl(
     std::index_sequence<Is...>,
     Worker& worker,
-    const Partition<N>& partition,
+    const Partition& partition,
     Launcher launcher,
     Args&&... args) {
     return worker.with_task_graph([&](TaskGraph& graph) {
@@ -133,7 +130,7 @@ EventId parallel_submit_impl(
         std::tuple<TaskDataProcessor<typename std::decay<Args>::type>...> processors = {
             TaskDataProcessor<typename std::decay<Args>::type> {std::forward<Args>(args)}...};
 
-        for (const Chunk<N>& chunk : partition.chunks) {
+        for (const Chunk& chunk : partition.chunks) {
             ProcessorId processor_id = launcher.find_processor(worker.system_info(), chunk);
 
             TaskBuilder builder {
@@ -144,7 +141,6 @@ EventId parallel_submit_impl(
                 .dependencies = {}};
 
             auto task = std::make_shared<TaskImpl<
-                N,
                 Launcher,
                 typename TaskDataProcessor<typename std::decay<Args>::type>::type...>>(
                 chunk,
@@ -169,10 +165,10 @@ EventId parallel_submit_impl(
 }
 }  // namespace detail
 
-template<size_t N, typename Launcher, typename... Args>
+template<typename Launcher, typename... Args>
 EventId parallel_submit(
     Worker& worker,
-    const Partition<N>& partition,
+    const Partition& partition,
     Launcher launcher,
     Args&&... args) {
     return detail::parallel_submit_impl(

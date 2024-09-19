@@ -1,7 +1,7 @@
 #include "kmm/kmm.hpp"
 
 void fill_array(
-    kmm::rect<2> region,
+    kmm::WorkChunk region,
     kmm::subview_mut<float, 2> array,
     float value
 ) {
@@ -14,7 +14,7 @@ void fill_array(
 
 void matrix_multiply(
     kmm::CudaDevice& device,
-    kmm::rect<3> region,
+    kmm::WorkChunk region,
     int m,
     int n,
     int k,
@@ -61,25 +61,25 @@ int main() {
     auto B = kmm::Array<float, 2>{{k, m}};
     auto C = kmm::Array<float, 2>{{n, m}};
 
-    rt.parallel_for<2>(
-        {{n, k}},
-        {{chunk_size, chunk_size}},
+    rt.parallel_submit(
+        {n, k},
+        {chunk_size, chunk_size},
         kmm::Host(fill_array),
-        write(A, slice(_x, _y)),
+        write(A, slice(_0, _1)),
         1.0F
     );
 
-    rt.parallel_for<2>(
-        {{k, m}},
-        {{chunk_size, chunk_size}},
+    rt.parallel_submit(
+        {k, m},
+        {chunk_size, chunk_size},
         kmm::Host(fill_array),
         write(B, slice(_x, _y)),
         1.0F
     );
 
-    rt.parallel_for<3>(
-        {{n, m, k}},
-        {{chunk_size, chunk_size, chunk_size}},
+    rt.parallel_submit(
+        {n, m, k},
+        {chunk_size, chunk_size, chunk_size},
         kmm::Cuda(matrix_multiply),
         n, m, k,
         reduce(C, kmm::ReductionOp::Sum, slice(_x, _y)),

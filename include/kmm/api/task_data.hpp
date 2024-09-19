@@ -50,8 +50,7 @@ struct TaskDataProcessor {
 
     TaskDataProcessor(T value) : m_value(value) {}
 
-    template<size_t M>
-    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+    type process_chunk(Chunk chunk, TaskBuilder& builder) {
         return TaskData<T>::pack(builder, m_value);
     }
 

@@ -8,6 +8,7 @@
 
 #include "kmm/core/system_info.hpp"
 #include "kmm/core/view.hpp"
+#include "kmm/core/work_chunk.hpp"
 #include "kmm/internals/worker.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
@@ -33,12 +34,12 @@ class Runtime {
      * @param args The arguments that are forwarded to the launcher.
      * @return The event identifier for the submitted task.
      */
-    template<size_t N = 1, typename L, typename... Args>
-    EventId submit(rect<N> index_space, ProcessorId target, L launcher, Args&&... args) {
-        Partition<N> partition = {{Chunk<N> {
+    template<typename L, typename... Args>
+    EventId submit(WorkDim index_space, ProcessorId target, L launcher, Args&&... args) {
+        Partition partition = {{Chunk {
             .owner_id = target,  //
-            .offset = index_space.offset,
-            .size = index_space.sizes}}};
+            .offset = {},
+            .size = index_space}}};
 
         return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
     }
@@ -51,8 +52,8 @@ class Runtime {
      * @param args The arguments that are forwarded to the launcher.
      * @return The event identifier for the submitted task.
      */
-    template<size_t N = 1, typename L, typename... Args>
-    EventId parallel_submit(Partition<N> partition, L launcher, Args&&... args) {
+    template<typename L, typename... Args>
+    EventId submit(Partition partition, L launcher, Args&&... args) {
         return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
     }
 
@@ -65,8 +66,8 @@ class Runtime {
      * @param args The arguments that are forwarded to the launcher.
      * @return The event identifier for the submitted task.
      */
-    template<size_t N = 1, typename P = ChunkPartitioner<N>, typename L, typename... Args>
-    EventId parallel_for(rect<N> index_space, P partitioner, L launcher, Args&&... args) {
+    template<typename P = ChunkPartitioner, typename L, typename... Args>
+    EventId parallel_submit(WorkDim index_space, P partitioner, L launcher, Args&&... args) {
         return kmm::parallel_submit(
             *m_worker,
             partitioner(index_space, info()),

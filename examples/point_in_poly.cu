@@ -4,15 +4,15 @@
 #include "kmm/api/runtime.hpp"
 
 __global__ void cn_pnpoly(
-    kmm::rect<1> subrange,
+    kmm::WorkChunk chunk,
     kmm::cuda_subview_mut<int> bitmap,
     kmm::cuda_subview<float2> points,
     int nvertices,
     kmm::cuda_view<float2> vertices
 ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x + subrange.begin();
+    int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
 
-    if (i < subrange.end()) {
+    if (chunk.contains(i)) {
         int c = 0;
         float2 p = points[i];
 
@@ -35,12 +35,12 @@ __global__ void cn_pnpoly(
 }
 
 __global__ void init_points(
-    kmm::rect<1> subrange,
+    kmm::WorkChunk chunk,
     kmm::cuda_subview_mut<float2> points
 ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x + subrange.begin();
+    int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
 
-    if (i < subrange.end()) {
+    if (chunk.contains(i)) {
         curandStatePhilox4_32_10_t state;
         curand_init(1234, i, 0, &state);
         points[i] = {curand_normal(&state), curand_normal(&state)};
@@ -48,11 +48,11 @@ __global__ void init_points(
 }
 
 void init_polygon(
-    kmm::rect<1> subrange,
+    kmm::WorkChunk chunk,
     int nvertices,
     kmm::view_mut<float2> vertices
 ) {
-    for (int64_t i = subrange.begin(); i < subrange.end(); i++) {
+    for (int64_t i = chunk.begin(); i < chunk.end(); i++) {
         float angle = float(i) / float(nvertices) * float(2.0F * M_PI);
         vertices[i] = {cosf(angle), sinf(angle)};
     }
@@ -80,14 +80,14 @@ int main() {
         write(vertices)
     );
 
-    rt.parallel_for(
+    rt.parallel_submit(
         {npoints},
         {npoints_per_chunk},
         kmm::CudaKernel(init_points, block_size),
         write(points, slice(_x))
     );
 
-    rt.parallel_for(
+    rt.parallel_submit(
         {npoints},
         {npoints_per_chunk},
         kmm::CudaKernel(cn_pnpoly, block_size),

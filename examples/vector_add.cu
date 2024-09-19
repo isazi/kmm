@@ -2,11 +2,11 @@
 #include "kmm/api/runtime.hpp"
 
 __global__ void initialize_range(
-    kmm::rect<1> subrange,
+    kmm::WorkChunk chunk,
     kmm::cuda_subview_mut<float> output
 ) {
-    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + subrange.begin();
-    if (i >= subrange.end()) {
+    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
+    if (i >= chunk.end()) {
         return;
     }
 
@@ -14,12 +14,12 @@ __global__ void initialize_range(
 }
 
 __global__ void fill_range(
-    kmm::rect<1> subrange,
+    kmm::WorkChunk chunk,
     float value,
     kmm::cuda_subview_mut<float> output
 ) {
-    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + subrange.begin();
-    if (i >= subrange.end()) {
+    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
+    if (i >= chunk.end()) {
         return;
     }
 
@@ -27,13 +27,13 @@ __global__ void fill_range(
 }
 
 __global__ void vector_add(
-    kmm::rect<1> subrange,
+    kmm::WorkChunk chunk,
     kmm::cuda_subview_mut<float> output,
     kmm::cuda_subview<float> left,
     kmm::cuda_subview<float> right
 ) {
-    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + subrange.begin();
-    if (i >= subrange.end()) {
+    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
+    if (i >= chunk.end()) {
         return;
     }
 
@@ -53,14 +53,14 @@ int main() {
     auto B = kmm::Array<float>{n};
     auto C = kmm::Array<float>{n};
 
-    rt.parallel_for(
+    rt.parallel_submit(
         {n},
         {chunk_size},
         kmm::CudaKernel(initialize_range, block_size),
         write(A, slice(_x))
     );
 
-    rt.parallel_for(
+    rt.parallel_submit(
         {n},
         {chunk_size},
         kmm::CudaKernel(fill_range, block_size),
@@ -68,7 +68,7 @@ int main() {
         write(B, slice(_x))
     );
 
-    rt.parallel_for(
+    rt.parallel_submit(
         {n},
         {chunk_size},
         kmm::CudaKernel(vector_add, block_size),

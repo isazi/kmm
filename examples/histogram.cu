@@ -1,5 +1,7 @@
-#include "kmm/kmm.hpp"
 #include <random>
+
+#include "kmm/core/work_chunk.hpp"
+#include "kmm/kmm.hpp"
 
 void initialize_image(
     unsigned long seed,
@@ -18,7 +20,7 @@ void initialize_image(
 }
 
 void initialize_images(
-    kmm::rect<1> subrange,
+    kmm::WorkChunk subrange,
     int width,
     int height,
     kmm::subview_mut<uint8_t, 3> images
@@ -29,17 +31,17 @@ void initialize_images(
 }
 
 __global__ void calculate_histogram(
-    kmm::rect<3> subrange,
+    kmm::WorkChunk subrange,
     int width,
     int height,
     kmm::cuda_subview<uint8_t, 3> images,
     kmm::cuda_view_mut<int> histogram
 ) {
-    int index = blockIdx.z * blockDim.z + threadIdx.z + subrange.offset.z;
+    int index = blockIdx.z * blockDim.z + threadIdx.z + subrange.begin.z;
     int i = blockIdx.y * blockDim.y + threadIdx.y;
     int j = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (index < subrange.end(2) && i < height && j < width) {
+    if (index < subrange.end.z && i < height && j < width) {
         uint8_t value = images[index][i][j];
         atomicAdd(&histogram[value], 1);
     }
@@ -58,7 +60,7 @@ int main() {
     auto images = kmm::Array<uint8_t, 3>{{num_images, height, width}};
     auto histogram = kmm::Array<int> {256};
 
-    rt.parallel_for(
+    rt.parallel_submit(
         {num_images},
         {images_per_chunk},
         kmm::Host(initialize_images),
@@ -69,9 +71,9 @@ int main() {
 
     images.synchronize();
 
-    rt.parallel_for<3>(
-        {{width, height, num_images}},
-        {{width, height, images_per_chunk}},
+    rt.parallel_submit(
+        {width, height, num_images},
+        {width, height, images_per_chunk},
         kmm::CudaKernel(calculate_histogram, block_size),
         width,
         height,

@@ -27,9 +27,13 @@ class point: public fixed_array<T, N> {
         }
     }
 
-    template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) + 1 == N)>::type>
-    KMM_HOST_DEVICE point(T first, Ts&&... args) :
-        storage_type {static_cast<T>(first), static_cast<T>(args)...} {}
+    template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) < N)>::type>
+    KMM_HOST_DEVICE point(T first, Ts&&... args) {
+        (*this)[0] = first;
+
+        size_t index = 0;
+        (((*this)[index++] = args), ...);
+    }
 
     template<size_t M, typename U>
     KMM_HOST_DEVICE static constexpr point from(const fixed_array<U, M>& that) {
@@ -67,6 +71,11 @@ class point: public fixed_array<T, N> {
     T get(size_t axis) const {
         return axis < N ? (*this)[axis] : static_cast<T>(0);
     }
+
+    KMM_HOST_DEVICE
+    T operator()(size_t axis = 0) const {
+        return get(axis);
+    }
 };
 
 template<size_t N, typename T = default_geometry_type>
@@ -84,9 +93,13 @@ class dim: public fixed_array<T, N> {
         }
     }
 
-    template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) + 1 == N)>::type>
-    KMM_HOST_DEVICE dim(T first, Ts&&... args) :
-        storage_type {static_cast<T>(first), static_cast<T>(args)...} {}
+    template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) < N)>::type>
+    KMM_HOST_DEVICE dim(T first, Ts&&... args) {
+        (*this)[0] = first;
+
+        size_t index = 0;
+        (((*this)[index++] = args), ...);
+    }
 
     KMM_HOST_DEVICE
     static constexpr dim from_point(const point<N, T>& that) {
@@ -185,6 +198,11 @@ class dim: public fixed_array<T, N> {
 
         return true;
     }
+
+    KMM_HOST_DEVICE
+    T operator()(size_t axis = 1) const {
+        return get(axis);
+    }
 };
 
 template<size_t N, typename T = default_geometry_type>
@@ -198,6 +216,11 @@ class rect {
 
     KMM_HOST_DEVICE
     rect(dim<N, T> sizes) : rect(point<N, T>::zero(), sizes) {}
+
+    template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) < N)>::type>
+    KMM_HOST_DEVICE rect(T first, Ts&&... args) :
+        offset(point<N, T>::zero()),
+        sizes(first, args...) {}
 
     KMM_HOST_DEVICE
     rect() : rect(dim<N, T>::zero()) {}

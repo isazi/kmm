@@ -10,7 +10,7 @@ namespace kmm {
 
 struct IdentityMapping {
     template<size_t N>
-    rect<N> operator()(Chunk<N> chunk, rect<N> bounds) const {
+    rect<N> operator()(Chunk chunk, rect<N> bounds) const {
         return {chunk.offset, chunk.size};
     }
 };
@@ -18,8 +18,8 @@ struct IdentityMapping {
 static constexpr IdentityMapping one_to_one;
 
 struct FullMapping {
-    template<size_t N, size_t M>
-    rect<M> operator()(Chunk<N> chunk, rect<M> bounds) const {
+    template<size_t M>
+    rect<M> operator()(Chunk chunk, rect<M> bounds) const {
         return bounds;
     }
 };
@@ -28,8 +28,8 @@ struct AxesMapping {
     constexpr AxesMapping() : m_axis(0) {}
     explicit constexpr AxesMapping(size_t axis) : m_axis(axis) {}
 
-    template<size_t N, size_t M>
-    rect<M> operator()(Chunk<N> chunk, rect<M> bounds) const {
+    template<size_t M>
+    rect<M> operator()(Chunk chunk, rect<M> bounds) const {
         rect<M> result = bounds;
 
         if (M > 0) {
@@ -66,8 +66,6 @@ static constexpr AxesMapping _k = AxesMapping(2);
 static constexpr AxesMapping _0 = AxesMapping(0);
 static constexpr AxesMapping _1 = AxesMapping(1);
 static constexpr AxesMapping _2 = AxesMapping(2);
-static constexpr AxesMapping _3 = AxesMapping(3);
-static constexpr AxesMapping _4 = AxesMapping(4);
 
 }  // namespace placeholders
 
@@ -86,8 +84,8 @@ struct IndexMapping {
     IndexMapping divide_by(int64_t divisor) const;
     IndexMapping negate() const;
 
-    template<size_t N, size_t M>
-    rect<M> operator()(Chunk<N> chunk, rect<M> bounds) const {
+    template<size_t M>
+    rect<M> operator()(Chunk chunk, rect<M> bounds) const {
         rect<M> result = bounds;
 
         if (M > 0) {
@@ -199,8 +197,7 @@ inline IndexMapping into_index_mapping(FullMapping m) {
 
 template<size_t N>
 struct SliceMapping {
-    template<size_t M>
-    rect<N> operator()(Chunk<M> chunk, rect<N> bounds) const {
+    rect<N> operator()(Chunk chunk, rect<N> bounds) const {
         rect<N> result;
 
         for (size_t i = 0; i < N; i++) {
@@ -218,8 +215,7 @@ struct SliceMapping {
 
 template<>
 struct SliceMapping<0> {
-    template<size_t M>
-    rect<0> operator()(Chunk<M> chunk, rect<0> bounds) const {
+    rect<0> operator()(Chunk chunk, rect<0> bounds) const {
         return {};
     }
 };

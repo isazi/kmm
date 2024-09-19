@@ -151,8 +151,7 @@ struct TaskDataProcessor<Read<Array<T, N>, SliceMapping<N>>> {
         m_backend(arg.argument.inner().shared_from_this()),
         m_mapping(arg.index_mapping) {}
 
-    template<size_t M>
-    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+    type process_chunk(Chunk chunk, TaskBuilder& builder) {
         auto access_region = m_mapping(chunk, m_backend->array_size());
         auto data_chunk = m_backend->find_chunk(access_region);
 
@@ -188,8 +187,7 @@ struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
         }
     }
 
-    template<size_t M>
-    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+    type process_chunk(Chunk chunk, TaskBuilder& builder) {
         auto access_region = m_mapping(chunk, m_sizes);
         auto num_elements = access_region.size();
         auto buffer_id = builder.graph.create_buffer(BufferLayout::for_type<T>(num_elements));
@@ -229,8 +227,7 @@ struct TaskDataProcessor<Read<Array<T, N>>> {
 
     TaskDataProcessor(Read<Array<T, N>> arg) : m_backend(arg.argument.inner().shared_from_this()) {}
 
-    template<size_t M>
-    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+    type process_chunk(Chunk chunk, TaskBuilder& builder) {
         auto data_chunk = m_backend->find_chunk(m_backend->array_size());
 
         size_t buffer_index = builder.buffers.size();
@@ -263,8 +260,7 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
         }
     }
 
-    template<size_t M>
-    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+    type process_chunk(Chunk chunk, TaskBuilder& builder) {
         auto num_elements = m_sizes.volume();
         auto buffer_id = builder.graph.create_buffer(BufferLayout::for_type<T>(num_elements));
 
@@ -310,8 +306,7 @@ struct TaskDataProcessor<Reduce<Array<T, N>>> {
         m_array(arg.argument),
         m_sizes(arg.argument.shape()) {}
 
-    template<size_t M>
-    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+    type process_chunk(Chunk chunk, TaskBuilder& builder) {
         KMM_TODO();
     }
 
@@ -331,8 +326,7 @@ struct TaskDataProcessor<Reduce<Array<T, N>, SliceMapping<N>>> {
         m_sizes(arg.argument.shape()),
         m_mapping(arg.index_mapping) {}
 
-    template<size_t M>
-    type process_chunk(Chunk<M> chunk, TaskBuilder& builder) {
+    type process_chunk(Chunk chunk, TaskBuilder& builder) {
         KMM_TODO();
     }
 
