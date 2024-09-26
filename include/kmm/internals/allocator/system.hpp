@@ -6,7 +6,7 @@ namespace kmm {
 
 class SystemAllocator: public DirectMemoryAllocator {
   public:
-    SystemAllocator(std::shared_ptr<CudaStreamManager> streams, size_t max_bytes=std::numeric_limits<size_t>::max()):
+    SystemAllocator(std::shared_ptr<GPUStreamManager> streams, size_t max_bytes=std::numeric_limits<size_t>::max()):
         DirectMemoryAllocator(streams, max_bytes) {}
 
   protected:

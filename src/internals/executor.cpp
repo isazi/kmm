@@ -35,13 +35,13 @@ struct HostOperation: public Operation {
     std::shared_ptr<Task> task;
     std::vector<BufferRequirement> buffers;
     std::vector<MemoryRequest> requests;
-    CudaEventSet dependencies;
+    GPUEventSet dependencies;
 
     HostOperation(
         std::shared_ptr<TaskNode> job,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies) :
+        GPUEventSet dependencies) :
         Operation(std::move(job)),
         task(std::move(task)),
         buffers(std::move(buffers)),
@@ -113,15 +113,15 @@ struct DeviceOperation: public Operation {
     std::shared_ptr<Task> task;
     std::vector<BufferRequirement> buffers;
     std::vector<MemoryRequest> requests;
-    CudaEventSet dependencies;
-    CudaEvent event;
+    GPUEventSet dependencies;
+    GPUEvent event;
 
     DeviceOperation(
         std::shared_ptr<TaskNode> job,
         size_t stream_index,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies) :
+        GPUEventSet dependencies) :
         Operation(std::move(job)),
         stream_index(stream_index),
         task(std::move(task)),
@@ -166,11 +166,11 @@ struct DeviceOperation: public Operation {
             }
 
             event = executor.m_streams->with_stream(stream, dependencies, [&](auto s) {
-                CudaContextGuard guard {device->context_handle()};
+                GPUContextGuard guard {device->context_handle()};
                 task->execute(*device, TaskContext {accessors});
 
                 // Make sure to wait on default stream if anything was accidentally submitted on the wrong stream
-                KMM_CUDA_CHECK(cuStreamSynchronize(nullptr));
+                KMM_GPU_CHECK(gpuStreamSynchronize(nullptr));
             });
 
             for (size_t i = 0; i < requests.size(); i++) {
@@ -195,8 +195,8 @@ struct DeviceOperation: public Operation {
 };
 
 Executor::Executor(
-    std::vector<CudaContextHandle> contexts,
-    std::shared_ptr<CudaStreamManager> streams,
+    std::vector<GPUContextHandle> contexts,
+    std::shared_ptr<GPUStreamManager> streams,
     std::shared_ptr<BufferManager> buffers,
     std::shared_ptr<MemoryManager> memory,
     std::shared_ptr<Scheduler> scheduler) :
@@ -209,8 +209,8 @@ Executor::Executor(
 
         auto context = contexts[i];
         auto stream = streams->create_stream(context);
-        auto device = std::make_unique<CudaDevice>(
-            CudaDeviceInfo(device_id, context),
+        auto device = std::make_unique<GPUDevice>(
+            DeviceInfo(device_id, context),
             context,
             streams->get(stream));
 
@@ -245,7 +245,7 @@ void Executor::submit_task(
     ProcessorId processor_id,
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
-    CudaEventSet dependencies) {
+    GPUEventSet dependencies) {
     if (processor_id.is_device()) {
         submit_device_task(
             job,
@@ -262,7 +262,7 @@ void Executor::submit_host_task(
     std::shared_ptr<TaskNode> job,
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
-    CudaEventSet dependencies) {
+    GPUEventSet dependencies) {
     spdlog::debug(
         "submit host task {} (buffers={}, dependencies={})",
         job->id(),
@@ -281,7 +281,7 @@ void Executor::submit_device_task(
     DeviceId device_id,
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
-    CudaEventSet dependencies) {
+    GPUEventSet dependencies) {
     spdlog::debug(
         "submit device task {} (device={}, buffers={}, dependencies={})",
         job->id(),
@@ -309,7 +309,7 @@ void Executor::submit_prefetch(
     std::shared_ptr<TaskNode> job,
     BufferId buffer_id,
     MemoryId memory_id,
-    CudaEventSet dependencies) {
+    GPUEventSet dependencies) {
     auto task = std::make_shared<EmptyTask>();
     std::vector<BufferRequirement> buffers = {BufferRequirement {
         .buffer_id = buffer_id,
@@ -330,7 +330,7 @@ void Executor::submit_copy(
     BufferId dst_id,
     MemoryId dst_memory,
     CopyDescription spec,
-    CudaEventSet dependencies) {
+    GPUEventSet dependencies) {
     KMM_ASSERT(src_id != dst_id || src_memory == dst_memory);
 
     std::vector<BufferRequirement> buffers = {

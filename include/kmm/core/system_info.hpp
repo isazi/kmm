@@ -2,18 +2,19 @@
 
 #include "identifiers.hpp"
 
-#include "kmm/utils/cuda.hpp"
+#include "kmm/internals/backends.hpp"
+#include "kmm/utils/gpu.hpp"
 
 namespace kmm {
 
-class CudaDeviceInfo {
+class DeviceInfo {
   public:
-    static constexpr size_t NUM_ATTRIBUTES = CU_DEVICE_ATTRIBUTE_MAX;
+    static constexpr size_t NUM_ATTRIBUTES = GPU_DEVICE_ATTRIBUTE_MAX;
 
-    CudaDeviceInfo(DeviceId id, CudaContextHandle context);
+    DeviceInfo(DeviceId id, GPUContextHandle context);
 
     /**
-     * Returns the name of the CUDA device as provided by `cuDeviceGetName`.
+     * Returns the name of the device.
      */
     std::string name() const {
         return m_name;
@@ -34,9 +35,9 @@ class CudaDeviceInfo {
     }
 
     /**
-     * Return this device as a `CUdevice`.
+     * Return this device as a `GPUdevice`.
      */
-    CUdevice device_ordinal() const {
+    GPUdevice device_ordinal() const {
         return m_device_id;
     }
 
@@ -58,8 +59,7 @@ class CudaDeviceInfo {
     dim3 max_grid_dim() const;
 
     /**
-     * Returns the compute capability of this device as integer `MAJOR * 10 + MINOR` (For example,
-     * `86` means capability 8.6)
+     * Returns the compute capability of this device as integer.
      */
     int compute_capability() const;
 
@@ -71,34 +71,34 @@ class CudaDeviceInfo {
     /**
      * Returns the value of the provided attribute.
      */
-    int attribute(CUdevice_attribute attrib) const;
+    int attribute(GPUdevice_attribute attrib) const;
 
   private:
     DeviceId m_id;
     std::string m_name;
-    CUdevice m_device_id;
+    GPUdevice m_device_id;
     size_t m_memory_capacity;
     std::array<int, NUM_ATTRIBUTES> m_attributes;
 };
 
 class SystemInfo {
   public:
-    SystemInfo(std::vector<CudaDeviceInfo> devices = {});
+    SystemInfo(std::vector<DeviceInfo> devices = {});
 
     /**
-     * Returns the number of CUDA devices in the system.
+     * Returns the number of GPU devices in the system.
      */
     size_t num_devices() const;
 
     /**
-     * Return information on the devicve with the given identifier.
+     * Return information on the device with the given identifier.
      */
-    const CudaDeviceInfo& device(DeviceId id) const;
+    const DeviceInfo& device(DeviceId id) const;
 
     /**
-     * Find the device that has the given CUDA ordinal.
+     * Find the device that has the given ordinal.
      */
-    const CudaDeviceInfo& device_by_ordinal(CUdevice ordinal) const;
+    const DeviceInfo& device_by_ordinal(GPUdevice ordinal) const;
 
     /**
      * Return a list of the available processors in the system.
@@ -136,7 +136,7 @@ class SystemInfo {
     bool is_memory_accessible(MemoryId memory_id, DeviceId device_id) const;
 
   private:
-    std::vector<CudaDeviceInfo> m_devices;
+    std::vector<DeviceInfo> m_devices;
 };
 
 }  // namespace kmm

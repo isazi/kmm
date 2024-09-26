@@ -10,7 +10,7 @@ Partition ChunkPartitioner::operator()(WorkDim index_space, const SystemInfo& in
     size_t num_devices = info.num_devices();
 
     if (num_devices == 0) {
-        throw std::runtime_error("no CUDA devices found, cannot partition work");
+        throw std::runtime_error("no GPU devices found, cannot partition work");
     }
 
     WorkDim chunk_size;

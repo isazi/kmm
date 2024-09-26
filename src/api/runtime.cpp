@@ -12,7 +12,7 @@ class CopyInTask: public Task {
 
         void* dst_addr = context.accessors[0].address;
 
-        if (auto* device = proc.cast_if<CudaDevice>()) {
+        if (auto* device = proc.cast_if<GPUDevice>()) {
             device->copy_bytes(m_src_addr, dst_addr, m_nbytes);
             device->synchronize();
         } else if (proc.is<HostContext>()) {
@@ -28,7 +28,7 @@ class CopyInTask: public Task {
 };
 
 MemoryId Runtime::memory_affinity_for_address(const void* address) const {
-    if (auto device_opt = get_cuda_device_by_address(address)) {
+    if (auto device_opt = get_gpu_device_by_address(address)) {
         const auto& device = m_worker->system_info().device_by_ordinal(*device_opt);
         return device.memory_id();
     } else {

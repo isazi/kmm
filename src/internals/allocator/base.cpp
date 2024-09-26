@@ -2,20 +2,14 @@
 
 namespace kmm {
 
-struct DirectMemoryAllocator::DeferredDealloc {
-    void* addr;
-    size_t nbytes;
-    CudaEventSet dependencies;
-};
-
-DirectMemoryAllocator::DirectMemoryAllocator(std::shared_ptr<CudaStreamManager> streams, size_t max_bytes):
+DirectMemoryAllocator::DirectMemoryAllocator(std::shared_ptr<GPUStreamManager> streams, size_t max_bytes):
     m_streams(streams), m_bytes_limit(max_bytes), m_bytes_in_use(0) {}
 
 DirectMemoryAllocator::~DirectMemoryAllocator() {
 }
 
 
-bool DirectMemoryAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out) {
+bool DirectMemoryAllocator::allocate(size_t nbytes, void*& addr_out, GPUEventSet& deps_out) {
     KMM_ASSERT(nbytes > 0);
     make_progress();
 
@@ -40,7 +34,7 @@ bool DirectMemoryAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventSe
     }
 }
 
-void DirectMemoryAllocator::deallocate(void* addr, size_t nbytes, CudaEventSet deps) {
+void DirectMemoryAllocator::deallocate(void* addr, size_t nbytes, GPUEventSet deps) {
     make_progress();
 
     if (m_streams->is_ready(deps)) {

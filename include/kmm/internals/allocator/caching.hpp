@@ -10,8 +10,8 @@ class CachingMemoryAllocator {
   public:
     CachingMemoryAllocator(std::unique_ptr<MemoryAllocator> allocator);
     ~CachingMemoryAllocator();
-    bool allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out);
-    void deallocate(void* addr, size_t nbytes, CudaEventSet deps);
+    bool allocate(size_t nbytes, void*& addr_out, GPUEventSet& deps_out);
+    void deallocate(void* addr, size_t nbytes, GPUEventSet deps);
     size_t free_some_memory();
 
   private:

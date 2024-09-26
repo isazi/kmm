@@ -36,7 +36,7 @@ struct TaskDataDeserialize<ExecutionSpace::Host, PackedArray<const T, L>> {
 
 template<typename T, typename L>
 struct TaskDataDeserialize<ExecutionSpace::Cuda, PackedArray<T, L>> {
-    static basic_view<T, L, views::accessors::cuda_device> unpack(
+    static basic_view<T, L, views::accessors::gpu_device> unpack(
         const TaskContext& context,
         PackedArray<T, L> array) {
         T* data = static_cast<T*>(context.accessors.at(array.buffer_index).address);
@@ -47,7 +47,7 @@ struct TaskDataDeserialize<ExecutionSpace::Cuda, PackedArray<T, L>> {
 
 template<typename T, typename L>
 struct TaskDataDeserialize<ExecutionSpace::Cuda, PackedArray<const T, L>> {
-    static basic_view<const T, L, views::accessors::cuda_device> unpack(
+    static basic_view<const T, L, views::accessors::gpu_device> unpack(
         const TaskContext& context,
         PackedArray<const T, L> array) {
         const T* data = static_cast<const T*>(context.accessors.at(array.buffer_index).address);

@@ -3,30 +3,30 @@
 #include "fmt/format.h"
 #include "spdlog/spdlog.h"
 
-#include "kmm/core/cuda_device.hpp"
+#include "kmm/core/gpu_device.hpp"
 #include "kmm/utils/checked_math.hpp"
 
 namespace kmm {
 
-CudaDevice::CudaDevice(CudaDeviceInfo info, CudaContextHandle context, CUstream stream) :
-    CudaDeviceInfo(info),
+GPUDevice::GPUDevice(DeviceInfo info, GPUContextHandle context, stream_t stream) :
+    DeviceInfo(info),
     m_context(context),
     m_stream(stream) {
-    CudaContextGuard guard {m_context};
+    GPUContextGuard guard {m_context};
 
-    KMM_CUDA_CHECK(cublasCreate(&m_cublas_handle));
-    KMM_CUDA_CHECK(cublasSetStream(m_cublas_handle, m_stream));
+    KMM_GPU_CHECK(blasCreate(&m_blas_handle));
+    KMM_GPU_CHECK(blasSetStream(m_blas_handle, m_stream));
 }
 
-CudaDevice::~CudaDevice() {
-    CudaContextGuard guard {m_context};
-    KMM_CUDA_CHECK(cublasDestroy(m_cublas_handle));
+GPUDevice::~GPUDevice() {
+    GPUContextGuard guard {m_context};
+    KMM_GPU_CHECK(blasDestroy(m_blas_handle));
 }
 
-void CudaDevice::synchronize() const {
-    CudaContextGuard guard {m_context};
-    KMM_CUDA_CHECK(cuStreamSynchronize(nullptr));
-    KMM_CUDA_CHECK(cuStreamSynchronize(m_stream));
+void GPUDevice::synchronize() const {
+    GPUContextGuard guard {m_context};
+    KMM_GPU_CHECK(gpuStreamSynchronize(nullptr));
+    KMM_GPU_CHECK(gpuStreamSynchronize(m_stream));
 }
 
 template<size_t N>
@@ -47,12 +47,12 @@ bool is_fill_pattern_repetitive(const void* fill_pattern, size_t fill_pattern_si
     return true;
 }
 
-void CudaDevice::fill_bytes(
+void GPUDevice::fill_bytes(
     void* dest_buffer,
     size_t nbytes,
     const void* fill_pattern,
     size_t fill_pattern_size) const {
-    CudaContextGuard guard {m_context};
+    GPUContextGuard guard {m_context};
     if (nbytes == 0 || fill_pattern_size == 0) {
         return;
     }
@@ -72,35 +72,35 @@ void CudaDevice::fill_bytes(
         uint8_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint8_t));
         spdlog::debug("fill async: {} {} {} {}", dest_buffer, pattern, nbytes, (void*)m_stream);
-        KMM_CUDA_CHECK(cuMemsetD8Async(CUdeviceptr(dest_buffer), pattern, nbytes, m_stream));
+        KMM_GPU_CHECK(gpuMemsetD8Async(GPUdeviceptr(dest_buffer), pattern, nbytes, m_stream));
     } else if (is_fill_pattern_repetitive<2>(fill_pattern, fill_pattern_size)) {
         uint16_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint16_t));
-        KMM_CUDA_CHECK(cuMemsetD16Async(
-            CUdeviceptr(dest_buffer),
+        KMM_GPU_CHECK(gpuMemsetD16Async(
+            GPUdeviceptr(dest_buffer),
             pattern,
             nbytes / sizeof(uint16_t),
             m_stream));
     } else if (is_fill_pattern_repetitive<4>(fill_pattern, fill_pattern_size)) {
         uint32_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint32_t));
-        KMM_CUDA_CHECK(cuMemsetD32Async(
-            CUdeviceptr(dest_buffer),
+        KMM_GPU_CHECK(gpuMemsetD32Async(
+            GPUdeviceptr(dest_buffer),
             pattern,
             nbytes / sizeof(uint32_t),
             m_stream));
     } else {
-        throw CudaException(fmt::format(
+        throw GPUException(fmt::format(
             "could not fill buffer, value is {} bit, but only 8, 16, or 32 bit is supported",
             fill_pattern_size * 8));
     }
 }
 
-void CudaDevice::copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
-    CudaContextGuard guard {m_context};
-    KMM_CUDA_CHECK(cuMemcpyAsync(
-        reinterpret_cast<CUdeviceptr>(dest_buffer),
-        reinterpret_cast<CUdeviceptr>(source_buffer),
+void GPUDevice::copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
+    GPUContextGuard guard {m_context};
+    KMM_GPU_CHECK(gpuMemcpyAsync(
+        reinterpret_cast<GPUdeviceptr>(dest_buffer),
+        reinterpret_cast<GPUdeviceptr>(const_cast<void *>(source_buffer)),
         nbytes,
         m_stream));
 }

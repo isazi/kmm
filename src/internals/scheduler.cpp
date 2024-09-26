@@ -54,7 +54,7 @@ void Scheduler::insert_event(EventId event_id, Command command, const EventList&
     auto node = std::make_shared<TaskNode>(event_id, std::move(command));
     size_t num_not_scheduled = 0;
     size_t num_not_completed = 0;
-    small_vector<CudaEvent> dependency_events;
+    small_vector<GPUEvent> dependency_events;
 
     for (EventId dep_id : deps) {
         auto it = m_events.find(dep_id);
@@ -67,7 +67,7 @@ void Scheduler::insert_event(EventId event_id, Command command, const EventList&
         dep->successors.push_back(node);
         num_not_completed++;
 
-        if (auto event = dep->cuda_event) {
+        if (auto event = dep->gpu_event) {
             dependency_events.push_back(*event);
         } else {
             num_not_scheduled++;
@@ -91,16 +91,16 @@ bool Scheduler::is_idle() const {
     return m_events.empty();
 }
 
-void Scheduler::set_scheduled(std::shared_ptr<TaskNode> node, CudaEvent event) {
+void Scheduler::set_scheduled(std::shared_ptr<TaskNode> node, GPUEvent event) {
     spdlog::debug(
-        "scheduled event {} (command={}, cuda event={})",
+        "scheduled event {} (command={}, gpu event={})",
         node->id(),
         node->command,
         event);
 
     KMM_ASSERT(node->status == TaskNode::Status::Scheduled);
-    KMM_ASSERT(node->cuda_event == std::nullopt);
-    node->cuda_event = event;
+    KMM_ASSERT(node->gpu_event == std::nullopt);
+    node->gpu_event = event;
 
     for (const auto& succ : node->successors) {
         succ->dependency_events.push_back(event);
@@ -116,7 +116,7 @@ void Scheduler::set_complete(std::shared_ptr<TaskNode> node) {
 
     KMM_ASSERT(node->status == TaskNode::Status::Scheduled);
     node->status = TaskNode::Status::Done;
-    node->cuda_event = std::nullopt;
+    node->gpu_event = std::nullopt;
     m_events.erase(node->event_id);
 
     for (const auto& succ : node->successors) {

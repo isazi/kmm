@@ -19,10 +19,10 @@ struct BufferEntry {
     // * allocation_event <= epoch_event
     // * epoch_event <= write_events
     // * write_events <= access_events
-    CudaEventSet allocation_event;
-    CudaEventSet epoch_event;
-    CudaEventSet write_events;
-    CudaEventSet access_events;
+    GPUEventSet allocation_event;
+    GPUEventSet epoch_event;
+    GPUEventSet write_events;
+    GPUEventSet access_events;
 };
 
 struct HostEntry: public BufferEntry {
@@ -30,7 +30,7 @@ struct HostEntry: public BufferEntry {
 };
 
 struct DeviceEntry: public BufferEntry {
-    CUdeviceptr data = 0;
+    GPUdeviceptr data = 0;
 
     MemoryManager::Buffer* lru_older = nullptr;
     MemoryManager::Buffer* lru_newer = nullptr;
@@ -125,7 +125,7 @@ void MemoryManager::make_progress() {
     m_allocator->make_progress();
 }
 
-bool MemoryManager::is_idle(CudaStreamManager& streams) const {
+bool MemoryManager::is_idle(GPUStreamManager& streams) const {
     bool result = true;
 
     for (const auto& buffer : m_buffers) {
@@ -204,7 +204,7 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     return req;
 }
 
-bool MemoryManager::poll_request(Request& req, CudaEventSet& deps_out) {
+bool MemoryManager::poll_request(Request& req, GPUEventSet& deps_out) {
     auto& buffer = *req.buffer;
     auto memory_id = req.memory_id;
 
@@ -236,7 +236,7 @@ bool MemoryManager::poll_request(Request& req, CudaEventSet& deps_out) {
     throw std::runtime_error("cannot poll a deleted request");
 }
 
-void MemoryManager::release_request(std::shared_ptr<Request> req, CudaEvent event) {
+void MemoryManager::release_request(std::shared_ptr<Request> req, GPUEvent event) {
     auto memory_id = req->memory_id;
     auto& buffer = *req->buffer;
     auto status = std::exchange(req->status, Request::Status::Deleted);
@@ -470,14 +470,14 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
         (void*)&buffer);
 
     void* ptr_out;
-    CudaEventSet events;
+    GPUEventSet events;
     auto result = m_allocator->allocate(device_id, buffer.layout.size_in_bytes, ptr_out, events);
 
     if (!result) {
         return false;
     }
 
-    device_entry.data = (CUdeviceptr)ptr_out;
+    device_entry.data = (GPUdeviceptr)ptr_out;
     device_entry.is_allocated = true;
     device_entry.is_valid = false;
     device_entry.allocation_event = events;
@@ -535,7 +535,7 @@ void MemoryManager::allocate_host(Buffer& buffer) {
 
     spdlog::trace("allocate {} bytes from host", size_in_bytes, (void*)&buffer);
 
-    CudaEventSet events;
+    GPUEventSet events;
     void* ptr;
     bool success = m_allocator->allocate(MemoryId::host(), size_in_bytes, ptr, events);
 
@@ -737,9 +737,9 @@ void MemoryManager::unlock_access(
     MemoryId memory_id,
     Buffer& buffer,
     Request& req,
-    CudaEvent event) {
+    GPUEvent event) {
     spdlog::trace(
-        "access to buffer {} was revoked from request {} (memory={}, mode={}, CUDA event={})",
+        "access to buffer {} was revoked from request {} (memory={}, mode={}, GPU event={})",
         (void*)&buffer,
         (void*)&req,
         req.memory_id,
@@ -764,7 +764,7 @@ bool MemoryManager::try_lock_access(
     MemoryId memory_id,
     Buffer& buffer,
     Request& req,
-    CudaEventSet& deps_out) {
+    GPUEventSet& deps_out) {
     if (!req.access_acquired) {
         poll_access_queue(buffer);
 
@@ -800,7 +800,7 @@ bool MemoryManager::try_lock_access(
     return true;
 }
 
-void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEventSet& deps_out) {
+void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, GPUEventSet& deps_out) {
     auto& entry = buffer.entry(memory_id);
 
     KMM_ASSERT(entry.is_allocated);
@@ -834,7 +834,7 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEve
     deps_out.insert(entry.epoch_event);
 }
 
-CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
+GPUEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     spdlog::trace(
         "copy {} bytes from host to device {} for buffer {}",
         buffer.layout.size_in_bytes,
@@ -848,7 +848,7 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated && device_entry.is_allocated);
     KMM_ASSERT(host_entry.is_valid && !device_entry.is_valid);
 
-    CudaEventSet deps;
+    GPUEventSet deps;
     deps.insert(device_entry.access_events);
     deps.insert(host_entry.write_events);
 
@@ -868,7 +868,7 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     return event;
 }
 
-CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
+GPUEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     spdlog::trace(
         "copy {} bytes from device to host {} for buffer {}",
         buffer.layout.size_in_bytes,
@@ -882,7 +882,7 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated && device_entry.is_allocated);
     KMM_ASSERT(!host_entry.is_valid && device_entry.is_valid);
 
-    CudaEventSet deps;
+    GPUEventSet deps;
     deps.insert(device_entry.write_events);
     deps.insert(host_entry.access_events);
 

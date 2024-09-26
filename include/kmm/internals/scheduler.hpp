@@ -4,7 +4,7 @@
 #include <unordered_map>
 
 #include "commands.hpp"
-#include "cuda_stream_manager.hpp"
+#include "gpu_stream_manager.hpp"
 
 namespace kmm {
 
@@ -30,9 +30,9 @@ struct TaskNode {
     Status status = Status::Pending;
     Command command;
     size_t queue_id;
-    std::optional<CudaEvent> cuda_event;
+    std::optional<GPUEvent> gpu_event;
     small_vector<std::shared_ptr<TaskNode>> successors;
-    small_vector<CudaEvent> dependency_events;
+    small_vector<GPUEvent> dependency_events;
     size_t dependencies_not_scheduled = 0;
     size_t dependencies_not_completed = 0;
 };
@@ -45,7 +45,7 @@ class Scheduler {
     ~Scheduler();
     void insert_event(EventId event_id, Command command, const EventList& deps = {});
     std::optional<std::shared_ptr<TaskNode>> pop_ready();
-    void set_scheduled(std::shared_ptr<TaskNode> node, CudaEvent event);
+    void set_scheduled(std::shared_ptr<TaskNode> node, GPUEvent event);
     void set_complete(std::shared_ptr<TaskNode> node);
     bool is_completed(EventId id) const;
     bool is_idle() const;

@@ -575,7 +575,7 @@ struct host {
     }
 };
 
-struct cuda_device {
+struct gpu_device {
     template<typename T>
     KMM_HOST_DEVICE T* offset(T* ptr, ptrdiff_t offset) const {
         return ptr + offset;
@@ -877,16 +877,16 @@ template<typename T, size_t N = 1, typename A = views::accessors::host>
 using strided_view_mut = view_mut<T, N, views::mappings::strided<default_stride_type>, A>;
 
 template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
-using cuda_view = view<T, N, L, views::accessors::cuda_device>;
+using gpu_view = view<T, N, L, views::accessors::gpu_device>;
 
 template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
-using cuda_view_mut = view_mut<T, N, L, views::accessors::cuda_device>;
+using gpu_view_mut = view_mut<T, N, L, views::accessors::gpu_device>;
 
 template<typename T, size_t N = 1>
-using cuda_strided_view = strided_view<T, N, views::accessors::cuda_device>;
+using gpu_strided_view = strided_view<T, N, views::accessors::gpu_device>;
 
 template<typename T, size_t N = 1>
-using cuda_strided_view_mut = strided_view_mut<T, N, views::accessors::cuda_device>;
+using gpu_strided_view_mut = strided_view_mut<T, N, views::accessors::gpu_device>;
 
 template<
     typename T,
@@ -911,15 +911,15 @@ template<typename T, size_t N = 1, typename A = views::accessors::host>
 using strided_subview_mut = subview_mut<T, N, views::mappings::strided<default_stride_type>, A>;
 
 template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
-using cuda_subview = subview<T, N, L, views::accessors::cuda_device>;
+using gpu_subview = subview<T, N, L, views::accessors::gpu_device>;
 
 template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
-using cuda_subview_mut = subview_mut<T, N, L, views::accessors::cuda_device>;
+using gpu_subview_mut = subview_mut<T, N, L, views::accessors::gpu_device>;
 
 template<typename T, size_t N = 1>
-using cuda_strided_subview = strided_subview<T, N, views::accessors::cuda_device>;
+using gpu_strided_subview = strided_subview<T, N, views::accessors::gpu_device>;
 
 template<typename T, size_t N = 1>
-using cuda_strided_subview_mut = strided_subview_mut<T, N, views::accessors::cuda_device>;
+using gpu_strided_subview_mut = strided_subview_mut<T, N, views::accessors::gpu_device>;
 
 }  // namespace kmm

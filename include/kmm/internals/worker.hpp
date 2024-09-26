@@ -3,8 +3,8 @@
 #include <mutex>
 
 #include "buffer_manager.hpp"
-#include "cuda_stream_manager.hpp"
 #include "executor.hpp"
+#include "gpu_stream_manager.hpp"
 #include "memory_manager.hpp"
 #include "scheduler.hpp"
 #include "task_graph.hpp"
@@ -19,7 +19,7 @@ class Worker: public std::enable_shared_from_this<Worker> {
     KMM_NOT_COPYABLE_OR_MOVABLE(Worker)
 
   public:
-    Worker(std::vector<CudaContextHandle> contexts);
+    Worker(std::vector<GPUContextHandle> contexts);
     ~Worker();
 
     bool query_event(EventId event_id, std::chrono::system_clock::time_point deadline);
@@ -64,7 +64,7 @@ class Worker: public std::enable_shared_from_this<Worker> {
     mutable bool m_has_shutdown = false;
     SystemInfo m_info;
     std::shared_ptr<Scheduler> m_scheduler;
-    std::shared_ptr<CudaStreamManager> m_streams;
+    std::shared_ptr<GPUStreamManager> m_streams;
     std::shared_ptr<MemoryManager> m_memory;
     std::shared_ptr<BufferManager> m_buffers;
     std::shared_ptr<Executor> m_executor;

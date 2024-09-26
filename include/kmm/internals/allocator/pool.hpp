@@ -13,8 +13,8 @@ class PoolAllocator: public MemoryAllocator {
 
     PoolAllocator(std::unique_ptr<MemoryAllocator> allocator, size_t min_block_size=DEFAULT_BLOCK_SIZE);
     ~PoolAllocator();
-    bool allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out) final;
-    void deallocate(void* addr, size_t nbytes, CudaEventSet deps) final;
+    bool allocate(size_t nbytes, void*& addr_out, GPUEventSet& deps_out) final;
+    void deallocate(void* addr, size_t nbytes, GPUEventSet deps) final;
 
   private:
     struct Block;

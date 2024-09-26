@@ -37,7 +37,7 @@ struct Cuda {
     template<typename... Args>
     void operator()(ExecutionContext& exec, Chunk chunk, Args... args) {
         auto region = WorkChunk(chunk.offset, chunk.size);
-        m_fun(exec.cast<CudaDevice>(), region, args...);
+        m_fun(exec.cast<GPUDevice>(), region, args...);
     }
 
   private:
@@ -69,13 +69,13 @@ struct CudaKernel {
         int64_t g[3] = {chunk.size.get(0), chunk.size.get(1), chunk.size.get(2)};
         int64_t b[3] = {elements_per_block.x, elements_per_block.y, elements_per_block.z};
         dim3 grid_dim = {
-            checked_cast<unsigned int>((g[0] / b[0]) + int64_t(g[0] % b[0] != 0)),
-            checked_cast<unsigned int>((g[1] / b[1]) + int64_t(g[1] % b[1] != 0)),
-            checked_cast<unsigned int>((g[2] / b[2]) + int64_t(g[2] % b[2] != 0)),
+            checked_cast<int>((g[0] / b[0]) + int64_t(g[0] % b[0] != 0)),
+            checked_cast<int>((g[1] / b[1]) + int64_t(g[1] % b[1] != 0)),
+            checked_cast<int>((g[2] / b[2]) + int64_t(g[2] % b[2] != 0)),
         };
 
         auto region = WorkChunk(chunk.offset, chunk.size);
-        exec.cast<CudaDevice>().launch(  //
+        exec.cast<GPUDevice>().launch(  //
             grid_dim,
             block_size,
             shared_memory,

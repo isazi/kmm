@@ -5,6 +5,10 @@ project(${PROJECT_NAME} LANGUAGES CXX VERSION 0.1)
 
 # User options (features)
 option(KMM_USE_CUDA "Build the CUDA backend" OFF)
+option(KMM_USE_HIP "Build the HIP backend" OFF)
+if(KMM_USE_CUDA AND KMM_USE_HIP)
+  message(FATAL_ERROR "CUDA and HIP backend are mutually exclusive.")
+endif()
 option(KMM_STATIC "Build a static library" OFF)
 
 # User options (development)

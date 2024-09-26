@@ -2,7 +2,7 @@
 
 #include "spdlog/spdlog.h"
 
-#include "kmm/internals/allocator/cuda.hpp"
+#include "kmm/internals/allocator/gpu.hpp"
 #include "kmm/internals/allocator/system.hpp"
 #include "kmm/internals/worker.hpp"
 
@@ -108,7 +108,7 @@ BufferGuard Worker::access_buffer(BufferId buffer_id, MemoryId memory_id, Access
     auto req = m_memory->create_request(buffer, memory_id, mode, m_root_transaction);
     tracker = std::make_shared<BufferGuardTracker>(shared_from_this(), req);
 
-    CudaEventSet deps;
+    GPUEventSet deps;
 
     // Poll until the request is ready.
     while (!m_memory->poll_request(*req, deps) || !m_streams->is_ready(deps)) {
@@ -187,15 +187,15 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
     }
 }
 
-Worker::Worker(std::vector<CudaContextHandle> contexts) {
-    m_streams = std::make_shared<CudaStreamManager>();
+Worker::Worker(std::vector<GPUContextHandle> contexts) {
+    m_streams = std::make_shared<GPUStreamManager>();
     m_scheduler = std::make_shared<Scheduler>(contexts.size());
     m_graph = std::make_shared<TaskGraph>();
     m_buffers = std::make_shared<BufferManager>();
 
     std::unique_ptr<MemoryAllocator> host_mem;
     std::vector<std::unique_ptr<MemoryAllocator>> device_mems;
-    std::vector<CudaDeviceInfo> device_infos;
+    std::vector<DeviceInfo> device_infos;
 
     if (!contexts.empty()) {
         host_mem = std::make_unique<PinnedMemoryAllocator>(contexts.at(0), m_streams);
@@ -204,14 +204,14 @@ Worker::Worker(std::vector<CudaContextHandle> contexts) {
             auto device_id = DeviceId(i);
             auto context = contexts[i];
 
-            device_infos.push_back(CudaDeviceInfo(device_id, context));
+            device_infos.push_back(DeviceInfo(device_id, context));
             device_mems.push_back(std::make_unique<DevicePoolAllocator>(contexts[i], m_streams));
         }
     } else {
         host_mem = std::make_unique<SystemAllocator>(m_streams);
     }
 
-    spdlog::info("detected {} CUDA device(s):", device_infos.size());
+    spdlog::info("detected {} GPU device(s):", device_infos.size());
     for (auto f : device_infos) {
         spdlog::info(" - {} ({:.2} GB)", f.name(), f.total_memory_size() / 1e9);
     }
@@ -232,11 +232,11 @@ Worker::~Worker() {
 }
 
 std::shared_ptr<Worker> make_worker() {
-    std::vector<CUdevice> devices = get_cuda_devices();
-    std::vector<CudaContextHandle> contexts;
+    std::vector<GPUdevice> devices = get_gpu_devices();
+    std::vector<GPUContextHandle> contexts;
 
     for (auto device : devices) {
-        contexts.push_back(CudaContextHandle::retain_primary_context_for_device(device));
+        contexts.push_back(GPUContextHandle::retain_primary_context_for_device(device));
     }
 
     return std::make_shared<Worker>(std::move(contexts));
