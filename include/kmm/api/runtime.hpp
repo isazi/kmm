@@ -87,11 +87,11 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, dim<N> shape, MemoryId memory_id) {
+    Array<T, N> allocate(const T* data, Dim<N> shape, MemoryId memory_id) {
         BufferLayout layout = BufferLayout::for_type<T>(checked_cast<size_t>(shape.volume()));
         BufferId buffer_id = allocate_bytes(data, layout, memory_id);
 
-        std::vector<ArrayChunk<N>> chunks = {{buffer_id, memory_id, point<N>::zero(), shape}};
+        std::vector<ArrayChunk<N>> chunks = {{buffer_id, memory_id, Point<N>::zero(), shape}};
         return std::make_shared<ArrayBackend<N>>(m_worker, shape, chunks);
     }
 
@@ -108,7 +108,7 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, dim<N> shape) {
+    Array<T, N> allocate(const T* data, Dim<N> shape) {
         return allocate(data, shape, memory_affinity_for_address(data));
     }
 
@@ -125,7 +125,7 @@ class Runtime {
      */
     template<typename T, typename... Sizes>
     Array<T> allocate(const T* data, Sizes... num_elements) {
-        return allocate(data, dim<sizeof...(Sizes)> {checked_cast<int64_t>(num_elements)...});
+        return allocate(data, Dim<sizeof...(Sizes)> {checked_cast<int64_t>(num_elements)...});
     }
 
     /**

@@ -21,8 +21,8 @@ template<size_t N>
 struct ArrayChunk {
     BufferId buffer_id;
     MemoryId owner_id;
-    point<N> offset;
-    dim<N> size;
+    Point<N> offset;
+    Dim<N> size;
 };
 
 template<size_t N>
@@ -30,11 +30,11 @@ class ArrayBackend: public std::enable_shared_from_this<ArrayBackend<N>> {
   public:
     ArrayBackend(
         std::shared_ptr<Worker> worker,
-        dim<N> array_size,
+        Dim<N> array_size,
         std::vector<ArrayChunk<N>> chunks);
     ~ArrayBackend();
 
-    ArrayChunk<N> find_chunk(rect<N> region) const;
+    ArrayChunk<N> find_chunk(Rect<N> region) const;
     ArrayChunk<N> chunk(size_t index) const;
     void synchronize() const;
     void copy_bytes(void* dest_addr, size_t element_size) const;
@@ -51,19 +51,19 @@ class ArrayBackend: public std::enable_shared_from_this<ArrayBackend<N>> {
         return *m_worker;
     }
 
-    dim<N> chunk_size() const {
+    Dim<N> chunk_size() const {
         return m_chunk_size;
     }
 
-    dim<N> array_size() const {
+    Dim<N> array_size() const {
         return m_array_size;
     }
 
   private:
     std::shared_ptr<Worker> m_worker;
     std::vector<BufferId> m_buffers;
-    dim<N> m_array_size;
-    dim<N> m_chunk_size;
+    Dim<N> m_array_size;
+    Dim<N> m_chunk_size;
     std::array<size_t, N> m_num_chunks;
 };
 
@@ -77,7 +77,7 @@ class ArrayBase {
 template<typename T, size_t N = 1>
 class Array: ArrayBase {
   public:
-    Array(dim<N> shape = {}) : m_shape(shape) {}
+    Array(Dim<N> shape = {}) : m_shape(shape) {}
 
     explicit Array(std::shared_ptr<ArrayBackend<N>> b) :
         m_backend(b),
@@ -87,7 +87,7 @@ class Array: ArrayBase {
         return N;
     }
 
-    dim<N> shape() const {
+    Dim<N> shape() const {
         return m_shape;
     }
 
@@ -112,7 +112,7 @@ class Array: ArrayBase {
         return *m_backend;
     }
 
-    dim<N> chunk_size() const {
+    Dim<N> chunk_size() const {
         return inner().chunk_size();
     }
 
@@ -140,7 +140,7 @@ class Array: ArrayBase {
 
   private:
     std::shared_ptr<ArrayBackend<N>> m_backend;
-    dim<N> m_shape;
+    Dim<N> m_shape;
 };
 
 template<typename T, size_t N>
@@ -216,7 +216,7 @@ struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
 
   private:
     Array<T, N>& m_array;
-    dim<N> m_sizes;
+    Dim<N> m_sizes;
     std::vector<ArrayChunk<N>> m_chunks;
     SliceMapping<N> m_mapping;
 };
@@ -267,7 +267,7 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
         m_chunks.push_back(ArrayChunk<N> {
             .buffer_id = buffer_id,
             .owner_id = chunk.owner_id.as_memory(),
-            .offset = point<N>::zero(),
+            .offset = Point<N>::zero(),
             .size = m_sizes});
 
         auto domain = views::domains::bounds<N> {m_sizes};
@@ -289,7 +289,7 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
 
   private:
     Array<T, N>& m_array;
-    dim<N> m_sizes;
+    Dim<N> m_sizes;
     std::vector<ArrayChunk<N>> m_chunks;
 };
 
@@ -345,11 +345,11 @@ struct TaskDataProcessor<Reduce<Array<T, N>>> {
             num_elements,
             m_partial_inputs);
 
-        std::vector<ArrayChunk<N>> chunks = {{
-            .buffer_id = buffer_id,
-            .owner_id = memory_id,
-            .offset = point<N>::zero(),
-            .size = m_sizes}};
+        std::vector<ArrayChunk<N>> chunks = {
+            {.buffer_id = buffer_id,
+             .owner_id = memory_id,
+             .offset = Point<N>::zero(),
+             .size = m_sizes}};
 
         for (const auto& input : m_partial_inputs) {
             result.graph.delete_buffer(input.buffer_id, {event_id});
@@ -362,7 +362,7 @@ struct TaskDataProcessor<Reduce<Array<T, N>>> {
 
   private:
     Array<T, N>& m_array;
-    dim<N> m_sizes;
+    Dim<N> m_sizes;
     ReductionOp m_reduction;
     std::vector<ReductionInput> m_partial_inputs;
 };
@@ -441,10 +441,10 @@ struct TaskDataProcessor<Reduce<Array<T, N>, SliceMapping<N>>> {
 
   private:
     Array<T, N>& m_array;
-    dim<N> m_sizes;
+    Dim<N> m_sizes;
     ReductionOp m_reduction;
     SliceMapping<N> m_mapping;
-    std::unordered_map<rect<N>, std::vector<ReductionInput>> m_partial_inputs;
+    std::unordered_map<Rect<N>, std::vector<ReductionInput>> m_partial_inputs;
 };
 
 }  // namespace kmm

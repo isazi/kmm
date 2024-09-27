@@ -99,7 +99,7 @@ IndexMapping IndexMapping::negate() const {
     return {m_variable, -m_scale, -checked_add(m_offset, m_length - 1), m_length, m_divisor};
 }
 
-rect<1> IndexMapping::apply(Chunk chunk) const {
+Rect<1> IndexMapping::apply(Chunk chunk) const {
     int64_t a0 = chunk.offset.get(m_variable);
     int64_t a1 = a0 + chunk.size.get(m_variable) - 1;
 
@@ -125,7 +125,7 @@ rect<1> IndexMapping::apply(Chunk chunk) const {
     int64_t i = b0;
     int64_t n = b1 - b0 + 1;
 
-    rect<1> result;
+    Rect<1> result;
     result.offset[0] = i;
     result.sizes[0] = n;
 

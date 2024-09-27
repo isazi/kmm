@@ -8,13 +8,13 @@
 namespace kmm {
 
 template<size_t N>
-rect<N> index2region(
+Rect<N> index2region(
     size_t index,
     std::array<size_t, N> num_chunks,
-    dim<N> chunk_size,
-    dim<N> array_size) {
-    point<N> offset;
-    dim<N> sizes;
+    Dim<N> chunk_size,
+    Dim<N> array_size) {
+    Point<N> offset;
+    Dim<N> sizes;
 
     for (size_t j = 0; j < N; j++) {
         size_t i = N - 1 - j;
@@ -31,12 +31,12 @@ rect<N> index2region(
 template<size_t N>
 ArrayBackend<N>::ArrayBackend(
     std::shared_ptr<Worker> worker,
-    dim<N> array_size,
+    Dim<N> array_size,
     std::vector<ArrayChunk<N>> chunks) :
     m_worker(worker),
     m_array_size(array_size) {
     for (const auto& chunk : chunks) {
-        if (chunk.offset == point<N>::zero()) {
+        if (chunk.offset == Point<N>::zero()) {
             m_chunk_size = chunk.size;
         }
     }
@@ -58,8 +58,8 @@ ArrayBackend<N>::ArrayBackend(
     for (const auto& chunk : chunks) {
         size_t buffer_index = 0;
         bool is_valid = true;
-        point<N> expected_offset;
-        dim<N> expected_size;
+        Point<N> expected_offset;
+        Dim<N> expected_size;
 
         for (size_t i = 0; i < N; i++) {
             auto k = div_floor(chunk.offset[i], m_chunk_size[i]);
@@ -73,14 +73,14 @@ ArrayBackend<N>::ArrayBackend(
         if (chunk.offset != expected_offset || chunk.size != expected_size) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is not aligned to the chunk size of {}",
-                rect<N>(chunk.offset, chunk.size),
+                Rect<N>(chunk.offset, chunk.size),
                 m_chunk_size));
         }
 
         if (buffer_locs[buffer_index] != INVALID_INDEX) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is written to by more one task",
-                rect<N>(expected_offset, expected_size)));
+                Rect<N>(expected_offset, expected_size)));
         }
 
         buffer_locs[buffer_index] = buffer_index;
@@ -109,10 +109,10 @@ ArrayBackend<N>::~ArrayBackend() {
 }
 
 template<size_t N>
-ArrayChunk<N> ArrayBackend<N>::find_chunk(rect<N> region) const {
+ArrayChunk<N> ArrayBackend<N>::find_chunk(Rect<N> region) const {
     size_t buffer_index = 0;
-    point<N> offset;
-    dim<N> sizes;
+    Point<N> offset;
+    Dim<N> sizes;
 
     for (size_t i = 0; i < N; i++) {
         auto k = div_floor(region.offset[i], m_chunk_size[i]);
@@ -183,7 +183,7 @@ void ArrayBackend<N>::synchronize() const {
 template<size_t N>
 class CopyOutTask: public Task {
   public:
-    CopyOutTask(void* data, size_t element_size, dim<N> array_size, rect<N> region) :
+    CopyOutTask(void* data, size_t element_size, Dim<N> array_size, Rect<N> region) :
         m_dst_addr(data),
         m_element_size(element_size),
         m_array_size(array_size),
@@ -217,8 +217,8 @@ class CopyOutTask: public Task {
   private:
     void* m_dst_addr;
     size_t m_element_size;
-    dim<N> m_array_size;
-    rect<N> m_region;
+    Dim<N> m_array_size;
+    Rect<N> m_region;
 };
 
 template<size_t N>

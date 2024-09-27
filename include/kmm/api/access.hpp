@@ -10,7 +10,7 @@ namespace kmm {
 
 struct IdentityMapping {
     template<size_t N>
-    rect<N> operator()(Chunk chunk, rect<N> bounds) const {
+    Rect<N> operator()(Chunk chunk, Rect<N> bounds) const {
         return {chunk.offset, chunk.size};
     }
 };
@@ -19,7 +19,7 @@ static constexpr IdentityMapping one_to_one;
 
 struct FullMapping {
     template<size_t M>
-    rect<M> operator()(Chunk chunk, rect<M> bounds) const {
+    Rect<M> operator()(Chunk chunk, Rect<M> bounds) const {
         return bounds;
     }
 };
@@ -29,8 +29,8 @@ struct AxesMapping {
     explicit constexpr AxesMapping(size_t axis) : m_axis(axis) {}
 
     template<size_t M>
-    rect<M> operator()(Chunk chunk, rect<M> bounds) const {
-        rect<M> result = bounds;
+    Rect<M> operator()(Chunk chunk, Rect<M> bounds) const {
+        Rect<M> result = bounds;
 
         if (M > 0) {
             result.offset[0] = chunk.offset.get(m_axis);
@@ -83,18 +83,18 @@ struct IndexMapping {
     IndexMapping scale_by(int64_t factor) const;
     IndexMapping divide_by(int64_t divisor) const;
     IndexMapping negate() const;
-    rect<1> apply(Chunk chunk) const;
+    Rect<1> apply(Chunk chunk) const;
 
-    rect<1> operator()(Chunk chunk) const {
+    Rect<1> operator()(Chunk chunk) const {
         return apply(chunk);
     }
 
     template<size_t M>
-    rect<M> operator()(Chunk chunk, rect<M> bounds) const {
-        rect<M> result = bounds;
+    Rect<M> operator()(Chunk chunk, Rect<M> bounds) const {
+        Rect<M> result = bounds;
 
         if (M > 0) {
-            rect<1> range = (*this)(chunk);
+            Rect<1> range = (*this)(chunk);
             result.offset[0] = range.begin();
             result.sizes[0] = range.size();
         }
@@ -178,11 +178,11 @@ inline IndexMapping into_index_mapping(FullMapping m) {
 
 template<size_t N>
 struct SliceMapping {
-    rect<N> operator()(Chunk chunk) const {
-        rect<N> result;
+    Rect<N> operator()(Chunk chunk) const {
+        Rect<N> result;
 
         for (size_t i = 0; i < N; i++) {
-            rect<1> range = (this->axes[i])(chunk);
+            Rect<1> range = (this->axes[i])(chunk);
             result.offset[i] = range.offset[0];
             result.sizes[i] = range.sizes[0];
         }
@@ -190,11 +190,11 @@ struct SliceMapping {
         return result;
     }
 
-    rect<N> operator()(Chunk chunk, rect<N> bounds) const {
-        rect<N> result;
+    Rect<N> operator()(Chunk chunk, Rect<N> bounds) const {
+        Rect<N> result;
 
         for (size_t i = 0; i < N; i++) {
-            rect<1> range = (this->axes[i])(chunk, rect<1> {bounds.offset[i], bounds.sizes[i]});
+            Rect<1> range = (this->axes[i])(chunk, Rect<1> {bounds.offset[i], bounds.sizes[i]});
 
             result.offset[i] = range.offset[0];
             result.sizes[i] = range.sizes[0];
@@ -208,7 +208,7 @@ struct SliceMapping {
 
 template<>
 struct SliceMapping<0> {
-    rect<0> operator()(Chunk chunk, rect<0> bounds) const {
+    Rect<0> operator()(Chunk chunk, Rect<0> bounds) const {
         return {};
     }
 };

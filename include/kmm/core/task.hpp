@@ -26,12 +26,12 @@ struct ExecutionContext {
     virtual ~ExecutionContext() = default;
 
     template<typename T>
-    T* cast_if() {
+    T* cast_if() noexcept {
         return dynamic_cast<T*>(this);
     }
 
     template<typename T>
-    const T* cast_if() const {
+    const T* cast_if() const noexcept {
         return dynamic_cast<const T*>(this);
     }
 
@@ -54,7 +54,7 @@ struct ExecutionContext {
     }
 
     template<typename T>
-    bool is() const {
+    bool is() const noexcept {
         return this->template cast_if<T>() != nullptr;
     }
 };

@@ -13,12 +13,12 @@ static constexpr size_t WORK_DIMS = 3;
 /**
  * Type alias for the size of the work space.
  */
-using WorkDim = dim<WORK_DIMS>;
+using WorkDim = Dim<WORK_DIMS>;
 
 /**
  * Type alias for the index type used in the work space.
  */
-using WorkIndex = point<WORK_DIMS>;
+using WorkIndex = Point<WORK_DIMS>;
 
 struct WorkChunk {
     WorkIndex begin;  ///< The starting index of the work chunk.
@@ -105,7 +105,7 @@ struct WorkChunk {
      * Checks if a multidimensional point is contained within the work chunk.
      */
     template<size_t N>
-    KMM_HOST_DEVICE bool contains(point<N> p) const {
+    KMM_HOST_DEVICE bool contains(Point<N> p) const {
         bool result = true;
 
         for (size_t i = 0; i < N && i < WORK_DIMS; i++) {

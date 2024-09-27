@@ -4,27 +4,27 @@
 
 using namespace kmm;
 
-TEST(Geometry, point_basics) {
-    point<3> x = {};
-    ASSERT_EQ(x, point(0, 0, 0));
+TEST(Geometry, Point_basics) {
+    Point<3> x = {};
+    ASSERT_EQ(x, Point(0, 0, 0));
 
-    point<3> y = {1, 2, 3};
-    ASSERT_EQ(y, point(1, 2, 3));
+    Point<3> y = {1, 2, 3};
+    ASSERT_EQ(y, Point(1, 2, 3));
 
-    point<3> z = point<3>::fill(42);
-    ASSERT_EQ(z, point(42, 42, 42));
+    Point<3> z = Point<3>::fill(42);
+    ASSERT_EQ(z, Point(42, 42, 42));
 
-    auto a = point<3, float>::from(point<3, int>{4, 5, 6});
-    ASSERT_EQ(a, (point<3, float>(4.0f, 5.0f, 6.0f)));
+    auto a = Point<3, float>::from(Point<3, int>{4, 5, 6});
+    ASSERT_EQ(a, (Point<3, float>(4.0f, 5.0f, 6.0f)));
 
-    point<3> zero = point<3>::zero();
-    ASSERT_EQ(zero, point(0, 0, 0));
+    Point<3> zero = Point<3>::zero();
+    ASSERT_EQ(zero, Point(0, 0, 0));
 
-    point<3> one = point<3>::one();
-    ASSERT_EQ(one, point(1, 1, 1));
+    Point<3> one = Point<3>::one();
+    ASSERT_EQ(one, Point(1, 1, 1));
 
     one[0] = 42;
-    ASSERT_EQ(one, point(42, 1, 1));
+    ASSERT_EQ(one, Point(42, 1, 1));
 
     ASSERT_FALSE(one == zero);
     ASSERT_FALSE(zero == one);
@@ -33,67 +33,67 @@ TEST(Geometry, point_basics) {
 }
 
 TEST(Geometry, dim_basics) {
-    dim<3> x = {};
-    ASSERT_EQ(x, dim(1, 1, 1));
+    Dim<3> x = {};
+    ASSERT_EQ(x, Dim(1, 1, 1));
     ASSERT_EQ(x.is_empty(), false);
     ASSERT_EQ(x.volume(), 1);
 
-    dim<3> y = {1, 2, 3};
-    ASSERT_EQ(y, dim(1, 2, 3));
+    Dim<3> y = {1, 2, 3};
+    ASSERT_EQ(y, Dim(1, 2, 3));
     ASSERT_EQ(y.is_empty(), false);
     ASSERT_EQ(y.volume(), 6);
 
-    dim<3> z = {-5, 3, 1};
-    ASSERT_EQ(z, dim(-5, 3, 1));
+    Dim<3> z = {-5, 3, 1};
+    ASSERT_EQ(z, Dim(-5, 3, 1));
     ASSERT_EQ(z.is_empty(), true);
     ASSERT_EQ(z.volume(), 0);
 
-    auto a = dim<3, float>::from(dim<3, int>{4, 5, 6});
-    ASSERT_EQ(a, (dim<3, float>(4.0f, 5.0f, 6.0f)));
+    auto a = Dim<3, float>::from(Dim<3, int>{4, 5, 6});
+    ASSERT_EQ(a, (Dim<3, float>(4.0f, 5.0f, 6.0f)));
     ASSERT_EQ(a.is_empty(), false);
     ASSERT_EQ(a.volume(), 120.0f);
 
-    dim<3> zero = dim<3>::zero();
-    ASSERT_EQ(zero, dim(0, 0, 0));
+    Dim<3> zero = Dim<3>::zero();
+    ASSERT_EQ(zero, Dim(0, 0, 0));
     ASSERT_EQ(zero.is_empty(), true);
     ASSERT_EQ(zero.volume(), 0);
 
-    dim<3> one = dim<3>::one();
-    ASSERT_EQ(one, dim(1, 1, 1));
+    Dim<3> one = Dim<3>::one();
+    ASSERT_EQ(one, Dim(1, 1, 1));
     ASSERT_EQ(one.is_empty(), false);
     ASSERT_EQ(one.volume(), 1);
 
     one[0] = 42;
-    ASSERT_EQ(one, dim(42, 1, 1));
+    ASSERT_EQ(one, Dim(42, 1, 1));
     ASSERT_EQ(one.is_empty(), false);
     ASSERT_EQ(one.volume(), 42);
 }
 
 TEST(Geometry, dim_intersection) {
-    dim<3> x = {5, 42, 1};
-    dim<3> y = {1, 2, 3};
-    dim<3> z = {1, 1, 1};
-    dim<3> w = {-5, 2, 1};
+    Dim<3> x = {5, 42, 1};
+    Dim<3> y = {1, 2, 3};
+    Dim<3> z = {1, 1, 1};
+    Dim<3> w = {-5, 2, 1};
     
-    ASSERT_EQ(x.intersection(x), dim(5, 42, 1));
-    ASSERT_EQ(x.intersection(y), dim(1, 2, 1));
-    ASSERT_EQ(x.intersection(z), dim(1, 1, 1));
-    ASSERT_EQ(x.intersection(w), dim(0, 2, 1));
+    ASSERT_EQ(x.intersection(x), Dim(5, 42, 1));
+    ASSERT_EQ(x.intersection(y), Dim(1, 2, 1));
+    ASSERT_EQ(x.intersection(z), Dim(1, 1, 1));
+    ASSERT_EQ(x.intersection(w), Dim(0, 2, 1));
     
-    ASSERT_EQ(y.intersection(x), dim(1, 2, 1));
-    ASSERT_EQ(y.intersection(y), dim(1, 2, 3));
-    ASSERT_EQ(y.intersection(z), dim(1, 1, 1));
-    ASSERT_EQ(y.intersection(w), dim(0, 2, 1));
+    ASSERT_EQ(y.intersection(x), Dim(1, 2, 1));
+    ASSERT_EQ(y.intersection(y), Dim(1, 2, 3));
+    ASSERT_EQ(y.intersection(z), Dim(1, 1, 1));
+    ASSERT_EQ(y.intersection(w), Dim(0, 2, 1));
     
-    ASSERT_EQ(z.intersection(x), dim(1, 1, 1));
-    ASSERT_EQ(z.intersection(y), dim(1, 1, 1));
-    ASSERT_EQ(z.intersection(z), dim(1, 1, 1));
-    ASSERT_EQ(z.intersection(w), dim(0, 1, 1));
+    ASSERT_EQ(z.intersection(x), Dim(1, 1, 1));
+    ASSERT_EQ(z.intersection(y), Dim(1, 1, 1));
+    ASSERT_EQ(z.intersection(z), Dim(1, 1, 1));
+    ASSERT_EQ(z.intersection(w), Dim(0, 1, 1));
     
-    ASSERT_EQ(w.intersection(x), dim(0, 2, 1));
-    ASSERT_EQ(w.intersection(y), dim(0, 2, 1));
-    ASSERT_EQ(w.intersection(z), dim(0, 1, 1));
-    ASSERT_EQ(w.intersection(w), dim(0, 2, 1));
+    ASSERT_EQ(w.intersection(x), Dim(0, 2, 1));
+    ASSERT_EQ(w.intersection(y), Dim(0, 2, 1));
+    ASSERT_EQ(w.intersection(z), Dim(0, 1, 1));
+    ASSERT_EQ(w.intersection(w), Dim(0, 2, 1));
     
     
     ASSERT_EQ(x.overlaps(x), true);
@@ -138,9 +138,9 @@ TEST(Geometry, dim_intersection) {
     ASSERT_EQ(w.contains(w), true);
 
 
-    point<3> a = {0, 0, 0};
-    point<3> b = {0, 2, 0};
-    point<3> c = {-2, 0, 1};
+    Point<3> a = {0, 0, 0};
+    Point<3> b = {0, 2, 0};
+    Point<3> c = {-2, 0, 1};
 
     ASSERT_EQ(x.contains(a), true);
     ASSERT_EQ(x.contains(b), true);
@@ -160,64 +160,64 @@ TEST(Geometry, dim_intersection) {
 }
 
 TEST(Geometry, rect_basics) {
-    rect<3> a = {{0, 0, 0}, {42, 2, 1}};
-    ASSERT_EQ(a.offset, point(0, 0, 0));
-    ASSERT_EQ(a.sizes, dim(42, 2, 1));
-    ASSERT_EQ(a.begin(), point(0, 0, 0));
-    ASSERT_EQ(a.end(), point(42, 2, 1));
+    Rect<3> a = {{0, 0, 0}, {42, 2, 1}};
+    ASSERT_EQ(a.offset, Point(0, 0, 0));
+    ASSERT_EQ(a.sizes, Dim(42, 2, 1));
+    ASSERT_EQ(a.begin(), Point(0, 0, 0));
+    ASSERT_EQ(a.end(), Point(42, 2, 1));
     ASSERT_EQ(a.size(), 84);
     ASSERT_EQ(a.is_empty(), false);
 
-    rect<3> b = {{1, 1, 1}, {3, 2, 1}};
-    ASSERT_EQ(b.offset, point(1, 1, 1));
-    ASSERT_EQ(b.sizes, dim(3, 2, 1));
-    ASSERT_EQ(b.begin(), point(1, 1, 1));
-    ASSERT_EQ(b.end(), point(4, 3, 2));
+    Rect<3> b = {{1, 1, 1}, {3, 2, 1}};
+    ASSERT_EQ(b.offset, Point(1, 1, 1));
+    ASSERT_EQ(b.sizes, Dim(3, 2, 1));
+    ASSERT_EQ(b.begin(), Point(1, 1, 1));
+    ASSERT_EQ(b.end(), Point(4, 3, 2));
     ASSERT_EQ(b.size(), 6);
     ASSERT_EQ(b.is_empty(), false);
 
-    rect<3> c = {{1, -5, 1}, {2, 2, 2}};
-    ASSERT_EQ(c.offset, point(1, -5, 1));
-    ASSERT_EQ(c.sizes, dim(2, 2, 2));
-    ASSERT_EQ(c.begin(), point(1, -5, 1));
-    ASSERT_EQ(c.end(), point(3, -3, 3));
+    Rect<3> c = {{1, -5, 1}, {2, 2, 2}};
+    ASSERT_EQ(c.offset, Point(1, -5, 1));
+    ASSERT_EQ(c.sizes, Dim(2, 2, 2));
+    ASSERT_EQ(c.begin(), Point(1, -5, 1));
+    ASSERT_EQ(c.end(), Point(3, -3, 3));
     ASSERT_EQ(c.size(), 8);
     ASSERT_EQ(c.is_empty(), false);
 
-    rect<3> d = {{5, 1, 2}, {-5, 3, 1}};
-    ASSERT_EQ(d.offset, point(5, 1, 2));
-    ASSERT_EQ(d.sizes, dim(-5, 3, 1));
-    ASSERT_EQ(d.begin(), point(5, 1, 2));
-    ASSERT_EQ(d.end(), point(5, 4, 3));
+    Rect<3> d = {{5, 1, 2}, {-5, 3, 1}};
+    ASSERT_EQ(d.offset, Point(5, 1, 2));
+    ASSERT_EQ(d.sizes, Dim(-5, 3, 1));
+    ASSERT_EQ(d.begin(), Point(5, 1, 2));
+    ASSERT_EQ(d.end(), Point(5, 4, 3));
     ASSERT_EQ(d.size(), 0);
     ASSERT_EQ(d.is_empty(), true);
 }
 
 TEST(Geometry, rect_intersection) {
-    rect<3> a = {{0, 0, 0}, {42, 2, 5}};
-    rect<3> b = {{1, 1, 1}, {3, 1, 1}};
-    rect<3> c = {{1, -5, 1}, {2, 20, 2}};
-    rect<3> d = {{5, 1, 2}, {-3, 3, 1}};
+    Rect<3> a = {{0, 0, 0}, {42, 2, 5}};
+    Rect<3> b = {{1, 1, 1}, {3, 1, 1}};
+    Rect<3> c = {{1, -5, 1}, {2, 20, 2}};
+    Rect<3> d = {{5, 1, 2}, {-3, 3, 1}};
 
     ASSERT_EQ(a.intersection(a), a);
-    ASSERT_EQ(a.intersection(b), (rect<3>{{1, 1, 1}, {3, 1, 1}}));
-    ASSERT_EQ(a.intersection(c), (rect<3>{{1, 0, 1}, {2, 2, 2}}));
-    ASSERT_EQ(a.intersection(d),  (rect<3>{{5, 1, 2}, {-3, 1, 1}}));
+    ASSERT_EQ(a.intersection(b), (Rect<3>{{1, 1, 1}, {3, 1, 1}}));
+    ASSERT_EQ(a.intersection(c), (Rect<3>{{1, 0, 1}, {2, 2, 2}}));
+    ASSERT_EQ(a.intersection(d),  (Rect<3>{{5, 1, 2}, {-3, 1, 1}}));
 
-    ASSERT_EQ(b.intersection(a), (rect<3>{{1, 1, 1}, {3, 1, 1}}));
+    ASSERT_EQ(b.intersection(a), (Rect<3>{{1, 1, 1}, {3, 1, 1}}));
     ASSERT_EQ(b.intersection(b), b);
-    ASSERT_EQ(b.intersection(c), (rect<3>{{1, 1, 1}, {2, 1, 1}}));
-    ASSERT_EQ(b.intersection(d), rect<3>());
+    ASSERT_EQ(b.intersection(c), (Rect<3>{{1, 1, 1}, {2, 1, 1}}));
+    ASSERT_EQ(b.intersection(d), Rect<3>());
 
-    ASSERT_EQ(c.intersection(a), (rect<3>{{1, 0, 1}, {2, 2, 2}}));
-    ASSERT_EQ(c.intersection(b), (rect<3>{{1, 1, 1}, {2, 1, 1}}));
+    ASSERT_EQ(c.intersection(a), (Rect<3>{{1, 0, 1}, {2, 2, 2}}));
+    ASSERT_EQ(c.intersection(b), (Rect<3>{{1, 1, 1}, {2, 1, 1}}));
     ASSERT_EQ(c.intersection(c), c);
-    ASSERT_EQ(c.intersection(d), rect<3>());
+    ASSERT_EQ(c.intersection(d), Rect<3>());
 
-    ASSERT_EQ(d.intersection(a), (rect<3>{{5, 1, 2}, {-3, 1, 1}}));
-    ASSERT_EQ(d.intersection(b), rect<3>());
-    ASSERT_EQ(d.intersection(c), rect<3>());
-    ASSERT_EQ(d.intersection(d), rect<3>());
+    ASSERT_EQ(d.intersection(a), (Rect<3>{{5, 1, 2}, {-3, 1, 1}}));
+    ASSERT_EQ(d.intersection(b), Rect<3>());
+    ASSERT_EQ(d.intersection(c), Rect<3>());
+    ASSERT_EQ(d.intersection(d), Rect<3>());
     
     
     ASSERT_EQ(a.overlaps(a), true);
