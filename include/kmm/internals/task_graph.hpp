@@ -17,6 +17,13 @@ struct Event {
     EventList dependencies;
 };
 
+struct ReductionInput {
+    BufferId buffer_id;
+    MemoryId memory_id;
+    EventList dependencies;
+    size_t num_inputs_per_output = 1;
+};
+
 class TaskGraph {
     KMM_NOT_COPYABLE_OR_MOVABLE(TaskGraph)
 
@@ -42,8 +49,16 @@ class TaskGraph {
     EventId insert_task(
         ProcessorId processor_id,
         std::shared_ptr<Task> task,
-        std::vector<BufferRequirement> buffers,
+        const std::vector<BufferRequirement>& buffers,
         EventList deps = {});
+
+    EventId insert_reduction(
+        ReductionOp op,
+        BufferId final_buffer_id,
+        MemoryId final_memory_id,
+        DataType dtype,
+        size_t num_outputs,
+        std::vector<ReductionInput> inputs);
 
     EventId insert_barrier();
 

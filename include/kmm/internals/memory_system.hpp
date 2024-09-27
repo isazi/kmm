@@ -18,9 +18,32 @@ class MemorySystem {
 
     void make_progress();
 
-    bool allocate(MemoryId memory_id, size_t nbytes, void*& ptr_out, CudaEventSet& deps_out);
+    bool allocate_host(size_t nbytes, void*& ptr_out, CudaEventSet& deps_out);
+    void deallocate_host(void* ptr, size_t nbytes, CudaEventSet deps = {});
 
-    void deallocate(MemoryId memory_id, void* ptr, size_t nbytes, CudaEventSet deps = {});
+    bool allocate_device(
+        DeviceId device_id,
+        size_t nbytes,
+        CUdeviceptr& ptr_out,
+        CudaEventSet& deps_out);
+    void deallocate_device(
+        DeviceId device_id,
+        CUdeviceptr ptr,
+        size_t nbytes,
+        CudaEventSet deps = {});
+
+    CudaEvent fill_host(
+        void* dst_addr,
+        size_t nbytes,
+        const std::vector<uint8_t>& fill_pattern,
+        CudaEventSet deps = {});
+
+    CudaEvent fill_device(
+        DeviceId device_id,
+        CUdeviceptr dst_addr,
+        size_t nbytes,
+        const std::vector<uint8_t>& fill_pattern,
+        CudaEventSet deps = {});
 
     CudaEvent copy_host_to_device(
         DeviceId device_id,

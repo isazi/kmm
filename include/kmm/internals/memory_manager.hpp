@@ -67,6 +67,10 @@ class MemoryManager {
     void make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEventSet& deps_out);
     bool try_lock_access(MemoryId memory_id, Buffer& buffer, Request& req, CudaEventSet& deps_out);
 
+    CudaEvent fill_buffer(
+        MemoryId memory_id,
+        Buffer& buffer,
+        const std::vector<uint8_t>& fill_pattern);
     CudaEvent copy_h2d(DeviceId device_id, Buffer& buffer);
     CudaEvent copy_d2h(DeviceId device_id, Buffer& buffer);
 
@@ -84,7 +88,7 @@ class MemoryManager {
     std::unordered_set<std::shared_ptr<Buffer>> m_buffers;
     std::unordered_set<std::shared_ptr<Request>> m_active_requests;
     std::unique_ptr<Device[]> m_devices;
-    std::unique_ptr<MemorySystem> m_allocator;
+    std::unique_ptr<MemorySystem> m_memory;
 };
 
 using MemoryRequest = std::shared_ptr<MemoryManager::Request>;

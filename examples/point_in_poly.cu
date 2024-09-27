@@ -12,7 +12,7 @@ __global__ void cn_pnpoly(
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
 
-    if (chunk.contains(i)) {
+    if (i < chunk.end(0)) {
         int c = 0;
         float2 p = points[i];
 
@@ -40,7 +40,7 @@ __global__ void init_points(
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
 
-    if (chunk.contains(i)) {
+    if (i < chunk.end(0)) {
         curandStatePhilox4_32_10_t state;
         curand_init(1234, i, 0, &state);
         points[i] = {curand_normal(&state), curand_normal(&state)};

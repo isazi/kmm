@@ -12,6 +12,7 @@ namespace kmm {
 struct BufferLayout {
     size_t size_in_bytes;
     size_t alignment;
+    std::vector<uint8_t> fill_pattern;
 
     template<typename T>
     static BufferLayout for_type(size_t n = 1) {

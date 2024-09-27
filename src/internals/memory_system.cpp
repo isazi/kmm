@@ -3,6 +3,8 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/internals/memory_system.hpp"
+#include "kmm/memops/cuda_fill.hpp"
+#include "kmm/memops/host_fill.hpp"
 
 namespace kmm {
 
@@ -59,31 +61,70 @@ void MemorySystem::make_progress() {
     }
 }
 
-bool MemorySystem::allocate(
-    MemoryId memory_id,
-    size_t nbytes,
-    void*& ptr_out,
-    CudaEventSet& deps_out) {
-    if (memory_id.is_device()) {
-        return m_devices.at(memory_id.as_device())->allocator->allocate(nbytes, ptr_out, deps_out);
-    } else {
-        return m_host->allocate(nbytes, ptr_out, deps_out);
-    }
+bool MemorySystem::allocate_host(size_t nbytes, void*& ptr_out, CudaEventSet& deps_out) {
+    return m_host->allocate(nbytes, ptr_out, deps_out);
 }
 
-void MemorySystem::deallocate(MemoryId memory_id, void* ptr, size_t nbytes, CudaEventSet deps) {
-    if (memory_id.is_device()) {
-        return m_devices.at(memory_id.as_device())
-            ->allocator->deallocate(ptr, nbytes, std::move(deps));
-    } else {
-        return m_host->deallocate(ptr, nbytes, std::move(deps));
+void MemorySystem::deallocate_host(void* ptr, size_t nbytes, CudaEventSet deps) {
+    return m_host->deallocate(ptr, nbytes, std::move(deps));
+}
+
+bool MemorySystem::allocate_device(
+    DeviceId device_id,
+    size_t nbytes,
+    CUdeviceptr& ptr_out,
+    CudaEventSet& deps_out) {
+    auto& device = *m_devices.at(device_id);
+    void* addr;
+
+    if (device.allocator->allocate(nbytes, addr, deps_out)) {
+        ptr_out = (CUdeviceptr)addr;
+        return true;
     }
+
+    return false;
+}
+
+void MemorySystem::deallocate_device(
+    DeviceId device_id,
+    CUdeviceptr ptr,
+    size_t nbytes,
+    CudaEventSet deps) {
+    auto& device = *m_devices.at(device_id);
+    return device.allocator->deallocate((void*)ptr, nbytes, std::move(deps));
+}
+
+CudaEvent MemorySystem::fill_host(
+    void* dst_addr,
+    size_t nbytes,
+    const std::vector<uint8_t>& fill_pattern,
+    CudaEventSet deps) {
+    // FIXME: this should not be synchronously
+    m_streams->wait_until_ready(deps);
+    execute_fill(dst_addr, nbytes, fill_pattern.data(), fill_pattern.size());
+    return CudaEvent {};
 }
 
 // Copies smaller than this threshold are put onto a high priority stream. This can improve
 // performance since small copy jobs (like copying a single number) are prioritized over large
 // slow copy jobs of several gigabytes.
 static constexpr size_t HIGH_PRIORITY_THRESHOLD = 1024L * 1024;
+
+CudaEvent MemorySystem::fill_device(
+    DeviceId device_id,
+    CUdeviceptr dst_addr,
+    size_t nbytes,
+    const std::vector<uint8_t>& fill_pattern,
+    CudaEventSet deps) {
+    auto& device = *m_devices.at(device_id);
+
+    // Should this be done on a custom stream maybe?
+    auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.h2d_hi_stream : device.h2d_stream;
+
+    return m_streams->with_stream(stream, deps, [&](auto stream) {
+        execute_cuda_fill_async(stream, dst_addr, nbytes, fill_pattern.data(), fill_pattern.size());
+    });
+}
 
 CudaEvent MemorySystem::copy_host_to_device(
     DeviceId device_id,

@@ -304,17 +304,67 @@ struct TaskDataProcessor<Reduce<Array<T, N>>> {
 
     TaskDataProcessor(Reduce<Array<T, N>> arg) :
         m_array(arg.argument),
-        m_sizes(arg.argument.shape()) {}
+        m_sizes(arg.argument.shape()),
+        m_reduction(arg.op) {}
 
     type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        KMM_TODO();
+        auto num_elements = m_sizes.volume();
+
+        auto layout = BufferLayout::for_type<T>(num_elements);
+        layout.fill_pattern = reduction_identity_value(DataType::of<T>(), m_reduction);
+
+        auto buffer_id = builder.graph.create_buffer(std::move(layout));
+        auto memory_id = builder.memory_id;
+
+        m_partial_inputs.push_back(ReductionInput {
+            .buffer_id = buffer_id,
+            .memory_id = memory_id,
+            .dependencies = {},
+            .num_inputs_per_output = 1});
+
+        size_t buffer_index = builder.buffers.size();
+        builder.buffers.emplace_back(BufferRequirement {
+            .buffer_id = buffer_id,
+            .memory_id = memory_id,
+            .access_mode = AccessMode::Exclusive});
+
+        views::domains::bounds<N> domain = {m_sizes};
+        return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {}
+    void finalize(const TaskResult& result) {
+        auto num_elements = m_sizes.volume();
+        auto buffer_id = result.graph.create_buffer(BufferLayout::for_type<T>(num_elements));
+
+        MemoryId memory_id = m_partial_inputs[0].memory_id;
+        auto event_id = result.graph.insert_reduction(
+            m_reduction,
+            buffer_id,
+            memory_id,
+            DataType::of<T>(),
+            num_elements,
+            m_partial_inputs);
+
+        std::vector<ArrayChunk<N>> chunks = {{
+            .buffer_id = buffer_id,
+            .owner_id = memory_id,
+            .offset = point<N>::zero(),
+            .size = m_sizes}};
+
+        for (const auto& input : m_partial_inputs) {
+            result.graph.delete_buffer(input.buffer_id, {event_id});
+        }
+
+        std::shared_ptr<Worker> worker = result.worker.shared_from_this();
+        m_array =
+            Array<T, N>(std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(chunks)));
+    }
 
   private:
     Array<T, N>& m_array;
     dim<N> m_sizes;
+    ReductionOp m_reduction;
+    std::vector<ReductionInput> m_partial_inputs;
 };
 
 template<typename T, size_t N>
@@ -324,18 +374,77 @@ struct TaskDataProcessor<Reduce<Array<T, N>, SliceMapping<N>>> {
     TaskDataProcessor(Reduce<Array<T, N>, SliceMapping<N>> arg) :
         m_array(arg.argument),
         m_sizes(arg.argument.shape()),
+        m_reduction(arg.op),
         m_mapping(arg.index_mapping) {}
 
     type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        KMM_TODO();
+        auto access_region = m_mapping(chunk, m_sizes);
+        auto num_elements = access_region.size();
+
+        auto layout = BufferLayout::for_type<T>(num_elements);
+        layout.fill_pattern = reduction_identity_value(DataType::of<T>(), m_reduction);
+
+        auto buffer_id = builder.graph.create_buffer(std::move(layout));
+        auto memory_id = builder.memory_id;
+
+        m_partial_inputs[access_region].push_back(ReductionInput {
+            .buffer_id = buffer_id,
+            .memory_id = memory_id,
+            .dependencies = {},
+            .num_inputs_per_output = 1});
+
+        size_t buffer_index = builder.buffers.size();
+        builder.buffers.emplace_back(BufferRequirement {
+            .buffer_id = buffer_id,
+            .memory_id = memory_id,
+            .access_mode = AccessMode::Exclusive});
+
+        views::domains::subbounds<N> domain = {access_region.offset, access_region.sizes};
+        return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {}
+    void finalize(const TaskResult& result) {
+        std::vector<ArrayChunk<N>> chunks;
+
+        for (auto& p : m_partial_inputs) {
+            auto access_region = p.first;
+            auto& inputs = p.second;
+
+            MemoryId memory_id = inputs[0].memory_id;
+            auto num_elements = access_region.size();
+
+            auto buffer_id = result.graph.create_buffer(BufferLayout::for_type<T>(num_elements));
+
+            auto event_id = result.graph.insert_reduction(
+                m_reduction,
+                buffer_id,
+                memory_id,
+                DataType::of<T>(),
+                num_elements,
+                inputs);
+
+            chunks.push_back(ArrayChunk<N> {
+                .buffer_id = buffer_id,
+                .owner_id = memory_id,
+                .offset = access_region.offset,
+                .size = access_region.sizes});
+
+            for (const auto& input : inputs) {
+                result.graph.delete_buffer(input.buffer_id, {event_id});
+            }
+        }
+
+        std::shared_ptr<Worker> worker = result.worker.shared_from_this();
+        m_array =
+            Array<T, N>(std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(chunks)));
+    }
 
   private:
     Array<T, N>& m_array;
     dim<N> m_sizes;
+    ReductionOp m_reduction;
     SliceMapping<N> m_mapping;
+    std::unordered_map<rect<N>, std::vector<ReductionInput>> m_partial_inputs;
 };
 
 }  // namespace kmm

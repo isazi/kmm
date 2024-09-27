@@ -114,7 +114,7 @@ struct MemoryManager::Device {
 };
 
 MemoryManager::MemoryManager(std::unique_ptr<MemorySystem> allocator) :
-    m_allocator(std::move(allocator)),
+    m_memory(std::move(allocator)),
     m_devices(std::make_unique<Device[]>(MAX_DEVICES)) {}
 
 MemoryManager::~MemoryManager() {
@@ -122,7 +122,7 @@ MemoryManager::~MemoryManager() {
 }
 
 void MemoryManager::make_progress() {
-    m_allocator->make_progress();
+    m_memory->make_progress();
 }
 
 bool MemoryManager::is_idle(CudaStreamManager& streams) const {
@@ -156,7 +156,7 @@ std::shared_ptr<MemoryManager::Buffer> MemoryManager::create_buffer(BufferLayout
     layout.alignment = round_up_to_power_of_two(layout.alignment);
     layout.size_in_bytes = round_up_to_multiple(layout.size_in_bytes, layout.alignment);
 
-    auto buffer = std::make_shared<Buffer>(layout);
+    auto buffer = std::make_shared<Buffer>(std::move(layout));
     m_buffers.emplace(buffer);
     return buffer;
 }
@@ -469,15 +469,16 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
         device_id,
         (void*)&buffer);
 
-    void* ptr_out;
+    CUdeviceptr ptr_out;
     CudaEventSet events;
-    auto result = m_allocator->allocate(device_id, buffer.layout.size_in_bytes, ptr_out, events);
+    auto success =
+        m_memory->allocate_device(device_id, buffer.layout.size_in_bytes, ptr_out, events);
 
-    if (!result) {
+    if (!success) {
         return false;
     }
 
-    device_entry.data = (CUdeviceptr)ptr_out;
+    device_entry.data = ptr_out;
     device_entry.is_allocated = true;
     device_entry.is_valid = false;
     device_entry.allocation_event = events;
@@ -508,9 +509,9 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
     KMM_ASSERT(buffer.access_current == nullptr);
     KMM_ASSERT(buffer.access_tail == nullptr);
 
-    m_allocator->deallocate(
+    m_memory->deallocate_device(
         device_id,
-        (void*)device_entry.data,
+        device_entry.data,
         size_in_bytes,
         std::move(device_entry.access_events));
     remove_from_lru(device_id, buffer);
@@ -535,9 +536,9 @@ void MemoryManager::allocate_host(Buffer& buffer) {
 
     spdlog::trace("allocate {} bytes from host", size_in_bytes, (void*)&buffer);
 
-    CudaEventSet events;
     void* ptr;
-    bool success = m_allocator->allocate(MemoryId::host(), size_in_bytes, ptr, events);
+    CudaEventSet events;
+    bool success = m_memory->allocate_host(size_in_bytes, ptr, events);
 
     if (!success) {
         throw std::runtime_error("could not allocate, out of host memory");
@@ -570,11 +571,7 @@ void MemoryManager::deallocate_host(Buffer& buffer) {
         (void*)&buffer,
         host_entry.access_events);
 
-    m_allocator->deallocate(
-        MemoryId::host(),
-        host_entry.data,
-        size_in_bytes,
-        std::move(host_entry.access_events));
+    m_memory->deallocate_host(host_entry.data, size_in_bytes, std::move(host_entry.access_events));
 
     host_entry.data = nullptr;
     host_entry.is_allocated = false;
@@ -830,8 +827,43 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEve
         }
     }
 
-    entry.is_valid = true;
+    if (!buffer.layout.fill_pattern.empty()) {
+        fill_buffer(memory_id, buffer, buffer.layout.fill_pattern);
+    }
+
     deps_out.insert(entry.epoch_event);
+}
+
+CudaEvent MemoryManager::fill_buffer(
+    MemoryId memory_id,
+    Buffer& buffer,
+    const std::vector<uint8_t>& fill_pattern) {
+    auto& entry = buffer.entry(memory_id);
+    KMM_ASSERT(entry.is_allocated && !entry.is_valid);
+    KMM_ASSERT(!fill_pattern.empty());
+
+    CudaEvent event;
+
+    if (memory_id.is_host()) {
+        event = m_memory->fill_host(
+            buffer.host_entry.data,
+            buffer.layout.size_in_bytes,
+            fill_pattern,
+            entry.access_events);
+    } else {
+        event = m_memory->fill_device(
+            memory_id.as_device(),
+            buffer.device_entry[memory_id.as_device()].data,
+            buffer.layout.size_in_bytes,
+            fill_pattern,
+            entry.access_events);
+    }
+
+    entry.epoch_event = {event};
+    entry.access_events = {event};
+    entry.write_events = {event};
+    entry.is_valid = true;
+    return event;
 }
 
 CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
@@ -852,7 +884,7 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     deps.insert(device_entry.access_events);
     deps.insert(host_entry.write_events);
 
-    auto event = m_allocator->copy_host_to_device(
+    auto event = m_memory->copy_host_to_device(
         device_id,
         host_entry.data,
         device_entry.data,
@@ -886,7 +918,7 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     deps.insert(device_entry.write_events);
     deps.insert(host_entry.access_events);
 
-    auto event = m_allocator->copy_device_to_host(
+    auto event = m_memory->copy_device_to_host(
         device_id,
         device_entry.data,
         host_entry.data,
@@ -943,11 +975,33 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
 
         if (entry.is_allocated) {
             spdlog::error(
-                " - buffer {} ({} bytes, {} allocation locks)",
+                " - buffer {} ({} bytes, {} requests active, {} allocation locks)",
                 (void*)buffer.get(),
                 buffer->layout.size_in_bytes,
+                buffer->num_requests_active,
                 entry.num_allocation_locks);
         }
+    }
+
+    spdlog::error("following requests have been granted:");
+    for (auto* it = device.allocation_head; it != device.allocation_current;
+         it = it->allocation_next) {
+        spdlog::error(
+            " - request {} ({} bytes, buffer {}, transaction {})",
+            (void*)it,
+            it->buffer->layout.size_in_bytes,
+            (void*)it->buffer.get(),
+            (void*)it->parent.get());
+    }
+
+    spdlog::error("following buffers are pending:");
+    for (auto* it = device.allocation_current; it != nullptr; it = it->allocation_next) {
+        spdlog::error(
+            " - request {} ({} bytes, buffer {}, transaction {})",
+            (void*)it,
+            it->buffer->layout.size_in_bytes,
+            (void*)it->buffer.get(),
+            (void*)it->parent.get());
     }
 
     return true;

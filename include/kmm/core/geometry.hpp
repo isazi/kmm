@@ -200,7 +200,7 @@ class dim: public fixed_array<T, N> {
     }
 
     KMM_HOST_DEVICE
-    T operator()(size_t axis = 1) const {
+    T operator()(size_t axis = 0) const {
         return get(axis);
     }
 };
@@ -493,3 +493,19 @@ struct fmt::formatter<kmm::dim<N, T>>: fmt::ostream_formatter {};
 
 template<size_t N, typename T>
 struct fmt::formatter<kmm::rect<N, T>>: fmt::ostream_formatter {};
+
+#include "kmm/utils/hash_utils.hpp"
+
+template<size_t N, typename T>
+struct std::hash<kmm::point<N, T>>: std::hash<kmm::fixed_array<T, N>> {};
+
+template<size_t N, typename T>
+struct std::hash<kmm::dim<N, T>>: std::hash<kmm::fixed_array<T, N>> {};
+
+template<size_t N, typename T>
+struct std::hash<kmm::rect<N, T>> {
+    size_t operator()(const kmm::rect<N, T>& p) const {
+        kmm::fixed_array<T, N> v[2] = {p.offset, p.sizes};
+        return kmm::hash_range(v, v + 2);
+    }
+};

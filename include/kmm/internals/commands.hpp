@@ -39,6 +39,13 @@ struct CommandExecute {
     std::vector<BufferRequirement> buffers;
 };
 
+struct CommandReduction {
+    BufferId src_buffer;
+    BufferId dst_buffer;
+    MemoryId memory_id;
+    Reduction reduction;
+};
+
 struct CommandEmpty {};
 
 using Command = std::variant<
@@ -47,7 +54,8 @@ using Command = std::variant<
     CommandBufferDelete,
     CommandPrefetch,
     CommandCopy,
-    CommandExecute>;
+    CommandExecute,
+    CommandReduction>;
 
 inline const char* command_name(const Command& cmd) {
     static constexpr const char* names[] = {
@@ -56,7 +64,8 @@ inline const char* command_name(const Command& cmd) {
         "CommandBufferDelete",
         "CommandPrefetch",
         "CommandCopy",
-        "CommandExecute"};
+        "CommandExecute",
+        "CommandReduction"};
 
     return names[cmd.index()];
 }

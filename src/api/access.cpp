@@ -69,6 +69,69 @@ IndexMapping IndexMapping::range(IndexMapping begin, IndexMapping end) {
         begin.m_divisor};
 }
 
+IndexMapping IndexMapping::offset_by(int64_t offset) const {
+    auto new_offset = checked_add(m_offset, checked_mul(m_divisor, offset));
+    return {m_variable, m_scale, new_offset, m_length, m_divisor};
+}
+
+IndexMapping IndexMapping::scale_by(int64_t factor) const {
+    if (factor < 0) {
+        return negate().scale_by(-factor);
+    }
+
+    return {
+        m_variable,
+        checked_mul(m_scale, factor),
+        checked_mul(m_offset, factor),
+        checked_mul(m_length - 1, factor) + 1,
+        m_divisor};
+}
+
+IndexMapping IndexMapping::divide_by(int64_t divisor) const {
+    if (divisor < 0) {
+        return negate().divide_by(-divisor);
+    }
+
+    return {m_variable, m_scale, m_offset, m_length, checked_mul(m_divisor, divisor)};
+}
+
+IndexMapping IndexMapping::negate() const {
+    return {m_variable, -m_scale, -checked_add(m_offset, m_length - 1), m_length, m_divisor};
+}
+
+rect<1> IndexMapping::apply(Chunk chunk) const {
+    int64_t a0 = chunk.offset.get(m_variable);
+    int64_t a1 = a0 + chunk.size.get(m_variable) - 1;
+
+    int64_t b0;
+    int64_t b1;
+
+    if (m_scale > 0) {
+        b0 = m_scale * a0 + m_offset;
+        b1 = m_scale * a1 + m_offset + m_length - 1;
+    } else if (m_scale < 0) {
+        b0 = m_scale * a1 + m_offset;
+        b1 = m_scale * a0 + m_offset + m_length - 1;
+    } else {
+        b0 = m_offset;
+        b1 = m_offset + m_length - 1;
+    }
+
+    if (m_divisor != 1) {
+        b0 = div_floor(b0, m_divisor);
+        b1 = div_floor(b1, m_divisor);
+    }
+
+    int64_t i = b0;
+    int64_t n = b1 - b0 + 1;
+
+    rect<1> result;
+    result.offset[0] = i;
+    result.sizes[0] = n;
+
+    return result;
+}
+
 static void write_mapping(
     std::ostream& f,
     AxesMapping v,
@@ -113,33 +176,4 @@ std::ostream& operator<<(std::ostream& f, const IndexMapping& that) {
     return f;
 }
 
-IndexMapping IndexMapping::offset_by(int64_t offset) const {
-    auto new_offset = checked_add(m_offset, checked_mul(m_divisor, offset));
-    return {m_variable, m_scale, new_offset, m_length, m_divisor};
-}
-
-IndexMapping IndexMapping::scale_by(int64_t factor) const {
-    if (factor < 0) {
-        return negate().scale_by(-factor);
-    }
-
-    return {
-        m_variable,
-        checked_mul(m_scale, factor),
-        checked_mul(m_offset, factor),
-        checked_mul(m_length - 1, factor) + 1,
-        m_divisor};
-}
-
-IndexMapping IndexMapping::divide_by(int64_t divisor) const {
-    if (divisor < 0) {
-        return negate().divide_by(-divisor);
-    }
-
-    return {m_variable, m_scale, m_offset, m_length, checked_mul(m_divisor, divisor)};
-}
-
-IndexMapping IndexMapping::negate() const {
-    return {m_variable, -m_scale, -checked_add(m_offset, m_length - 1), m_length, m_divisor};
-}
 }  // namespace kmm

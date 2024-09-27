@@ -14,7 +14,6 @@ class CopyInTask: public Task {
 
         if (auto* device = proc.cast_if<CudaDevice>()) {
             device->copy_bytes(m_src_addr, dst_addr, m_nbytes);
-            device->synchronize();
         } else if (proc.is<HostContext>()) {
             ::memcpy(dst_addr, m_src_addr, m_nbytes);
         } else {

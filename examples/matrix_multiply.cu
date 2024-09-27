@@ -14,9 +14,9 @@ void fill_array(
 
 void matrix_multiply(
     kmm::CudaDevice& device,
-    kmm::WorkChunk region,
-    int m,
+    kmm::WorkChunk chunk,
     int n,
+    int m,
     int k,
     kmm::cuda_subview_mut<float, 2> C,
     kmm::cuda_subview<float, 2> A,
@@ -25,22 +25,26 @@ void matrix_multiply(
     float alpha = 1.0;
     float beta = 0.0;
 
+    const float* A_ptr = A.data_at({chunk.begin.x, chunk.begin.z});
+    const float* B_ptr = B.data_at({chunk.begin.z, chunk.begin.y});
+    float* C_ptr = C.data_at({chunk.begin.x, chunk.begin.y});
+
     KMM_CUDA_CHECK(cublasGemmEx(
         device.cublas(),
         CUBLAS_OP_T,
         CUBLAS_OP_T,
-        m,
-        n,
-        k,
+        chunk.size(0),
+        chunk.size(1),
+        chunk.size(2),
         &alpha,
-        A.data(),
+        A_ptr,
         CUDA_R_32F,
         A.stride(0),
-        B.data(),
+        B_ptr,
         CUDA_R_32F,
         B.stride(0),
         &beta,
-        C.data(),
+        C_ptr,
         CUDA_R_32F,
         C.stride(0),
         CUDA_R_32F,
@@ -65,7 +69,7 @@ int main() {
         {n, k},
         {chunk_size, chunk_size},
         kmm::Host(fill_array),
-        write(A, slice(_0, _1)),
+        write(A, slice(_x, _y)),
         1.0F
     );
 
@@ -83,7 +87,7 @@ int main() {
         kmm::Cuda(matrix_multiply),
         n, m, k,
         reduce(C, kmm::ReductionOp::Sum, slice(_x, _y)),
-        read(A, slice(_x, _y)),
-        read(B, slice(_z, _x))
+        read(A, slice(_x, _z)),
+        read(B, slice(_z, _y))
     );
 }

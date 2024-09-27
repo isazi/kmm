@@ -18,20 +18,26 @@ void throw_unsupported_dimension_exception(size_t dim) {
 void execute_cuda_h2d_copy_impl(
     std::optional<CUstream> stream,
     const void* src_buffer,
-    void* dst_buffer,
+    CUdeviceptr dst_buffer,
     CopyDescription copy_description) {
     copy_description.simplify();
     size_t dim = copy_description.effective_dimensionality();
 
-    CUdeviceptr dst_ptr = CUdeviceptr(dst_buffer) + copy_description.dst_offset;
+    CUdeviceptr dst_ptr = dst_buffer + copy_description.dst_offset;
     const void* src_ptr = static_cast<const uint8_t*>(src_buffer) + copy_description.src_offset;
 
     if (dim == 0) {
         if (stream) {
-            KMM_CUDA_CHECK(
-                cuMemcpyHtoDAsync(dst_ptr, src_ptr, copy_description.element_size, *stream));
+            KMM_CUDA_CHECK(cuMemcpyHtoDAsync(  //
+                dst_ptr,
+                src_ptr,
+                copy_description.element_size,
+                *stream));
         } else {
-            KMM_CUDA_CHECK(cuMemcpyHtoD(dst_ptr, src_ptr, copy_description.element_size));
+            KMM_CUDA_CHECK(cuMemcpyHtoD(  //
+                dst_ptr,
+                src_ptr,
+                copy_description.element_size));
         }
     } else if (dim == 1) {
         CUDA_MEMCPY2D info;
@@ -58,21 +64,27 @@ void execute_cuda_h2d_copy_impl(
 
 void execute_cuda_d2h_copy_impl(
     std::optional<CUstream> stream,
-    const void* src_buffer,
+    CUdeviceptr src_buffer,
     void* dst_buffer,
     CopyDescription copy_description) {
     copy_description.simplify();
     size_t dim = copy_description.effective_dimensionality();
 
     void* dst_ptr = static_cast<uint8_t*>(dst_buffer) + copy_description.dst_offset;
-    CUdeviceptr src_ptr = CUdeviceptr(src_buffer) + copy_description.src_offset;
+    CUdeviceptr src_ptr = src_buffer + copy_description.src_offset;
 
     if (dim == 0) {
         if (stream) {
-            KMM_CUDA_CHECK(
-                cuMemcpyDtoHAsync(dst_ptr, src_ptr, copy_description.element_size, *stream));
+            KMM_CUDA_CHECK(cuMemcpyDtoHAsync(  //
+                dst_ptr,
+                src_ptr,
+                copy_description.element_size,
+                *stream));
         } else {
-            KMM_CUDA_CHECK(cuMemcpyDtoH(dst_ptr, src_ptr, copy_description.element_size));
+            KMM_CUDA_CHECK(cuMemcpyDtoH(  //
+                dst_ptr,
+                src_ptr,
+                copy_description.element_size));
         }
     } else if (dim == 1) {
         CUDA_MEMCPY2D info;
@@ -99,21 +111,27 @@ void execute_cuda_d2h_copy_impl(
 
 void execute_cuda_d2d_copy_impl(
     std::optional<CUstream> stream,
-    const void* src_buffer,
-    void* dst_buffer,
+    CUdeviceptr src_buffer,
+    CUdeviceptr dst_buffer,
     CopyDescription copy_description) {
     copy_description.simplify();
     size_t dim = copy_description.effective_dimensionality();
 
-    CUdeviceptr dst_ptr = CUdeviceptr(dst_buffer) + copy_description.dst_offset;
-    CUdeviceptr src_ptr = CUdeviceptr(src_buffer) + copy_description.src_offset;
+    CUdeviceptr dst_ptr = dst_buffer + copy_description.dst_offset;
+    CUdeviceptr src_ptr = src_buffer + copy_description.src_offset;
 
     if (dim == 0) {
         if (stream) {
-            KMM_CUDA_CHECK(
-                cuMemcpyDtoDAsync(dst_ptr, src_ptr, copy_description.element_size, *stream));
+            KMM_CUDA_CHECK(cuMemcpyDtoDAsync(  //
+                dst_ptr,
+                src_ptr,
+                copy_description.element_size,
+                *stream));
         } else {
-            KMM_CUDA_CHECK(cuMemcpyDtoD(dst_ptr, src_ptr, copy_description.element_size));
+            KMM_CUDA_CHECK(cuMemcpyDtoD(  //
+                dst_ptr,
+                src_ptr,
+                copy_description.element_size));
         }
     } else if (dim == 1) {
         CUDA_MEMCPY2D info;
@@ -140,7 +158,7 @@ void execute_cuda_d2d_copy_impl(
 
 void execute_cuda_h2d_copy(
     const void* src_buffer,
-    void* dst_buffer,
+    CUdeviceptr dst_buffer,
     CopyDescription copy_description) {
     execute_cuda_h2d_copy_impl(std::nullopt, src_buffer, dst_buffer, copy_description);
 }
@@ -148,13 +166,13 @@ void execute_cuda_h2d_copy(
 void execute_cuda_h2d_copy_async(
     CUstream stream,
     const void* src_buffer,
-    void* dst_buffer,
+    CUdeviceptr dst_buffer,
     CopyDescription copy_description) {
     execute_cuda_h2d_copy_impl(stream, src_buffer, dst_buffer, copy_description);
 }
 
 void execute_cuda_d2h_copy(
-    const void* src_buffer,
+    CUdeviceptr src_buffer,
     void* dst_buffer,
     CopyDescription copy_description) {
     execute_cuda_d2h_copy_impl(std::nullopt, src_buffer, dst_buffer, copy_description);
@@ -162,23 +180,23 @@ void execute_cuda_d2h_copy(
 
 void execute_cuda_d2h_copy_async(
     CUstream stream,
-    const void* src_buffer,
+    CUdeviceptr src_buffer,
     void* dst_buffer,
     CopyDescription copy_description) {
     execute_cuda_d2h_copy_impl(stream, src_buffer, dst_buffer, copy_description);
 }
 
 void execute_cuda_d2d_copy(
-    const void* src_buffer,
-    void* dst_buffer,
+    CUdeviceptr src_buffer,
+    CUdeviceptr dst_buffer,
     CopyDescription copy_description) {
     execute_cuda_d2d_copy_impl(std::nullopt, src_buffer, dst_buffer, copy_description);
 }
 
 void execute_cuda_d2d_copy_async(
     CUstream stream,
-    const void* src_buffer,
-    void* dst_buffer,
+    CUdeviceptr src_buffer,
+    CUdeviceptr dst_buffer,
     CopyDescription copy_description) {
     execute_cuda_d2d_copy_impl(stream, src_buffer, dst_buffer, copy_description);
 }

@@ -37,7 +37,7 @@ struct CudaStreamManager::StreamState {
 struct CudaStreamManager::EventPool {
     EventPool(CudaContextHandle context) : m_context(context) {}
     EventPool(EventPool&&) noexcept = default;
-    EventPool(const EventPool&) = default;
+    EventPool(const EventPool&) = delete;
     ~EventPool();
     CUevent pop();
     void push(CUevent event);

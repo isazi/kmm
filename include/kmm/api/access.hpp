@@ -83,39 +83,20 @@ struct IndexMapping {
     IndexMapping scale_by(int64_t factor) const;
     IndexMapping divide_by(int64_t divisor) const;
     IndexMapping negate() const;
+    rect<1> apply(Chunk chunk) const;
+
+    rect<1> operator()(Chunk chunk) const {
+        return apply(chunk);
+    }
 
     template<size_t M>
     rect<M> operator()(Chunk chunk, rect<M> bounds) const {
         rect<M> result = bounds;
 
         if (M > 0) {
-            int64_t a0 = chunk.offset.get(m_variable);
-            int64_t a1 = a0 + chunk.size.get(m_variable) - 1;
-
-            int64_t b0;
-            int64_t b1;
-
-            if (m_scale > 0) {
-                b0 = m_scale * a0 + m_offset;
-                b1 = m_scale * a1 + m_offset + m_length - 1;
-            } else if (m_scale < 0) {
-                b0 = m_scale * a1 + m_offset;
-                b1 = m_scale * a0 + m_offset + m_length - 1;
-            } else {
-                b0 = m_offset;
-                b1 = m_offset + m_length - 1;
-            }
-
-            if (m_divisor != 1) {
-                b0 = div_floor(b0, m_divisor);
-                b1 = div_floor(b1, m_divisor);
-            }
-
-            int64_t i = b0;
-            int64_t n = b1 - b0 + 1;
-
-            result.offset[0] = i;
-            result.sizes[0] = n;
+            rect<1> range = (*this)(chunk);
+            result.offset[0] = range.begin();
+            result.sizes[0] = range.size();
         }
 
         return result.intersection(bounds);
@@ -197,11 +178,23 @@ inline IndexMapping into_index_mapping(FullMapping m) {
 
 template<size_t N>
 struct SliceMapping {
+    rect<N> operator()(Chunk chunk) const {
+        rect<N> result;
+
+        for (size_t i = 0; i < N; i++) {
+            rect<1> range = (this->axes[i])(chunk);
+            result.offset[i] = range.offset[0];
+            result.sizes[i] = range.sizes[0];
+        }
+
+        return result;
+    }
+
     rect<N> operator()(Chunk chunk, rect<N> bounds) const {
         rect<N> result;
 
         for (size_t i = 0; i < N; i++) {
-            rect<1> range = (indices[i])(chunk, rect<1> {bounds.offset[i], bounds.sizes[i]});
+            rect<1> range = (this->axes[i])(chunk, rect<1> {bounds.offset[i], bounds.sizes[i]});
 
             result.offset[i] = range.offset[0];
             result.sizes[i] = range.sizes[0];
@@ -210,7 +203,7 @@ struct SliceMapping {
         return result;
     }
 
-    IndexMapping indices[N];
+    IndexMapping axes[N];
 };
 
 template<>
@@ -257,16 +250,37 @@ Write<T, I> write(T& argument, I index_mapping = {}) {
     return {argument, index_mapping};
 }
 
-template<typename T, typename I = FullMapping>
-struct Reduce {
-    T& argument;
-    ReductionOp op;
+template<typename I>
+struct Replicate {
     I index_mapping;
 };
 
-template<typename I = FullMapping, typename T>
-Reduce<T, I> reduce(T& argument, ReductionOp op, I index_mapping = {}) {
+template<typename... Is>
+Replicate<SliceMapping<sizeof...(Is)>> replicate(const Is&... slices) {
+    return {into_index_mapping(slices)...};
+}
+
+template<typename T, typename I = FullMapping, typename R = SliceMapping<0>>
+struct Reduce {
+    T& argument;
+    ReductionOp op;
+    I index_mapping = {};
+    R replicate_mapping = {};
+};
+
+template<typename T>
+Reduce<T> reduce(T& argument, ReductionOp op) {
+    return {argument, op};
+}
+
+template<typename T, typename I>
+Reduce<T, I> reduce(T& argument, ReductionOp op, I index_mapping) {
     return {argument, op, index_mapping};
+}
+
+template<typename T, typename R, typename I>
+Reduce<T, I> reduce(T& argument, ReductionOp op, Replicate<R> replicate_mapping, I index_mapping) {
+    return {argument, op, replicate_mapping.index_mapping, index_mapping};
 }
 
 }  // namespace kmm

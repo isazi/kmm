@@ -26,7 +26,7 @@ endif()
 
 file(GLOB_RECURSE sources
   "${PROJECT_SOURCE_DIR}/src/*.cpp"
-  "${PROJECT_SOURCE_DIR}/src/*/*.cpp")
+  "${PROJECT_SOURCE_DIR}/src/*.cu")
 
 if(KMM_STATIC)
   add_library(${PROJECT_NAME} STATIC ${sources})

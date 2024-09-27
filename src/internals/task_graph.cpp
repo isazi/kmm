@@ -88,7 +88,7 @@ EventId TaskGraph::insert_prefetch(BufferId buffer_id, MemoryId memory_id, Event
 EventId TaskGraph::insert_task(
     ProcessorId processor_id,
     std::shared_ptr<Task> task,
-    std::vector<BufferRequirement> buffers,
+    const std::vector<BufferRequirement>& buffers,
     EventList deps) {
     for (const auto& buffer : buffers) {
         access_buffer(buffer.buffer_id, buffer.access_mode, deps);
@@ -103,6 +103,98 @@ EventId TaskGraph::insert_task(
     }
 
     return event_id;
+}
+
+EventId TaskGraph::insert_reduction(
+    ReductionOp op,
+    BufferId final_buffer_id,
+    MemoryId final_memory_id,
+    DataType dtype,
+    size_t num_elements,
+    std::vector<ReductionInput> inputs) {
+    auto layout = BufferLayout {
+        .size_in_bytes = dtype.size_in_bytes() * num_elements,
+        .alignment = dtype.alignment(),
+        .fill_pattern = reduction_identity_value(dtype, op)};
+
+    std::vector<ReductionInput> output_per_device;
+
+    for (const auto& input : inputs) {
+        MemoryId local_id = input.memory_id;
+        ReductionInput* output = nullptr;
+
+        for (size_t i = 0; i < output_per_device.size(); i++) {
+            if (output_per_device[i].memory_id == local_id) {
+                output = &output_per_device[i];
+            }
+        }
+
+        if (output == nullptr) {
+            auto temp_buffer_id = BufferId(m_next_buffer_id);
+            m_next_buffer_id++;
+
+            auto temp_creation_id =
+                insert_event(CommandBufferCreate {.id = temp_buffer_id, .layout = layout});
+
+            output_per_device.push_back(ReductionInput {
+                .buffer_id = temp_buffer_id,
+                .memory_id = local_id,
+                .dependencies = {temp_creation_id},
+                .num_inputs_per_output = 1});
+
+            output = &output_per_device.back();
+        }
+
+        auto deps = input.dependencies;
+        deps.push_back(output->dependencies[0]);
+
+        auto event_id = insert_event(
+            CommandReduction {
+                .src_buffer = input.buffer_id,
+                .dst_buffer = output->buffer_id,
+                .memory_id = local_id,
+                .reduction =
+                    Reduction {
+                        .operation = op,
+                        .data_type = dtype,
+                        .num_outputs = num_elements,
+                        .num_inputs_per_output = input.num_inputs_per_output,
+                    }},
+            std::move(deps));
+
+        output->dependencies.push_back(event_id);
+
+        m_buffer_accesses.push_back(BufferAccess {
+            .buffer_id = input.buffer_id,
+            .access_mode = AccessMode::Read,
+            .event_id = event_id});
+    }
+
+    for (size_t j = 0; j < output_per_device.size(); j++) {
+        auto& partial_output = output_per_device[j];
+        auto deps = partial_output.dependencies;
+        access_buffer(final_buffer_id, AccessMode::Exclusive, deps);
+
+        auto event_id = insert_event(
+            CommandReduction {
+                .src_buffer = partial_output.buffer_id,
+                .dst_buffer = final_buffer_id,
+                .memory_id = final_memory_id,
+                .reduction =
+                    Reduction {
+                        .operation = op,
+                        .data_type = dtype,
+                        .num_outputs = num_elements,
+                        .num_inputs_per_output = 1}},
+            std::move(deps));
+
+        m_buffer_accesses.push_back(BufferAccess {
+            .buffer_id = final_buffer_id,
+            .access_mode = AccessMode::Exclusive,
+            .event_id = event_id});
+
+        insert_event(CommandBufferDelete {.id = partial_output.buffer_id}, {event_id});
+    }
 }
 
 EventId TaskGraph::insert_barrier() {
@@ -181,6 +273,10 @@ void TaskGraph::access_buffer(BufferId buffer_id, AccessMode mode, EventList& de
     auto& meta = m_buffers.at(buffer_id);
     deps_out.push_back(meta.creation);
     deps_out.insert_all(meta.last_writes);
+
+    if (mode != AccessMode::Read) {
+        deps_out.insert_all(meta.accesses);
+    }
 }
 
 }  // namespace kmm
