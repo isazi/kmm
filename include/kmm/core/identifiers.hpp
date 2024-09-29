@@ -4,7 +4,6 @@
 
 #include "fmt/ostream.h"
 
-#include "kmm/core/reduction.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
 #include "kmm/utils/small_vector.hpp"
@@ -268,7 +267,6 @@ template<>
 struct fmt::formatter<kmm::BufferId>: fmt::formatter<uint64_t> {};
 template<>
 struct fmt::formatter<kmm::EventId>: fmt::formatter<uint64_t> {};
-
 template<>
 struct fmt::formatter<kmm::MemoryId>: fmt::ostream_formatter {};
 template<>

@@ -103,33 +103,28 @@ Rect<1> IndexMapping::apply(Chunk chunk) const {
     int64_t a0 = chunk.offset.get(m_variable);
     int64_t a1 = a0 + chunk.size.get(m_variable) - 1;
 
-    int64_t b0;
-    int64_t b1;
+    int64_t b0 = m_scale * a0 + m_offset;
+    int64_t b1 = m_scale * a1 + m_offset;
 
-    if (m_scale > 0) {
-        b0 = m_scale * a0 + m_offset;
-        b1 = m_scale * a1 + m_offset + m_length - 1;
-    } else if (m_scale < 0) {
-        b0 = m_scale * a1 + m_offset;
-        b1 = m_scale * a0 + m_offset + m_length - 1;
+    if (m_scale < 0) {
+        std::swap(b0, b1);
+    }
+
+    int64_t bn;
+
+    if (b0 < b1 && m_length > 0) {
+        bn = (b1 - b0) + m_length;
     } else {
-        b0 = m_offset;
-        b1 = m_offset + m_length - 1;
+        bn = 0;
     }
 
-    if (m_divisor != 1) {
-        b0 = div_floor(b0, m_divisor);
-        b1 = div_floor(b1, m_divisor);
+    if (m_divisor > 1) {
+        int64_t remainder = b0 % m_divisor;
+        b0 = b0 / m_divisor;
+        bn = (bn + remainder + m_divisor - 1) / m_divisor;
     }
 
-    int64_t i = b0;
-    int64_t n = b1 - b0 + 1;
-
-    Rect<1> result;
-    result.offset[0] = i;
-    result.sizes[0] = n;
-
-    return result;
+    return {b0, bn};
 }
 
 static void write_mapping(
@@ -138,8 +133,8 @@ static void write_mapping(
     int64_t scale,
     int64_t offset,
     int64_t divisor) {
-    static constexpr const char* variables[] = {"x", "y", "z", "w", "v4", "v5", "v6", "v7"};
-    const char* var = v < 8 ? variables[v] : "?";
+    static constexpr const char* variables[] = {"x", "y", "z", "w"};
+    const char* var = v < 4 ? variables[v] : "?";
 
     if (scale != 1) {
         if (offset != 0) {

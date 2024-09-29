@@ -5,8 +5,8 @@
 
 #include "kmm/core/geometry.hpp"
 #include "kmm/core/identifiers.hpp"
+#include "kmm/core/system_info.hpp"
 #include "kmm/core/work_chunk.hpp"
-#include "kmm/internals/worker.hpp"
 
 namespace kmm {
 

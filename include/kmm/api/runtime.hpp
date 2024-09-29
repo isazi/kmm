@@ -9,7 +9,6 @@
 #include "kmm/core/system_info.hpp"
 #include "kmm/core/view.hpp"
 #include "kmm/core/work_chunk.hpp"
-#include "kmm/internals/worker.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
 
@@ -19,11 +18,8 @@ class Worker;
 
 class Runtime {
   public:
-    Runtime(std::shared_ptr<Worker> worker) : m_worker(std::move(worker)) {
-        KMM_ASSERT(m_worker != nullptr);
-    }
-
-    Runtime(Worker& worker) : Runtime(worker.shared_from_this()) {}
+    Runtime(std::shared_ptr<Worker> worker);
+    Runtime(Worker& worker);
 
     /**
      * Submit a single task to the runtime system.
@@ -41,7 +37,12 @@ class Runtime {
             .offset = {},
             .size = index_space}}};
 
-        return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
+        return kmm::parallel_submit(
+            m_worker,
+            info(),
+            partition,
+            launcher,
+            std::forward<Args>(args)...);
     }
 
     /**
@@ -54,7 +55,12 @@ class Runtime {
      */
     template<typename L, typename... Args>
     EventId submit(Partition partition, L launcher, Args&&... args) {
-        return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
+        return kmm::parallel_submit(
+            m_worker,
+            info(),
+            partition,
+            launcher,
+            std::forward<Args>(args)...);
     }
 
     /**
@@ -69,7 +75,8 @@ class Runtime {
     template<typename P = ChunkPartitioner, typename L, typename... Args>
     EventId parallel_submit(WorkDim index_space, P partitioner, L launcher, Args&&... args) {
         return kmm::parallel_submit(
-            *m_worker,
+            m_worker,
+            info(),
             partitioner(index_space, info()),
             launcher,
             std::forward<Args>(args)...);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kmm/core/data_type.hpp"
+#include "kmm/core/identifiers.hpp"
 
 namespace kmm {
 
@@ -12,6 +13,13 @@ struct Reduction {
     ReductionOp operation;
     DataType data_type;
     size_t num_outputs;
+    size_t num_inputs_per_output = 1;
+};
+
+struct ReductionInput {
+    BufferId buffer_id;
+    MemoryId memory_id;
+    EventList dependencies;
     size_t num_inputs_per_output = 1;
 };
 

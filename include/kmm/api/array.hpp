@@ -6,70 +6,16 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/api/access.hpp"
+#include "kmm/api/array_backend.hpp"
 #include "kmm/api/packed_array.hpp"
 #include "kmm/api/task_data.hpp"
-#include "kmm/core/geometry.hpp"
-#include "kmm/core/identifiers.hpp"
-#include "kmm/internals/scheduler.hpp"
-#include "kmm/internals/task_graph.hpp"
 
 namespace kmm {
-
-class Worker;
-
-template<size_t N>
-struct ArrayChunk {
-    BufferId buffer_id;
-    MemoryId owner_id;
-    Point<N> offset;
-    Dim<N> size;
-};
-
-template<size_t N>
-class ArrayBackend: public std::enable_shared_from_this<ArrayBackend<N>> {
-  public:
-    ArrayBackend(
-        std::shared_ptr<Worker> worker,
-        Dim<N> array_size,
-        std::vector<ArrayChunk<N>> chunks);
-    ~ArrayBackend();
-
-    ArrayChunk<N> find_chunk(Rect<N> region) const;
-    ArrayChunk<N> chunk(size_t index) const;
-    void synchronize() const;
-    void copy_bytes(void* dest_addr, size_t element_size) const;
-
-    size_t num_chunks() const {
-        return m_buffers.size();
-    }
-
-    const std::vector<BufferId>& buffers() const {
-        return m_buffers;
-    }
-
-    const Worker& worker() const {
-        return *m_worker;
-    }
-
-    Dim<N> chunk_size() const {
-        return m_chunk_size;
-    }
-
-    Dim<N> array_size() const {
-        return m_array_size;
-    }
-
-  private:
-    std::shared_ptr<Worker> m_worker;
-    std::vector<BufferId> m_buffers;
-    Dim<N> m_array_size;
-    Dim<N> m_chunk_size;
-    std::array<size_t, N> m_num_chunks;
-};
 
 class ArrayBase {
   public:
     virtual ~ArrayBase() = default;
+    virtual const std::type_info& type_info() const = 0;
     virtual size_t rank() const = 0;
     virtual int64_t size(size_t axis) const = 0;
 };
@@ -82,6 +28,10 @@ class Array: ArrayBase {
     explicit Array(std::shared_ptr<ArrayBackend<N>> b) :
         m_backend(b),
         m_shape(m_backend->array_size()) {}
+
+    const std::type_info& type_info() const final {
+        return typeid(T);
+    }
 
     size_t rank() const final {
         return N;
@@ -149,7 +99,7 @@ struct TaskDataProcessor<Read<Array<T, N>, SliceMapping<N>>> {
 
     TaskDataProcessor(Read<Array<T, N>, SliceMapping<N>> arg) :
         m_backend(arg.argument.inner().shared_from_this()),
-        m_mapping(arg.index_mapping) {}
+        m_mapping(arg.slice_mapping) {}
 
     type process_chunk(Chunk chunk, TaskBuilder& builder) {
         auto access_region = m_mapping(chunk, m_backend->array_size());
@@ -180,45 +130,28 @@ struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
 
     TaskDataProcessor(Write<Array<T, N>, SliceMapping<N>> arg) :
         m_array(arg.argument),
-        m_mapping(arg.index_mapping),
-        m_sizes(arg.argument.shape()) {
+        m_mapping(arg.slice_mapping),
+        m_builder(arg.argument.shape(), BufferLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
 
     type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        auto access_region = m_mapping(chunk, m_sizes);
-        auto num_elements = access_region.size();
-        auto buffer_id = builder.graph.create_buffer(BufferLayout::for_type<T>(num_elements));
-
-        m_chunks.push_back(ArrayChunk<N> {
-            .buffer_id = buffer_id,
-            .owner_id = builder.memory_id,
-            .offset = access_region.offset,
-            .size = access_region.sizes});
-
-        size_t buffer_index = builder.buffers.size();
-        builder.buffers.emplace_back(BufferRequirement {
-            .buffer_id = buffer_id,
-            .memory_id = builder.memory_id,
-            .access_mode = AccessMode::Exclusive});
-
+        auto access_region = m_mapping(chunk, m_builder.m_sizes);
+        size_t buffer_index = m_builder.add_chunk(builder, access_region);
         views::domains::subbounds<N> domain = {access_region.offset, access_region.sizes};
         return {buffer_index, domain};
     }
 
     void finalize(const TaskResult& result) {
-        std::shared_ptr<Worker> worker = result.worker.shared_from_this();
-        m_array =
-            Array<T, N>(std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(m_chunks)));
+        m_array = Array<T, N>(m_builder.build(result.worker));
     }
 
   private:
     Array<T, N>& m_array;
-    Dim<N> m_sizes;
-    std::vector<ArrayChunk<N>> m_chunks;
     SliceMapping<N> m_mapping;
+    ArrayBuilder<N> m_builder;
 };
 
 template<typename T, size_t N>
@@ -254,43 +187,27 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
 
     TaskDataProcessor(Write<Array<T, N>> arg) :
         m_array(arg.argument),
-        m_sizes(arg.argument.shape()) {
+        m_builder(arg.argument.shape(), BufferLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
 
     type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        auto num_elements = m_sizes.volume();
-        auto buffer_id = builder.graph.create_buffer(BufferLayout::for_type<T>(num_elements));
-
-        m_chunks.push_back(ArrayChunk<N> {
-            .buffer_id = buffer_id,
-            .owner_id = chunk.owner_id.as_memory(),
-            .offset = Point<N>::zero(),
-            .size = m_sizes});
-
-        auto domain = views::domains::bounds<N> {m_sizes};
-
-        size_t buffer_index = builder.buffers.size();
-        builder.buffers.emplace_back(BufferRequirement {
-            .buffer_id = buffer_id,
-            .memory_id = builder.memory_id,
-            .access_mode = AccessMode::Exclusive});
+        auto access_region = m_builder.m_sizes;
+        size_t buffer_index = m_builder.add_chunk(builder, access_region);
+        views::domains::bounds<N> domain = {access_region};
 
         return {buffer_index, domain};
     }
 
     void finalize(const TaskResult& result) {
-        std::shared_ptr<Worker> worker = result.worker.shared_from_this();
-        m_array =
-            Array<T, N>(std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(m_chunks)));
+        m_array = Array<T, N>(m_builder.build(result.worker));
     }
 
   private:
     Array<T, N>& m_array;
-    Dim<N> m_sizes;
-    std::vector<ArrayChunk<N>> m_chunks;
+    ArrayBuilder<N> m_builder;
 };
 
 template<typename T, size_t N>
@@ -302,149 +219,90 @@ template<typename T, size_t N>
 struct TaskDataProcessor<Reduce<Array<T, N>>> {
     using type = PackedArray<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
 
-    TaskDataProcessor(Reduce<Array<T, N>> arg) :
+    TaskDataProcessor(Reduce<Array<T, N>, FullMapping> arg) :
         m_array(arg.argument),
-        m_sizes(arg.argument.shape()),
-        m_reduction(arg.op) {}
+        m_builder(arg.argument.shape(), DataType::of<T>(), arg.op) {}
 
     type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        auto num_elements = m_sizes.volume();
-
-        auto layout = BufferLayout::for_type<T>(num_elements);
-        layout.fill_pattern = reduction_identity_value(DataType::of<T>(), m_reduction);
-
-        auto buffer_id = builder.graph.create_buffer(std::move(layout));
-        auto memory_id = builder.memory_id;
-
-        m_partial_inputs.push_back(ReductionInput {
-            .buffer_id = buffer_id,
-            .memory_id = memory_id,
-            .dependencies = {},
-            .num_inputs_per_output = 1});
-
-        size_t buffer_index = builder.buffers.size();
-        builder.buffers.emplace_back(BufferRequirement {
-            .buffer_id = buffer_id,
-            .memory_id = memory_id,
-            .access_mode = AccessMode::Exclusive});
-
-        views::domains::bounds<N> domain = {m_sizes};
+        auto access_region = m_builder.m_sizes;
+        size_t buffer_index = m_builder.add_chunk(builder, access_region);
+        views::domains::bounds<N> domain = {access_region};
         return {buffer_index, domain};
     }
 
     void finalize(const TaskResult& result) {
-        auto num_elements = m_sizes.volume();
-        auto buffer_id = result.graph.create_buffer(BufferLayout::for_type<T>(num_elements));
-
-        MemoryId memory_id = m_partial_inputs[0].memory_id;
-        auto event_id = result.graph.insert_reduction(
-            m_reduction,
-            buffer_id,
-            memory_id,
-            DataType::of<T>(),
-            num_elements,
-            m_partial_inputs);
-
-        std::vector<ArrayChunk<N>> chunks = {
-            {.buffer_id = buffer_id,
-             .owner_id = memory_id,
-             .offset = Point<N>::zero(),
-             .size = m_sizes}};
-
-        for (const auto& input : m_partial_inputs) {
-            result.graph.delete_buffer(input.buffer_id, {event_id});
-        }
-
-        std::shared_ptr<Worker> worker = result.worker.shared_from_this();
-        m_array =
-            Array<T, N>(std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(chunks)));
+        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
     }
 
   private:
     Array<T, N>& m_array;
-    Dim<N> m_sizes;
-    ReductionOp m_reduction;
-    std::vector<ReductionInput> m_partial_inputs;
+    ArrayReductionBuilder<N> m_builder;
 };
 
-template<typename T, size_t N>
-struct TaskDataProcessor<Reduce<Array<T, N>, SliceMapping<N>>> {
-    using type = PackedArray<T, views::layouts::right_to_left<views::domains::subbounds<N>>>;
+template<typename T, size_t P, size_t N>
+struct TaskDataProcessor<Reduce<Array<T, N>, FullMapping, SliceMapping<P>>> {
+    using type = PackedArray<T, views::layouts::right_to_left<views::domains::subbounds<P + N>>>;
 
-    TaskDataProcessor(Reduce<Array<T, N>, SliceMapping<N>> arg) :
+    TaskDataProcessor(Reduce<Array<T, N>, FullMapping, SliceMapping<P>> arg) :
         m_array(arg.argument),
-        m_sizes(arg.argument.shape()),
-        m_reduction(arg.op),
-        m_mapping(arg.index_mapping) {}
+        m_builder(arg.argument.shape(), DataType::of<T>(), arg.op),
+        m_private_mapping(arg.private_mapping) {}
 
     type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        auto access_region = m_mapping(chunk, m_sizes);
-        auto num_elements = access_region.size();
+        auto private_region = m_private_mapping(chunk);
+        auto access_region = Rect<N>(m_builder.m_sizes);
+        size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
-        auto layout = BufferLayout::for_type<T>(num_elements);
-        layout.fill_pattern = reduction_identity_value(DataType::of<T>(), m_reduction);
+        views::domains::subbounds<P + N> domain = {
+            private_region.offset.concat(access_region.offset),
+            private_region.sizes.concat(access_region.sizes),
+        };
 
-        auto buffer_id = builder.graph.create_buffer(std::move(layout));
-        auto memory_id = builder.memory_id;
-
-        m_partial_inputs[access_region].push_back(ReductionInput {
-            .buffer_id = buffer_id,
-            .memory_id = memory_id,
-            .dependencies = {},
-            .num_inputs_per_output = 1});
-
-        size_t buffer_index = builder.buffers.size();
-        builder.buffers.emplace_back(BufferRequirement {
-            .buffer_id = buffer_id,
-            .memory_id = memory_id,
-            .access_mode = AccessMode::Exclusive});
-
-        views::domains::subbounds<N> domain = {access_region.offset, access_region.sizes};
         return {buffer_index, domain};
     }
 
     void finalize(const TaskResult& result) {
-        std::vector<ArrayChunk<N>> chunks;
-
-        for (auto& p : m_partial_inputs) {
-            auto access_region = p.first;
-            auto& inputs = p.second;
-
-            MemoryId memory_id = inputs[0].memory_id;
-            auto num_elements = access_region.size();
-
-            auto buffer_id = result.graph.create_buffer(BufferLayout::for_type<T>(num_elements));
-
-            auto event_id = result.graph.insert_reduction(
-                m_reduction,
-                buffer_id,
-                memory_id,
-                DataType::of<T>(),
-                num_elements,
-                inputs);
-
-            chunks.push_back(ArrayChunk<N> {
-                .buffer_id = buffer_id,
-                .owner_id = memory_id,
-                .offset = access_region.offset,
-                .size = access_region.sizes});
-
-            for (const auto& input : inputs) {
-                result.graph.delete_buffer(input.buffer_id, {event_id});
-            }
-        }
-
-        std::shared_ptr<Worker> worker = result.worker.shared_from_this();
-        m_array =
-            Array<T, N>(std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(chunks)));
+        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
     }
 
   private:
     Array<T, N>& m_array;
-    Dim<N> m_sizes;
-    ReductionOp m_reduction;
+    ArrayReductionBuilder<N> m_builder;
+    SliceMapping<P> m_private_mapping;
+};
+
+template<typename T, size_t P, size_t N>
+struct TaskDataProcessor<Reduce<Array<T, N>, SliceMapping<N>, SliceMapping<P>>> {
+    using type = PackedArray<T, views::layouts::right_to_left<views::domains::subbounds<P + N>>>;
+
+    TaskDataProcessor(Reduce<Array<T, N>, SliceMapping<N>, SliceMapping<P>> arg) :
+        m_array(arg.argument),
+        m_builder(arg.argument.shape(), DataType::of<T>(), arg.op),
+        m_mapping(arg.slice_mapping),
+        m_private_mapping(arg.private_mapping) {}
+
+    type process_chunk(Chunk chunk, TaskBuilder& builder) {
+        auto private_region = m_private_mapping(chunk);
+        auto access_region = m_mapping(chunk, m_builder.m_sizes);
+        size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
+
+        views::domains::subbounds<P + N> domain = {
+            private_region.offset.concat(access_region.offset),
+            private_region.sizes.concat(access_region.sizes),
+        };
+
+        return {buffer_index, domain};
+    }
+
+    void finalize(const TaskResult& result) {
+        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
+    }
+
+  private:
+    Array<T, N>& m_array;
+    ArrayReductionBuilder<N> m_builder;
     SliceMapping<N> m_mapping;
-    std::unordered_map<Rect<N>, std::vector<ReductionInput>> m_partial_inputs;
+    SliceMapping<P> m_private_mapping;
 };
 
 }  // namespace kmm

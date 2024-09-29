@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kmm/api/access.hpp"
+#include "kmm/api/task_builder.hpp"
 #include "kmm/core/task.hpp"
 
 namespace kmm {
@@ -12,20 +13,6 @@ struct TaskDataProcessor;
 
 template<ExecutionSpace, typename T>
 struct TaskDataDeserialize;
-
-struct TaskBuilder {
-    TaskGraph& graph;
-    Worker& worker;
-    MemoryId memory_id;
-    std::vector<BufferRequirement> buffers;
-    EventList dependencies;
-};
-
-struct TaskResult {
-    TaskGraph& graph;
-    Worker& worker;
-    EventList events;
-};
 
 template<typename T, typename = void>
 struct TaskData {

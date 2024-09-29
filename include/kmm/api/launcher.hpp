@@ -1,6 +1,8 @@
 #pragma once
 
 #include "kmm/api/task_data.hpp"
+#include "kmm/core/cuda_device.hpp"
+#include "kmm/internals/worker.hpp"
 
 namespace kmm {
 
@@ -120,23 +122,24 @@ namespace detail {
 template<size_t... Is, typename Launcher, typename... Args>
 EventId parallel_submit_impl(
     std::index_sequence<Is...>,
-    Worker& worker,
+    std::shared_ptr<Worker> worker,
+    const SystemInfo& system_info,
     const Partition& partition,
     Launcher launcher,
     Args&&... args) {
-    return worker.with_task_graph([&](TaskGraph& graph) {
+    return worker->with_task_graph([&](TaskGraph& graph) {
         EventList events;
 
         std::tuple<TaskDataProcessor<typename std::decay<Args>::type>...> processors = {
             TaskDataProcessor<typename std::decay<Args>::type> {std::forward<Args>(args)}...};
 
         for (const Chunk& chunk : partition.chunks) {
-            ProcessorId processor_id = launcher.find_processor(worker.system_info(), chunk);
+            ProcessorId processor_id = launcher.find_processor(system_info, chunk);
 
             TaskBuilder builder {
                 .graph = graph,
                 .worker = worker,
-                .memory_id = worker.system_info().affinity_memory(processor_id),
+                .memory_id = system_info.affinity_memory(processor_id),
                 .buffers = {},
                 .dependencies = {}};
 
@@ -167,13 +170,15 @@ EventId parallel_submit_impl(
 
 template<typename Launcher, typename... Args>
 EventId parallel_submit(
-    Worker& worker,
+    std::shared_ptr<Worker> worker,
+    const SystemInfo& system_info,
     const Partition& partition,
     Launcher launcher,
     Args&&... args) {
     return detail::parallel_submit_impl(
         std::index_sequence_for<Args...> {},
         worker,
+        system_info,
         partition,
         launcher,
         std::forward<Args>(args)...);

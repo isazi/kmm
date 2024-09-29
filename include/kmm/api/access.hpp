@@ -4,6 +4,7 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/core/geometry.hpp"
+#include "kmm/core/reduction.hpp"
 #include "kmm/utils/integer_fun.hpp"
 
 namespace kmm {
@@ -18,8 +19,8 @@ struct IdentityMapping {
 static constexpr IdentityMapping one_to_one;
 
 struct FullMapping {
-    template<size_t M>
-    Rect<M> operator()(Chunk chunk, Rect<M> bounds) const {
+    template<size_t N>
+    Rect<N> operator()(Chunk chunk, Rect<N> bounds) const {
         return bounds;
     }
 };
@@ -28,11 +29,11 @@ struct AxesMapping {
     constexpr AxesMapping() : m_axis(0) {}
     explicit constexpr AxesMapping(size_t axis) : m_axis(axis) {}
 
-    template<size_t M>
-    Rect<M> operator()(Chunk chunk, Rect<M> bounds) const {
-        Rect<M> result = bounds;
+    template<size_t N>
+    Rect<N> operator()(Chunk chunk, Rect<N> bounds) const {
+        Rect<N> result = bounds;
 
-        if (M > 0) {
+        if constexpr (N > 0) {
             result.offset[0] = chunk.offset.get(m_axis);
             result.sizes[0] = chunk.size.get(m_axis);
         }
@@ -89,12 +90,12 @@ struct IndexMapping {
         return apply(chunk);
     }
 
-    template<size_t M>
-    Rect<M> operator()(Chunk chunk, Rect<M> bounds) const {
-        Rect<M> result = bounds;
+    template<size_t N>
+    Rect<N> operator()(Chunk chunk, Rect<N> bounds) const {
+        Rect<N> result = bounds;
 
-        if (M > 0) {
-            Rect<1> range = (*this)(chunk);
+        if constexpr (N > 0) {
+            Rect<1> range = apply(chunk);
             result.offset[0] = range.begin();
             result.sizes[0] = range.size();
         }
@@ -208,7 +209,7 @@ struct SliceMapping {
 
 template<>
 struct SliceMapping<0> {
-    Rect<0> operator()(Chunk chunk, Rect<0> bounds) const {
+    Rect<0> operator()(Chunk chunk, Rect<0> bounds = {}) const {
         return {};
     }
 };
@@ -231,32 +232,32 @@ SliceMapping<sizeof...(Is)> tile(const Is&... length) {
 template<typename T, typename I = FullMapping>
 struct Read {
     T argument;
-    I index_mapping;
+    I slice_mapping;
 };
 
 template<typename I = FullMapping, typename T>
-Read<T, I> read(T argument, I index_mapping = {}) {
-    return {argument, index_mapping};
+Read<T, I> read(T argument, I slice_mapping = {}) {
+    return {argument, slice_mapping};
 }
 
 template<typename T, typename I = FullMapping>
 struct Write {
     T& argument;
-    I index_mapping;
+    I slice_mapping;
 };
 
 template<typename I = FullMapping, typename T>
-Write<T, I> write(T& argument, I index_mapping = {}) {
-    return {argument, index_mapping};
+Write<T, I> write(T& argument, I slice_mapping = {}) {
+    return {argument, slice_mapping};
 }
 
 template<typename I>
-struct Replicate {
-    I index_mapping;
+struct Privatize {
+    I slice_mapping;
 };
 
 template<typename... Is>
-Replicate<SliceMapping<sizeof...(Is)>> replicate(const Is&... slices) {
+Privatize<SliceMapping<sizeof...(Is)>> privatize(const Is&... slices) {
     return {into_index_mapping(slices)...};
 }
 
@@ -264,8 +265,8 @@ template<typename T, typename I = FullMapping, typename R = SliceMapping<0>>
 struct Reduce {
     T& argument;
     ReductionOp op;
-    I index_mapping = {};
-    R replicate_mapping = {};
+    I slice_mapping = {};
+    R private_mapping = {};
 };
 
 template<typename T>
@@ -274,13 +275,18 @@ Reduce<T> reduce(T& argument, ReductionOp op) {
 }
 
 template<typename T, typename I>
-Reduce<T, I> reduce(T& argument, ReductionOp op, I index_mapping) {
-    return {argument, op, index_mapping};
+Reduce<T, I> reduce(T& argument, ReductionOp op, I slice_mapping) {
+    return {argument, op, slice_mapping};
 }
 
-template<typename T, typename R, typename I>
-Reduce<T, I> reduce(T& argument, ReductionOp op, Replicate<R> replicate_mapping, I index_mapping) {
-    return {argument, op, replicate_mapping.index_mapping, index_mapping};
+template<typename T, typename I, typename P>
+Reduce<T, I, P> reduce(T& argument, ReductionOp op, Privatize<P> private_mapping, I slice_mapping) {
+    return {argument, op, slice_mapping, private_mapping.slice_mapping};
+}
+
+template<typename T, typename P>
+Reduce<T, FullMapping, P> reduce(T& argument, ReductionOp op, Privatize<P> private_mapping) {
+    return {argument, op, FullMapping {}, private_mapping.slice_mapping};
 }
 
 }  // namespace kmm

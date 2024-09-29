@@ -6,6 +6,7 @@
 
 #include "kmm/core/buffer.hpp"
 #include "kmm/core/copy_description.hpp"
+#include "kmm/core/reduction.hpp"
 #include "kmm/internals/commands.hpp"
 #include "kmm/utils/macros.hpp"
 
@@ -15,13 +16,6 @@ struct Event {
     EventId id;
     Command command;
     EventList dependencies;
-};
-
-struct ReductionInput {
-    BufferId buffer_id;
-    MemoryId memory_id;
-    EventList dependencies;
-    size_t num_inputs_per_output = 1;
 };
 
 class TaskGraph {

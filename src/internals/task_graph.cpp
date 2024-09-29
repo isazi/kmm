@@ -170,6 +170,8 @@ EventId TaskGraph::insert_reduction(
             .event_id = event_id});
     }
 
+    auto final_reductions = EventList {};
+
     for (size_t j = 0; j < output_per_device.size(); j++) {
         auto& partial_output = output_per_device[j];
         auto deps = partial_output.dependencies;
@@ -194,7 +196,11 @@ EventId TaskGraph::insert_reduction(
             .event_id = event_id});
 
         insert_event(CommandBufferDelete {.id = partial_output.buffer_id}, {event_id});
+
+        final_reductions.push_back(event_id);
     }
+
+    return join_events(std::move(final_reductions));
 }
 
 EventId TaskGraph::insert_barrier() {

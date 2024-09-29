@@ -7,6 +7,7 @@
 #include "kmm/core/buffer.hpp"
 #include "kmm/core/copy_description.hpp"
 #include "kmm/core/identifiers.hpp"
+#include "kmm/core/reduction.hpp"
 #include "kmm/core/task.hpp"
 
 namespace kmm {

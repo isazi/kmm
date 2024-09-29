@@ -76,6 +76,21 @@ class Point: public fixed_array<T, N> {
     T operator()(size_t axis = 0) const {
         return get(axis);
     }
+
+    template<size_t M>
+    KMM_HOST_DEVICE Point<N + M> concat(const Point<M>& that) const {
+        fixed_array<T, N + M> result;
+
+        for (size_t i = 0; i < N; i++) {
+            result[i] = (*this)[i];
+        }
+
+        for (size_t i = 0; i < M; i++) {
+            result[N + i] = that[i];
+        }
+
+        return Point<N + M> {result};
+    }
 };
 
 template<size_t N, typename T = default_geometry_type>
@@ -202,6 +217,11 @@ class Dim: public fixed_array<T, N> {
     KMM_HOST_DEVICE
     T operator()(size_t axis = 0) const {
         return get(axis);
+    }
+
+    template<size_t M>
+    KMM_HOST_DEVICE Dim<N + M> concat(const Dim<M>& that) const {
+        return Dim<N + M>(to_point().concat(that.to_point()));
     }
 };
 
@@ -391,6 +411,11 @@ class Rect {
     KMM_HOST_DEVICE
     bool contains(const Dim<N, T>& that) const {
         return contains(Rect<N, T> {that});
+    }
+
+    template<size_t M>
+    KMM_HOST_DEVICE Rect<N + M> concat(const Rect<M>& that) const {
+        return {offset.concat(that.offset), sizes.concate(that.sizes)};
     }
 };
 

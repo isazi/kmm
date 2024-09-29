@@ -3,8 +3,45 @@
 
 #include "kmm/memops/cuda_fill.hpp"
 #include "kmm/utils/cuda.hpp"
+#include "kmm/utils/integer_fun.hpp"
 
 namespace kmm {
+
+template <typename T, uint32_t block_size>
+__global__ void fill_kernel(
+    size_t nelements,
+    T* dest_buffer,
+    T fill_value
+) {
+    size_t i = blockIdx.x * size_t(block_size) + threadIdx.x;
+
+    while (i < nelements) {
+        dest_buffer[i] = fill_value;
+        i += size_t(block_size) * gridDim.x;
+    }
+}
+
+template <typename T>
+void submit_fill_kernel(
+    CUstream stream,
+    CUdeviceptr dest_buffer,
+    size_t nelements,
+    const void* fill_pattern
+) {
+    static constexpr uint32_t max_grid_size = 512;
+    static constexpr uint32_t block_size = 256;
+
+    T fill_value;
+    ::memcpy(&fill_value, fill_pattern, sizeof(T));
+
+    uint32_t grid_size = nelements < max_grid_size * size_t(block_size) ? div_ceil(nelements, size_t(block_size)) : max_grid_size;
+
+    fill_kernel<T, block_size><<<grid_size, block_size, 0, stream>>>(
+        nelements,
+        (T*)dest_buffer,
+        fill_value
+    );
+}
 
 template<size_t N>
 bool is_fill_pattern_repetitive(const void* fill_pattern, size_t fill_pattern_size) {
@@ -72,10 +109,17 @@ void execute_cuda_fill_async(
             pattern,
             nbytes / sizeof(uint32_t),
             stream));
-
+        
+    } else if (is_fill_pattern_repetitive<8>(fill_pattern, fill_pattern_size)) {
+        submit_fill_kernel<uint64_t>(
+            stream,
+            dest_buffer,
+            nbytes / sizeof(uint64_t),
+            fill_pattern
+        );
     } else {
         throw CudaException(fmt::format(
-            "could not fill buffer, value is {} bit, but only 8, 16, or 32 bit is supported",
+            "could not fill buffer, value is {} bits, but only 8, 16, 32 or 64 bit is supported",
             fill_pattern_size * 8));
     }
 }

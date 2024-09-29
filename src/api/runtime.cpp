@@ -1,4 +1,6 @@
 #include "kmm/api/runtime.hpp"
+#include "kmm/core/cuda_device.hpp"
+#include "kmm/internals/worker.hpp"
 
 namespace kmm {
 
@@ -25,6 +27,12 @@ class CopyInTask: public Task {
     const void* m_src_addr;
     size_t m_nbytes;
 };
+
+Runtime::Runtime(std::shared_ptr<Worker> worker) : m_worker(std::move(worker)) {
+    KMM_ASSERT(m_worker != nullptr);
+}
+
+Runtime::Runtime(Worker& worker) : Runtime(worker.shared_from_this()) {}
 
 MemoryId Runtime::memory_affinity_for_address(const void* address) const {
     if (auto device_opt = get_cuda_device_by_address(address)) {
