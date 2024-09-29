@@ -13,3 +13,7 @@ target_link_libraries(matrix_multiply PRIVATE kmm)
 add_executable(histogram ${PROJECT_SOURCE_DIR}/examples/histogram.cu)
 target_compile_features(histogram PRIVATE cxx_std_17)
 target_link_libraries(histogram PRIVATE kmm)
+
+add_executable(reduction ${PROJECT_SOURCE_DIR}/examples/reduction.cu)
+target_compile_features(reduction PRIVATE cxx_std_17)
+target_link_libraries(reduction PRIVATE kmm)

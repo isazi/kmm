@@ -1,6 +1,5 @@
 #include <random>
 
-#include "kmm/core/work_chunk.hpp"
 #include "kmm/kmm.hpp"
 
 void initialize_image(
