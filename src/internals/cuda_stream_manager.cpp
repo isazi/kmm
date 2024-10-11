@@ -206,7 +206,8 @@ void CudaStreamManager::wait_for_event(CudaStream stream, CudaEvent event) const
 void CudaStreamManager::wait_for_events(
     CudaStream stream,
     const CudaEvent* begin,
-    const CudaEvent* end) {
+    const CudaEvent* end
+) {
     for (const auto* it = begin; it != end; it++) {
         wait_for_event(stream, *it);
     }

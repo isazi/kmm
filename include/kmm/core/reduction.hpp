@@ -14,6 +14,11 @@ struct Reduction {
     DataType data_type;
     size_t num_outputs;
     size_t num_inputs_per_output = 1;
+    size_t src_offset_elements = 0;
+    size_t dst_offset_elements = 0;
+
+    size_t minimum_source_bytes_needed() const;
+    size_t minimum_destination_bytes_needed() const;
 };
 
 struct ReductionInput {

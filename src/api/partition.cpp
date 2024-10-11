@@ -5,17 +5,24 @@
 
 namespace kmm {
 
-Partition ChunkPartitioner::operator()(WorkDim index_space, const SystemInfo& info) const {
-    std::vector<Chunk> chunks;
+TaskPartition TaskPartitioner::operator()(WorkDim index_space, const SystemInfo& info) const {
+    std::vector<TaskChunk> chunks;
     size_t num_devices = info.num_devices();
+
+    if (index_space.is_empty()) {
+        return {chunks};
+    }
 
     if (num_devices == 0) {
         throw std::runtime_error("no CUDA devices found, cannot partition work");
     }
 
+    if (m_chunk_size.is_empty()) {
+        throw std::runtime_error(fmt::format("invalid chunk size: {}", m_chunk_size));
+    }
+
     WorkDim chunk_size;
-    std::array<size_t, WORK_DIMS> num_chunks;
-    WorkIndex current;
+    std::array<int64_t, WORK_DIMS> num_chunks;
 
     for (size_t i = 0; i < WORK_DIMS; i++) {
         if (m_chunk_size[i] < index_space[i]) {
@@ -27,32 +34,23 @@ Partition ChunkPartitioner::operator()(WorkDim index_space, const SystemInfo& in
         }
     }
 
-    bool is_done = false;
     size_t owner_id = 0;
+    auto offset = WorkIndex {};
+    auto size = WorkDim {};
 
-    while (!is_done) {
-        auto offset = WorkIndex {};
-        auto size = WorkDim {};
+    for (int64_t z = 0; z < num_chunks[2]; z++) {
+        for (int64_t y = 0; y < num_chunks[1]; y++) {
+            for (int64_t x = 0; x < num_chunks[0]; x++) {
+                auto current = Point<3> {x, y, z};
 
-        for (size_t i = 0; i < WORK_DIMS; i++) {
-            offset[i] = current[i] * chunk_size[i];
-            size[i] = std::min(chunk_size[i], index_space[i] - offset[i]);
-        }
+                for (size_t i = 0; i < WORK_DIMS; i++) {
+                    offset[i] = current[i] * chunk_size[i];
+                    size[i] = std::min(chunk_size[i], index_space[i] - offset[i]);
+                }
 
-        chunks.push_back(Chunk {DeviceId(owner_id), offset, size});
-        owner_id = (owner_id + 1) % num_devices;
-
-        is_done = true;
-
-        for (size_t i = 0; i < WORK_DIMS; i++) {
-            current[i] += 1;
-
-            if (current[i] < num_chunks[i]) {
-                is_done = false;
-                break;
+                chunks.push_back({DeviceId(owner_id), offset, size});
+                owner_id = (owner_id + 1) % num_devices;
             }
-
-            current[i] = 0;
         }
     }
 

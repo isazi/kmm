@@ -25,7 +25,8 @@ struct MemorySystem::Device {
     Device(
         CudaContextHandle context,
         std::unique_ptr<MemoryAllocator> allocator,
-        CudaStreamManager& streams) :
+        CudaStreamManager& streams
+    ) :
         context(context),
         allocator(std::move(allocator)),
         h2d_stream(streams.create_stream(context, false)),
@@ -38,7 +39,8 @@ MemorySystem::MemorySystem(
     std::shared_ptr<CudaStreamManager> streams,
     std::vector<CudaContextHandle> device_contexts,
     std::unique_ptr<MemoryAllocator> host_mem,
-    std::vector<std::unique_ptr<MemoryAllocator>> device_mems) :
+    std::vector<std::unique_ptr<MemoryAllocator>> device_mems
+) :
     m_streams(streams),
     m_host(std::move(host_mem))
 
@@ -47,7 +49,8 @@ MemorySystem::MemorySystem(
 
     for (size_t i = 0; i < device_contexts.size(); i++) {
         m_devices.push_back(
-            std::make_unique<Device>(device_contexts[i], std::move(device_mems[i]), *streams));
+            std::make_unique<Device>(device_contexts[i], std::move(device_mems[i]), *streams)
+        );
     }
 }
 
@@ -73,7 +76,8 @@ bool MemorySystem::allocate_device(
     DeviceId device_id,
     size_t nbytes,
     CUdeviceptr& ptr_out,
-    CudaEventSet& deps_out) {
+    CudaEventSet& deps_out
+) {
     auto& device = *m_devices.at(device_id);
     void* addr;
 
@@ -89,7 +93,8 @@ void MemorySystem::deallocate_device(
     DeviceId device_id,
     CUdeviceptr ptr,
     size_t nbytes,
-    CudaEventSet deps) {
+    CudaEventSet deps
+) {
     auto& device = *m_devices.at(device_id);
     return device.allocator->deallocate((void*)ptr, nbytes, std::move(deps));
 }
@@ -98,7 +103,8 @@ CudaEvent MemorySystem::fill_host(
     void* dst_addr,
     size_t nbytes,
     const std::vector<uint8_t>& fill_pattern,
-    CudaEventSet deps) {
+    CudaEventSet deps
+) {
     // FIXME: this should not be synchronously
     m_streams->wait_until_ready(deps);
     execute_fill(dst_addr, nbytes, fill_pattern.data(), fill_pattern.size());
@@ -115,7 +121,8 @@ CudaEvent MemorySystem::fill_device(
     CUdeviceptr dst_addr,
     size_t nbytes,
     const std::vector<uint8_t>& fill_pattern,
-    CudaEventSet deps) {
+    CudaEventSet deps
+) {
     auto& device = *m_devices.at(device_id);
 
     // Should this be done on a custom stream maybe?
@@ -131,7 +138,8 @@ CudaEvent MemorySystem::copy_host_to_device(
     const void* src_addr,
     CUdeviceptr dst_addr,
     size_t nbytes,
-    CudaEventSet deps) {
+    CudaEventSet deps
+) {
     auto& device = *m_devices.at(device_id);
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.h2d_hi_stream : device.h2d_stream;
 
@@ -145,7 +153,8 @@ CudaEvent MemorySystem::copy_device_to_host(
     CUdeviceptr src_addr,
     void* dst_addr,
     size_t nbytes,
-    CudaEventSet deps) {
+    CudaEventSet deps
+) {
     auto& device = *m_devices.at(device_id);
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.d2h_hi_stream : device.d2h_stream;
 

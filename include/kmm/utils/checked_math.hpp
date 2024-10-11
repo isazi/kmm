@@ -30,37 +30,43 @@ KMM_IMPL_CHECKED_ARITHMETIC(
     signed int,
     __builtin_sadd_overflow,
     __builtin_ssub_overflow,
-    __builtin_smul_overflow)
+    __builtin_smul_overflow
+)
 
 KMM_IMPL_CHECKED_ARITHMETIC(
     signed long,
     __builtin_saddl_overflow,
     __builtin_ssubl_overflow,
-    __builtin_smull_overflow)
+    __builtin_smull_overflow
+)
 
 KMM_IMPL_CHECKED_ARITHMETIC(
     signed long long,
     __builtin_saddll_overflow,
     __builtin_ssubll_overflow,
-    __builtin_smulll_overflow)
+    __builtin_smulll_overflow
+)
 
 KMM_IMPL_CHECKED_ARITHMETIC(
     unsigned int,
     __builtin_uadd_overflow,
     __builtin_usub_overflow,
-    __builtin_umul_overflow)
+    __builtin_umul_overflow
+)
 
 KMM_IMPL_CHECKED_ARITHMETIC(
     unsigned long,
     __builtin_uaddl_overflow,
     __builtin_usubl_overflow,
-    __builtin_umull_overflow)
+    __builtin_umull_overflow
+)
 
 KMM_IMPL_CHECKED_ARITHMETIC(
     unsigned long long,
     __builtin_uaddll_overflow,
     __builtin_usubll_overflow,
-    __builtin_umulll_overflow)
+    __builtin_umulll_overflow
+)
 
 #define KMM_IMPL_CHECKED_ARITHMETIC_FORWARD(T, R)                         \
     template<>                                                            \

@@ -69,7 +69,7 @@ class Point: public fixed_array<T, N> {
 
     KMM_HOST_DEVICE
     T get(size_t axis) const {
-        return axis < N ? (*this)[axis] : static_cast<T>(0);
+        return KMM_LIKELY(axis < N) ? (*this)[axis] : static_cast<T>(0);
     }
 
     KMM_HOST_DEVICE
@@ -117,23 +117,29 @@ class Dim: public fixed_array<T, N> {
     }
 
     KMM_HOST_DEVICE
-    static constexpr Dim from_Point(const Point<N, T>& that) {
+    static constexpr Dim from_point(const Point<N, T>& that) {
         return Dim {that};
     }
 
     template<size_t M, typename U>
     KMM_HOST_DEVICE static constexpr Dim from(const fixed_array<U, M>& that) {
-        return from_Point(Point<N, T>::from(that));
+        Dim result;
+
+        for (size_t i = 0; i < N && i < M; i++) {
+            result[i] = that[i];
+        }
+
+        return result;
     }
 
     KMM_HOST_DEVICE
     static constexpr Dim zero() {
-        return from_Point(Point<N, T>::zero());
+        return from_point(Point<N, T>::zero());
     }
 
     KMM_HOST_DEVICE
     static constexpr Dim one() {
-        return from_Point(Point<N, T>::one());
+        return from_point(Point<N, T>::one());
     }
 
     KMM_HOST_DEVICE
@@ -154,7 +160,7 @@ class Dim: public fixed_array<T, N> {
 
     KMM_HOST_DEVICE
     T get(size_t i) const {
-        return i < N ? (*this)[i] : static_cast<T>(1);
+        return KMM_LIKELY(i < N) ? (*this)[i] : static_cast<T>(1);
     }
 
     KMM_HOST_DEVICE
@@ -245,6 +251,13 @@ class Rect {
     KMM_HOST_DEVICE
     Rect() : Rect(Dim<N, T>::zero()) {}
 
+    KMM_HOST_DEVICE static constexpr Rect from_bounds(
+        const Point<N, T>& begin,
+        const Point<N, T>& end
+    ) {
+        return {begin, Dim<N, T>::from_point(end - begin)};
+    }
+
     template<size_t M, typename U>
     KMM_HOST_DEVICE static constexpr Rect from(const Rect<M, U>& that) {
         return {Point<N, T>::from(that.offset()), Dim<N, T>::from(that.sizes())};
@@ -318,7 +331,8 @@ class Rect {
         }
 
         if (is_empty) {
-            return Rect {};
+            new_offset = Point<N, T>::zero();
+            new_sizes = Dim<N, T>::zero();
         }
 
         return {new_offset, new_sizes};
@@ -420,16 +434,16 @@ class Rect {
 };
 
 template<typename... Ts>
-KMM_HOST_DEVICE_NOINLINE Point(Ts...)->Point<sizeof...(Ts)>;
+KMM_HOST_DEVICE_NOINLINE Point(Ts...) -> Point<sizeof...(Ts)>;
 
 template<typename... Ts>
-KMM_HOST_DEVICE_NOINLINE Dim(Ts...)->Dim<sizeof...(Ts)>;
+KMM_HOST_DEVICE_NOINLINE Dim(Ts...) -> Dim<sizeof...(Ts)>;
 
 template<size_t N, typename T>
-KMM_HOST_DEVICE_NOINLINE Rect(Point<N, T> offset, Dim<N, T> sizes)->Rect<N, T>;
+KMM_HOST_DEVICE_NOINLINE Rect(Point<N, T> offset, Dim<N, T> sizes) -> Rect<N, T>;
 
 template<size_t N, typename T>
-KMM_HOST_DEVICE_NOINLINE Rect(Dim<N, T> sizes)->Rect<N, T>;
+KMM_HOST_DEVICE_NOINLINE Rect(Dim<N, T> sizes) -> Rect<N, T>;
 
 template<size_t N, typename T>
 KMM_HOST_DEVICE bool operator==(const Point<N, T>& a, const Point<N, T>& b) {

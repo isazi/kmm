@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kmm/api/access.hpp"
+#include "kmm/api/mapper.hpp"
 #include "kmm/api/task_builder.hpp"
 #include "kmm/core/task.hpp"
 
@@ -9,16 +9,16 @@ namespace kmm {
 enum struct ExecutionSpace { Host, Cuda };
 
 template<typename T>
-struct TaskDataProcessor;
+struct ArgumentHandler;
 
 template<ExecutionSpace, typename T>
-struct TaskDataDeserialize;
+struct ArgumentDeserialize;
 
 template<typename T, typename = void>
-struct TaskData {
-    TaskData(T value) : m_value(std::move(value)) {}
+struct Argument {
+    Argument(T value) : m_value(std::move(value)) {}
 
-    static TaskData pack(TaskBuilder& builder, T value) {
+    static Argument pack(TaskBuilder& builder, T value) {
         return {std::move(value)};
     }
 
@@ -32,13 +32,13 @@ struct TaskData {
 };
 
 template<typename T>
-struct TaskDataProcessor {
-    using type = TaskData<T>;
+struct ArgumentHandler {
+    using type = Argument<T>;
 
-    TaskDataProcessor(T value) : m_value(value) {}
+    ArgumentHandler(T value) : m_value(value) {}
 
-    type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        return TaskData<T>::pack(builder, m_value);
+    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
+        return Argument<T>::pack(builder, m_value);
     }
 
     void finalize(const TaskResult& result) {
@@ -50,8 +50,8 @@ struct TaskDataProcessor {
 };
 
 template<ExecutionSpace Space, typename T>
-struct TaskDataDeserialize<Space, TaskData<T>> {
-    static T unpack(TaskContext& context, TaskData<T>& data) {
+struct ArgumentDeserialize<Space, Argument<T>> {
+    static T unpack(TaskContext& context, Argument<T>& data) {
         return data.template unpack<Space>(context);
     }
 };

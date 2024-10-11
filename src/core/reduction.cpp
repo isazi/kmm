@@ -62,6 +62,14 @@ std::vector<uint8_t> reduction_identity_value(DataType dtype, ReductionOp op) {
     }
 }
 
+size_t Reduction::minimum_destination_bytes_needed() const {
+    return checked_mul(data_type.size_in_bytes(), num_outputs);
+}
+
+size_t Reduction::minimum_source_bytes_needed() const {
+    return checked_mul(minimum_destination_bytes_needed(), num_inputs_per_output);
+}
+
 std::ostream& operator<<(std::ostream& f, ReductionOp p) {
     switch (p) {
         case ReductionOp::Sum:

@@ -29,13 +29,15 @@ using panic_formatter_fn = void (*)(std::ostream&, const void**);
     const char* filename,
     int line,
     panic_formatter_fn formatter,
-    const void** data);
+    const void** data
+);
 
 template<typename... Args>
 [[noreturn]] __attribute__((noinline)) void panic_format_args(
     const char* filename,
     int line,
-    const Args&... args) {
+    const Args&... args
+) {
     const void* data[] = {static_cast<const void*>(&args)...};
     auto formatter = [](std::ostream& stream, const void** args) {
         size_t index = 0;

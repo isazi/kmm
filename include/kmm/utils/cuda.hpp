@@ -26,7 +26,8 @@ void cuda_throw_exception(
     cublasStatus_t result,
     const char* file,
     int line,
-    const char* expression);
+    const char* expression
+);
 
 class CudaException: public std::exception {
   public:

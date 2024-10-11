@@ -10,7 +10,8 @@ namespace kmm {
 inline void execute_copy_impl(
     const void* src_buffer,
     void* dst_buffer,
-    CopyDescription copy_description) {
+    CopyDescription copy_description
+) {
     for (size_t i3 = 0; i3 < copy_description.counts[3]; i3++) {
         for (size_t i2 = 0; i2 < copy_description.counts[2]; i2++) {
             for (size_t i1 = 0; i1 < copy_description.counts[1]; i1++) {
@@ -30,7 +31,8 @@ inline void execute_copy_impl(
                     ::memcpy(
                         static_cast<uint8_t*>(dst_buffer) + dst_offset,
                         static_cast<const uint8_t*>(src_buffer) + src_offset,
-                        copy_description.element_size);
+                        copy_description.element_size
+                    );
                 }
             }
         }

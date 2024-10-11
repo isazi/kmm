@@ -78,7 +78,8 @@ struct BufferGuardTracker {
   public:
     BufferGuardTracker(
         std::shared_ptr<Worker> worker,
-        std::shared_ptr<MemoryManager::Request> request) :
+        std::shared_ptr<MemoryManager::Request> request
+    ) :
         m_worker(std::move(worker)),
         m_request(std::move(request)) {
         KMM_ASSERT(m_worker != nullptr && m_request != nullptr);
@@ -125,10 +126,8 @@ BufferGuard Worker::access_buffer(BufferId buffer_id, MemoryId memory_id, Access
 void Worker::flush_events_impl() {
     // Flush all events from the DAG builder to the scheduler
     for (auto event : m_graph->flush()) {
-        m_scheduler->insert_event(
-            event.id,
-            std::move(event.command),
-            std::move(event.dependencies));
+        m_scheduler
+            ->insert_event(event.id, std::move(event.command), std::move(event.dependencies));
     }
 }
 
@@ -177,7 +176,8 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
             e->src_memory,
             e->dst_buffer,
             e->dst_memory,
-            e->spec);
+            e->spec
+        );
 
     } else if (const auto* e = std::get_if<CommandExecute>(&command)) {
         m_executor->submit_task(node, e->processor_id, e->task, e->buffers);
@@ -221,7 +221,8 @@ Worker::Worker(std::vector<CudaContextHandle> contexts) {
         m_streams,
         contexts,
         std::move(host_mem),
-        std::move(device_mems)));
+        std::move(device_mems)
+    ));
     m_root_transaction = m_memory->create_transaction();
 
     m_executor = std::make_shared<Executor>(contexts, m_streams, m_buffers, m_memory, m_scheduler);

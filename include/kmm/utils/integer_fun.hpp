@@ -86,7 +86,7 @@ static T round_up_to_power_of_two(T input) {
 
     // What to do with overflows?
     if (input == std::numeric_limits<T>::max()) {
-        return 0;
+        return std::numeric_limits<T>::max();
     }
 
     input += static_cast<T>(1);

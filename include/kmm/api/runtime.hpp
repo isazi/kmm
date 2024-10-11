@@ -8,7 +8,7 @@
 
 #include "kmm/core/system_info.hpp"
 #include "kmm/core/view.hpp"
-#include "kmm/core/work_chunk.hpp"
+#include "kmm/core/work_range.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
 
@@ -32,7 +32,7 @@ class Runtime {
      */
     template<typename L, typename... Args>
     EventId submit(WorkDim index_space, ProcessorId target, L launcher, Args&&... args) {
-        Partition partition = {{Chunk {
+        TaskPartition partition = {{TaskChunk {
             .owner_id = target,  //
             .offset = {},
             .size = index_space}}};
@@ -42,7 +42,8 @@ class Runtime {
             info(),
             partition,
             launcher,
-            std::forward<Args>(args)...);
+            std::forward<Args>(args)...
+        );
     }
 
     /**
@@ -54,13 +55,14 @@ class Runtime {
      * @return The event identifier for the submitted task.
      */
     template<typename L, typename... Args>
-    EventId submit(Partition partition, L launcher, Args&&... args) {
+    EventId submit(TaskPartition partition, L launcher, Args&&... args) {
         return kmm::parallel_submit(
             m_worker,
             info(),
             partition,
             launcher,
-            std::forward<Args>(args)...);
+            std::forward<Args>(args)...
+        );
     }
 
     /**
@@ -72,14 +74,15 @@ class Runtime {
      * @param args The arguments that are forwarded to the launcher.
      * @return The event identifier for the submitted task.
      */
-    template<typename P = ChunkPartitioner, typename L, typename... Args>
+    template<typename P = TaskPartitioner, typename L, typename... Args>
     EventId parallel_submit(WorkDim index_space, P partitioner, L launcher, Args&&... args) {
         return kmm::parallel_submit(
             m_worker,
             info(),
             partitioner(index_space, info()),
             launcher,
-            std::forward<Args>(args)...);
+            std::forward<Args>(args)...
+        );
     }
 
     /**

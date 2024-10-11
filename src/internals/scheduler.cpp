@@ -96,7 +96,8 @@ void Scheduler::set_scheduled(std::shared_ptr<TaskNode> node, CudaEvent event) {
         "scheduled event {} (command={}, cuda event={})",
         node->id(),
         node->command,
-        event);
+        event
+    );
 
     KMM_ASSERT(node->status == TaskNode::Status::Scheduled);
     KMM_ASSERT(node->cuda_event == std::nullopt);
@@ -153,10 +154,7 @@ size_t Scheduler::determine_queue_id(const Command& cmd) {
         } else {
             return QUEUE_HOST;
         }
-    } else if (
-        std::holds_alternative<CommandBufferCreate>(cmd)
-        || std::holds_alternative<CommandBufferDelete>(cmd)
-        || std::holds_alternative<CommandEmpty>(cmd)) {
+    } else if (std::holds_alternative<CommandBufferCreate>(cmd) || std::holds_alternative<CommandBufferDelete>(cmd) || std::holds_alternative<CommandEmpty>(cmd)) {
         return QUEUE_BUFFERS;
     } else {
         return QUEUE_MISC;
@@ -165,7 +163,8 @@ size_t Scheduler::determine_queue_id(const Command& cmd) {
 
 void Scheduler::enqueue_if_ready(
     const TaskNode* predecessor,
-    const std::shared_ptr<TaskNode>& node) {
+    const std::shared_ptr<TaskNode>& node
+) {
     if (node->status != TaskNode::Status::Pending || node->dependencies_not_completed > 0) {
         return;
     }

@@ -12,7 +12,8 @@ class MemorySystem {
         std::shared_ptr<CudaStreamManager> streams,
         std::vector<CudaContextHandle> device_contexts,
         std::unique_ptr<MemoryAllocator> host_mem,
-        std::vector<std::unique_ptr<MemoryAllocator>> device_mem);
+        std::vector<std::unique_ptr<MemoryAllocator>> device_mem
+    );
 
     ~MemorySystem();
 
@@ -25,39 +26,45 @@ class MemorySystem {
         DeviceId device_id,
         size_t nbytes,
         CUdeviceptr& ptr_out,
-        CudaEventSet& deps_out);
+        CudaEventSet& deps_out
+    );
     void deallocate_device(
         DeviceId device_id,
         CUdeviceptr ptr,
         size_t nbytes,
-        CudaEventSet deps = {});
+        CudaEventSet deps = {}
+    );
 
     CudaEvent fill_host(
         void* dst_addr,
         size_t nbytes,
         const std::vector<uint8_t>& fill_pattern,
-        CudaEventSet deps = {});
+        CudaEventSet deps = {}
+    );
 
     CudaEvent fill_device(
         DeviceId device_id,
         CUdeviceptr dst_addr,
         size_t nbytes,
         const std::vector<uint8_t>& fill_pattern,
-        CudaEventSet deps = {});
+        CudaEventSet deps = {}
+    );
 
     CudaEvent copy_host_to_device(
         DeviceId device_id,
         const void* src_addr,
         CUdeviceptr dst_addr,
         size_t nbytes,
-        CudaEventSet deps);
+        CudaEventSet deps
+    );
 
     CudaEvent copy_device_to_host(
         DeviceId device_id,
         CUdeviceptr src_addr,
         void* dst_addr,
         size_t nbytes,
-        CudaEventSet deps);
+        CudaEventSet deps
+    );
 
   private:
     struct Device;

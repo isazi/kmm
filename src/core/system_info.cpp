@@ -27,14 +27,16 @@ dim3 CudaDeviceInfo::max_block_dim() const {
     return dim3(
         attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
         attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
-        attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z));
+        attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z)
+    );
 }
 
 dim3 CudaDeviceInfo::max_grid_dim() const {
     return dim3(
         attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X),
         attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y),
-        attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z));
+        attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z)
+    );
 }
 
 int CudaDeviceInfo::compute_capability() const {

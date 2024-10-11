@@ -71,7 +71,8 @@ class CudaDevice: public CudaDeviceInfo, public ExecutionContext {
         dim3 block_dim,
         unsigned int shared_mem,
         void (*const kernel_function)(Args...),
-        Args... args) const {
+        Args... args
+    ) const {
         // Get void pointer to the arguments.
         void* void_args[sizeof...(Args) + 1] = {static_cast<void*>(&args)..., nullptr};
 
@@ -84,7 +85,8 @@ class CudaDevice: public CudaDeviceInfo, public ExecutionContext {
             block_dim,
             void_args,
             shared_mem,
-            m_stream));
+            m_stream
+        ));
     }
 
     /**
@@ -97,7 +99,8 @@ class CudaDevice: public CudaDeviceInfo, public ExecutionContext {
             dest,
             checked_mul(checked_cast<size_t>(num_elements), sizeof(T)),
             &value,
-            sizeof(T));
+            sizeof(T)
+        );
     }
 
     /**
@@ -140,7 +143,8 @@ class CudaDevice: public CudaDeviceInfo, public ExecutionContext {
         copy_bytes(
             source_ptr,
             dest_ptr,
-            checked_mul(checked_cast<size_t>(num_elements), sizeof(T)));
+            checked_mul(checked_cast<size_t>(num_elements), sizeof(T))
+        );
     }
 
     /**
@@ -152,7 +156,8 @@ class CudaDevice: public CudaDeviceInfo, public ExecutionContext {
         void* dest_buffer,
         size_t nbytes,
         const void* fill_pattern,
-        size_t fill_pattern_size) const;
+        size_t fill_pattern_size
+    ) const;
 
     /**
      * Copy `nbytes` bytes from the buffer starting at `source_buffer` to the buffer starting at

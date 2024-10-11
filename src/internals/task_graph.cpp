@@ -17,7 +17,8 @@ BufferId kmm::TaskGraph::create_buffer(BufferLayout layout) {
 
     m_buffers.emplace(
         buffer_id,
-        BufferMeta {.creation = event_id, .last_writes = {event_id}, .accesses = {event_id}});
+        BufferMeta {.creation = event_id, .last_writes = {event_id}, .accesses = {event_id}}
+    );
 
     return buffer_id;
 }
@@ -55,7 +56,8 @@ EventId TaskGraph::insert_copy(
     BufferId dst_buffer,
     MemoryId dst_memory,
     CopyDescription spec,
-    EventList deps) {
+    EventList deps
+) {
     access_buffer(src_buffer, AccessMode::Read, deps);
     access_buffer(dst_buffer, AccessMode::ReadWrite, deps);
 
@@ -66,7 +68,8 @@ EventId TaskGraph::insert_copy(
             dst_buffer,
             dst_memory,
             spec},
-        std::move(deps));
+        std::move(deps)
+    );
 
     m_buffer_accesses.push_back({src_buffer, AccessMode::Read, event_id});
     m_buffer_accesses.push_back({dst_buffer, AccessMode::ReadWrite, event_id});
@@ -79,7 +82,8 @@ EventId TaskGraph::insert_prefetch(BufferId buffer_id, MemoryId memory_id, Event
         CommandPrefetch {
             .buffer_id = buffer_id,  //
             .memory_id = memory_id},
-        std::move(deps));
+        std::move(deps)
+    );
 
     m_buffer_accesses.push_back({buffer_id, AccessMode::Read, event_id});
     return event_id;
@@ -89,14 +93,16 @@ EventId TaskGraph::insert_task(
     ProcessorId processor_id,
     std::shared_ptr<Task> task,
     const std::vector<BufferRequirement>& buffers,
-    EventList deps) {
+    EventList deps
+) {
     for (const auto& buffer : buffers) {
         access_buffer(buffer.buffer_id, buffer.access_mode, deps);
     }
 
     auto event_id = insert_event(
         CommandExecute {.processor_id = processor_id, .task = std::move(task), .buffers = buffers},
-        std::move(deps));
+        std::move(deps)
+    );
 
     for (const auto& buffer : buffers) {
         m_buffer_accesses.push_back({buffer.buffer_id, buffer.access_mode, event_id});
@@ -111,7 +117,8 @@ EventId TaskGraph::insert_reduction(
     MemoryId final_memory_id,
     DataType dtype,
     size_t num_elements,
-    std::vector<ReductionInput> inputs) {
+    std::vector<ReductionInput> inputs
+) {
     auto layout = BufferLayout {
         .size_in_bytes = dtype.size_in_bytes() * num_elements,
         .alignment = dtype.alignment(),
@@ -160,7 +167,8 @@ EventId TaskGraph::insert_reduction(
                         .num_outputs = num_elements,
                         .num_inputs_per_output = input.num_inputs_per_output,
                     }},
-            std::move(deps));
+            std::move(deps)
+        );
 
         output->dependencies.push_back(event_id);
 
@@ -188,7 +196,8 @@ EventId TaskGraph::insert_reduction(
                         .data_type = dtype,
                         .num_outputs = num_elements,
                         .num_inputs_per_output = 1}},
-            std::move(deps));
+            std::move(deps)
+        );
 
         m_buffer_accesses.push_back(BufferAccess {
             .buffer_id = final_buffer_id,
@@ -226,7 +235,8 @@ void TaskGraph::commit() {
     std::stable_sort(
         m_buffer_accesses.begin(),
         m_buffer_accesses.end(),
-        [](const auto& a, const auto& b) { return a.buffer_id < b.buffer_id; });
+        [](const auto& a, const auto& b) { return a.buffer_id < b.buffer_id; }
+    );
 
     auto current = m_buffer_accesses.begin();
 

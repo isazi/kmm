@@ -12,7 +12,8 @@ Rect<N> index2region(
     size_t index,
     std::array<size_t, N> num_chunks,
     Dim<N> chunk_size,
-    Dim<N> array_size) {
+    Dim<N> array_size
+) {
     Point<N> offset;
     Dim<N> sizes;
 
@@ -32,7 +33,8 @@ template<size_t N>
 ArrayBackend<N>::ArrayBackend(
     std::shared_ptr<Worker> worker,
     Dim<N> array_size,
-    std::vector<ArrayChunk<N>> chunks) :
+    std::vector<ArrayChunk<N>> chunks
+) :
     m_worker(worker),
     m_array_size(array_size) {
     for (const auto& chunk : chunks) {
@@ -74,13 +76,15 @@ ArrayBackend<N>::ArrayBackend(
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is not aligned to the chunk size of {}",
                 Rect<N>(chunk.offset, chunk.size),
-                m_chunk_size));
+                m_chunk_size
+            ));
         }
 
         if (buffer_locs[buffer_index] != INVALID_INDEX) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is written to by more one task",
-                Rect<N>(expected_offset, expected_size)));
+                Rect<N>(expected_offset, expected_size)
+            ));
         }
 
         buffer_locs[buffer_index] = buffer_index;
@@ -90,7 +94,8 @@ ArrayBackend<N>::ArrayBackend(
         if (index == INVALID_INDEX) {
             auto region = index2region(index, m_num_chunks, m_chunk_size, m_array_size);
             throw std::runtime_error(
-                fmt::format("invalid write access pattern, no task writes to region {}", region));
+                fmt::format("invalid write access pattern, no task writes to region {}", region)
+            );
         }
     }
 
@@ -122,14 +127,16 @@ ArrayChunk<N> ArrayBackend<N>::find_chunk(Rect<N> region) const {
             throw std::out_of_range(fmt::format(
                 "invalid read pattern, the region {} exceeds the array dimensions {}",
                 region,
-                m_array_size));
+                m_array_size
+            ));
         }
 
         if (w > m_chunk_size[i]) {
             throw std::out_of_range(fmt::format(
                 "invalid read pattern, the region {} does not align to the chunk size of {}",
                 region,
-                m_chunk_size));
+                m_chunk_size
+            ));
         }
 
         buffer_index = buffer_index * m_num_chunks[i] + static_cast<size_t>(k);
@@ -149,7 +156,8 @@ ArrayChunk<N> ArrayBackend<N>::chunk(size_t index) const {
         throw std::runtime_error(fmt::format(
             "chunk {} is out of range, there are only {} chunks",
             index,
-            m_buffers.size()));
+            m_buffers.size()
+        ));
     }
 
     // TODO?
@@ -205,7 +213,8 @@ class CopyOutTask: public Task {
                 checked_cast<size_t>(0),
                 checked_cast<size_t>(m_region.begin(i)),
                 src_stride,
-                dst_stride);
+                dst_stride
+            );
 
             src_stride *= checked_cast<size_t>(m_region.size(i));
             dst_stride *= checked_cast<size_t>(m_array_size.get(i));
@@ -248,108 +257,12 @@ void ArrayBackend<N>::copy_bytes(void* dest_addr, size_t element_size) const {
     m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
 }
 
-template<size_t N>
-size_t ArrayBuilder<N>::add_chunk(TaskBuilder& builder, Rect<N> access_region) {
-    auto num_elements = access_region.size();
-    auto buffer_id = builder.graph.create_buffer(m_element_layout.repeat(num_elements));
-
-    m_chunks.push_back(ArrayChunk<N> {
-        .buffer_id = buffer_id,
-        .owner_id = builder.memory_id,
-        .offset = access_region.offset,
-        .size = access_region.sizes});
-
-    size_t buffer_index = builder.buffers.size();
-    builder.buffers.emplace_back(BufferRequirement {
-        .buffer_id = buffer_id,
-        .memory_id = builder.memory_id,
-        .access_mode = AccessMode::Exclusive});
-
-    return buffer_index;
-}
-
-template<size_t N>
-std::shared_ptr<ArrayBackend<N>> ArrayBuilder<N>::build(std::shared_ptr<Worker> worker) {
-    return std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(m_chunks));
-}
-
-BufferLayout make_layout(size_t num_elements, DataType dtype, ReductionOp reduction) {
-    return BufferLayout {
-        .size_in_bytes = dtype.size_in_bytes() * num_elements,
-        .alignment = dtype.alignment(),
-        .fill_pattern = reduction_identity_value(dtype, reduction),
-    };
-}
-
-template<size_t N>
-size_t ArrayReductionBuilder<N>::add_chunk(
-    TaskBuilder& builder,
-    Rect<N> access_region,
-    size_t replication_factor) {
-    auto num_elements = checked_mul(checked_cast<size_t>(access_region.size()), replication_factor);
-    auto memory_id = builder.memory_id;
-
-    auto buffer_id = builder.graph.create_buffer(make_layout(num_elements, m_dtype, m_reduction));
-
-    m_partial_inputs[access_region].push_back(ReductionInput {
-        .buffer_id = buffer_id,
-        .memory_id = memory_id,
-        .dependencies = {},
-        .num_inputs_per_output = replication_factor});
-
-    size_t buffer_index = builder.buffers.size();
-    builder.buffers.emplace_back(BufferRequirement {
-        .buffer_id = buffer_id,
-        .memory_id = memory_id,
-        .access_mode = AccessMode::Exclusive});
-
-    return buffer_index;
-}
-
-template<size_t N>
-std::shared_ptr<ArrayBackend<N>> ArrayReductionBuilder<N>::build(
-    std::shared_ptr<Worker> worker,
-    TaskGraph& graph) {
-    std::vector<ArrayChunk<N>> chunks;
-
-    for (auto& p : m_partial_inputs) {
-        auto access_region = p.first;
-        auto& inputs = p.second;
-
-        MemoryId memory_id = inputs[0].memory_id;
-        auto num_elements = access_region.size();
-
-        auto buffer_id = graph.create_buffer(make_layout(num_elements, m_dtype, m_reduction));
-
-        auto event_id =
-            graph
-                .insert_reduction(m_reduction, buffer_id, memory_id, m_dtype, num_elements, inputs);
-
-        chunks.push_back(ArrayChunk<N> {
-            .buffer_id = buffer_id,
-            .owner_id = memory_id,
-            .offset = access_region.offset,
-            .size = access_region.sizes});
-
-        for (const auto& input : inputs) {
-            graph.delete_buffer(input.buffer_id, {event_id});
-        }
-    }
-
-    return std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(chunks));
-}
-
-#define INSTANTITATE_ARRAY_IMPL(NAME) \
-    template class NAME<0>;           \
-    template class NAME<1>;           \
-    template class NAME<2>;           \
-    template class NAME<3>;           \
-    template class NAME<4>;           \
-    template class NAME<5>;           \
-    template class NAME<6>;
-
-INSTANTITATE_ARRAY_IMPL(ArrayBackend)
-INSTANTITATE_ARRAY_IMPL(ArrayBuilder)
-INSTANTITATE_ARRAY_IMPL(ArrayReductionBuilder)
+template class ArrayBackend<0>;
+template class ArrayBackend<1>;
+template class ArrayBackend<2>;
+template class ArrayBackend<3>;
+template class ArrayBackend<4>;
+template class ArrayBackend<5>;
+template class ArrayBackend<6>;
 
 }  // namespace kmm

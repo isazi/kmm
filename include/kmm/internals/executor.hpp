@@ -21,7 +21,8 @@ class Executor {
         std::shared_ptr<CudaStreamManager> streams,
         std::shared_ptr<BufferManager> buffers,
         std::shared_ptr<MemoryManager> memory,
-        std::shared_ptr<Scheduler> scheduler);
+        std::shared_ptr<Scheduler> scheduler
+    );
     ~Executor();
 
     void make_progress();
@@ -32,26 +33,30 @@ class Executor {
         ProcessorId processor_id,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies = {});
+        CudaEventSet dependencies = {}
+    );
 
     void submit_host_task(
         std::shared_ptr<TaskNode> job,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies = {});
+        CudaEventSet dependencies = {}
+    );
 
     void submit_device_task(
         std::shared_ptr<TaskNode> job,
         DeviceId device_id,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies = {});
+        CudaEventSet dependencies = {}
+    );
 
     void submit_prefetch(
         std::shared_ptr<TaskNode> job,
         BufferId buffer_id,
         MemoryId memory_id,
-        CudaEventSet dependencies = {});
+        CudaEventSet dependencies = {}
+    );
 
     void submit_copy(
         std::shared_ptr<TaskNode> job,
@@ -60,7 +65,8 @@ class Executor {
         BufferId dst_id,
         MemoryId dst_memory,
         CopyDescription spec,
-        CudaEventSet dependencies = {});
+        CudaEventSet dependencies = {}
+    );
 
     friend class Operation;
     friend class HostOperation;

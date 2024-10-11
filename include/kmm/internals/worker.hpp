@@ -29,7 +29,8 @@ class Worker: public std::enable_shared_from_this<Worker> {
     BufferGuard access_buffer(
         BufferId buffer_id,
         MemoryId memory_id = MemoryId::host(),
-        AccessMode mode = AccessMode::Exclusive);
+        AccessMode mode = AccessMode::Exclusive
+    );
 
     template<typename F>
     auto with_task_graph(F fun) {

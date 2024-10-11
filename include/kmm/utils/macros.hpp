@@ -37,5 +37,6 @@
     #define KMM_DEVICE_NOINLINE
 #endif
 
-#define KMM_ASSUME(expr) __builtin_assume(expr)
-#define KMM_EXPECT(expr) (__builtin_expect(!!(expr), true))
+#define KMM_ASSUME(expr)   __builtin_assume(expr)
+#define KMM_UNLIKELY(expr) (__builtin_expect(!(expr), false))
+#define KMM_LIKELY(expr)   KMM_UNLIKELY(!(expr))

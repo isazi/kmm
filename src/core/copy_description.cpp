@@ -32,7 +32,8 @@ void CopyDescription::add_dimension(
     size_t src_offset,
     size_t dst_offset,
     size_t src_stride,
-    size_t dst_stride) {
+    size_t dst_stride
+) {
     for (size_t i = 0; i < MAX_DIMS; i++) {
         if (counts[i] == 1) {
             this->src_offset += src_offset * src_stride * element_size;
@@ -45,7 +46,7 @@ void CopyDescription::add_dimension(
         }
     }
 
-    throw std::length_error("the number of dimensions of a copy operation cannot exceed 4");
+    throw std::length_error("the number of dimensions of a copy operation cannot exceed 3");
 }
 
 size_t CopyDescription::effective_dimensionality() const {

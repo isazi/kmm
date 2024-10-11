@@ -34,14 +34,16 @@ void CudaDevice::fill_bytes(
     void* dest_buffer,
     size_t nbytes,
     const void* fill_pattern,
-    size_t fill_pattern_size) const {
+    size_t fill_pattern_size
+) const {
     CudaContextGuard guard {m_context};
     execute_cuda_fill_async(
         m_stream,
         (CUdeviceptr)dest_buffer,
         nbytes,
         fill_pattern,
-        fill_pattern_size);
+        fill_pattern_size
+    );
 }
 
 void CudaDevice::copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
@@ -50,7 +52,8 @@ void CudaDevice::copy_bytes(const void* source_buffer, void* dest_buffer, size_t
         reinterpret_cast<CUdeviceptr>(dest_buffer),
         reinterpret_cast<CUdeviceptr>(source_buffer),
         nbytes,
-        m_stream));
+        m_stream
+    ));
 }
 
 }  // namespace kmm

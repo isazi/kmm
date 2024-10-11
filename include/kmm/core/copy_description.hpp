@@ -4,7 +4,7 @@ namespace kmm {
 
 class CopyDescription {
   public:
-    static constexpr size_t MAX_DIMS = 4;
+    static constexpr size_t MAX_DIMS = 3;
 
     CopyDescription(size_t element_size = 0) : element_size(element_size) {}
 
@@ -13,7 +13,8 @@ class CopyDescription {
         size_t src_offset,
         size_t dst_offset,
         size_t src_stride,
-        size_t dst_stride);
+        size_t dst_stride
+    );
 
     size_t minimum_source_bytes_needed() const;
     size_t minimum_destination_bytes_needed() const;

@@ -7,12 +7,8 @@
 
 namespace kmm {
 
-template <typename T, uint32_t block_size>
-__global__ void fill_kernel(
-    size_t nelements,
-    T* dest_buffer,
-    T fill_value
-) {
+template<typename T, uint32_t block_size>
+__global__ void fill_kernel(size_t nelements, T* dest_buffer, T fill_value) {
     size_t i = blockIdx.x * size_t(block_size) + threadIdx.x;
 
     while (i < nelements) {
@@ -21,7 +17,7 @@ __global__ void fill_kernel(
     }
 }
 
-template <typename T>
+template<typename T>
 void submit_fill_kernel(
     CUstream stream,
     CUdeviceptr dest_buffer,
@@ -34,13 +30,12 @@ void submit_fill_kernel(
     T fill_value;
     ::memcpy(&fill_value, fill_pattern, sizeof(T));
 
-    uint32_t grid_size = nelements < max_grid_size * size_t(block_size) ? div_ceil(nelements, size_t(block_size)) : max_grid_size;
+    uint32_t grid_size = nelements < max_grid_size * size_t(block_size)
+        ? div_ceil(nelements, size_t(block_size))
+        : max_grid_size;
 
-    fill_kernel<T, block_size><<<grid_size, block_size, 0, stream>>>(
-        nelements,
-        (T*)dest_buffer,
-        fill_value
-    );
+    fill_kernel<T, block_size>
+        <<<grid_size, block_size, 0, stream>>>(nelements, (T*)dest_buffer, fill_value);
 }
 
 template<size_t N>
@@ -66,7 +61,8 @@ void execute_cuda_fill_async(
     CUdeviceptr dest_buffer,
     size_t nbytes,
     const void* fill_pattern,
-    size_t fill_pattern_size) {
+    size_t fill_pattern_size
+) {
     if (nbytes == 0 || fill_pattern_size == 0) {
         return;
     }
@@ -78,7 +74,8 @@ void execute_cuda_fill_async(
             dest_buffer + (nbytes - remainder),
             remainder,
             fill_pattern,
-            remainder);
+            remainder
+        );
 
         nbytes -= remainder;
     }
@@ -90,7 +87,8 @@ void execute_cuda_fill_async(
             CUdeviceptr(dest_buffer),
             pattern,
             nbytes,
-            stream));
+            stream
+        ));
 
     } else if (is_fill_pattern_repetitive<2>(fill_pattern, fill_pattern_size)) {
         uint16_t pattern;
@@ -99,7 +97,8 @@ void execute_cuda_fill_async(
             CUdeviceptr(dest_buffer),
             pattern,
             nbytes / sizeof(uint16_t),
-            stream));
+            stream
+        ));
 
     } else if (is_fill_pattern_repetitive<4>(fill_pattern, fill_pattern_size)) {
         uint32_t pattern;
@@ -108,19 +107,16 @@ void execute_cuda_fill_async(
             CUdeviceptr(dest_buffer),
             pattern,
             nbytes / sizeof(uint32_t),
-            stream));
-        
+            stream
+        ));
+
     } else if (is_fill_pattern_repetitive<8>(fill_pattern, fill_pattern_size)) {
-        submit_fill_kernel<uint64_t>(
-            stream,
-            dest_buffer,
-            nbytes / sizeof(uint64_t),
-            fill_pattern
-        );
+        submit_fill_kernel<uint64_t>(stream, dest_buffer, nbytes / sizeof(uint64_t), fill_pattern);
     } else {
         throw CudaException(fmt::format(
             "could not fill buffer, value is {} bits, but only 8, 16, 32 or 64 bit is supported",
-            fill_pattern_size * 8));
+            fill_pattern_size * 8
+        ));
     }
 }
 

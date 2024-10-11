@@ -41,7 +41,8 @@ struct HostOperation: public Operation {
         std::shared_ptr<TaskNode> job,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies) :
+        CudaEventSet dependencies
+    ) :
         Operation(std::move(job)),
         task(std::move(task)),
         buffers(std::move(buffers)),
@@ -58,7 +59,8 @@ struct HostOperation: public Operation {
                         buffer,
                         buffers[i].memory_id,
                         buffers[i].access_mode,
-                        trans);
+                        trans
+                    );
 
                     requests.push_back(std::move(request));
                 }
@@ -121,7 +123,8 @@ struct DeviceOperation: public Operation {
         size_t stream_index,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies) :
+        CudaEventSet dependencies
+    ) :
         Operation(std::move(job)),
         stream_index(stream_index),
         task(std::move(task)),
@@ -137,7 +140,8 @@ struct DeviceOperation: public Operation {
                     buffer,
                     buffers[i].memory_id,
                     buffers[i].access_mode,
-                    trans);
+                    trans
+                );
 
                 requests.push_back(request);
             }
@@ -199,7 +203,8 @@ Executor::Executor(
     std::shared_ptr<CudaStreamManager> streams,
     std::shared_ptr<BufferManager> buffers,
     std::shared_ptr<MemoryManager> memory,
-    std::shared_ptr<Scheduler> scheduler) :
+    std::shared_ptr<Scheduler> scheduler
+) :
     m_streams(streams),
     m_buffers(buffers),
     m_memory(memory),
@@ -212,7 +217,8 @@ Executor::Executor(
         auto device = std::make_unique<CudaDevice>(
             CudaDeviceInfo(device_id, context),
             context,
-            streams->get(stream));
+            streams->get(stream)
+        );
 
         m_devices.emplace_back(stream, std::move(device));
     }
@@ -245,14 +251,16 @@ void Executor::submit_task(
     ProcessorId processor_id,
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
-    CudaEventSet dependencies) {
+    CudaEventSet dependencies
+) {
     if (processor_id.is_device()) {
         submit_device_task(
             job,
             processor_id.as_device(),
             std::move(task),
             std::move(buffers),
-            std::move(dependencies));
+            std::move(dependencies)
+        );
     } else {
         submit_host_task(job, std::move(task), std::move(buffers), std::move(dependencies));
     }
@@ -262,18 +270,21 @@ void Executor::submit_host_task(
     std::shared_ptr<TaskNode> job,
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
-    CudaEventSet dependencies) {
+    CudaEventSet dependencies
+) {
     spdlog::debug(
         "submit host task {} (buffers={}, dependencies={})",
         job->id(),
         buffers.size(),
-        dependencies);
+        dependencies
+    );
 
     m_operations.push_back(std::make_unique<HostOperation>(
         std::move(job),
         std::move(task),
         std::move(buffers),
-        std::move(dependencies)));
+        std::move(dependencies)
+    ));
 }
 
 void Executor::submit_device_task(
@@ -281,13 +292,15 @@ void Executor::submit_device_task(
     DeviceId device_id,
     std::shared_ptr<Task> task,
     std::vector<BufferRequirement> buffers,
-    CudaEventSet dependencies) {
+    CudaEventSet dependencies
+) {
     spdlog::debug(
         "submit device task {} (device={}, buffers={}, dependencies={})",
         job->id(),
         device_id,
         buffers.size(),
-        dependencies);
+        dependencies
+    );
 
     // TODO: improve stream selection
     size_t stream_index = device_id.get();
@@ -297,7 +310,8 @@ void Executor::submit_device_task(
         stream_index,
         task,
         std::move(buffers),
-        std::move(dependencies)));
+        std::move(dependencies)
+    ));
 }
 
 class EmptyTask: public Task {
@@ -309,7 +323,8 @@ void Executor::submit_prefetch(
     std::shared_ptr<TaskNode> job,
     BufferId buffer_id,
     MemoryId memory_id,
-    CudaEventSet dependencies) {
+    CudaEventSet dependencies
+) {
     auto task = std::make_shared<EmptyTask>();
     std::vector<BufferRequirement> buffers = {BufferRequirement {
         .buffer_id = buffer_id,
@@ -330,7 +345,8 @@ void Executor::submit_copy(
     BufferId dst_id,
     MemoryId dst_memory,
     CopyDescription spec,
-    CudaEventSet dependencies) {
+    CudaEventSet dependencies
+) {
     KMM_ASSERT(src_id != dst_id || src_memory == dst_memory);
 
     std::vector<BufferRequirement> buffers = {

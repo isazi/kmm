@@ -36,7 +36,8 @@ class MemoryManager {
         std::shared_ptr<Buffer> buffer,
         MemoryId memory_id,
         AccessMode mode,
-        std::shared_ptr<Transaction> parent);
+        std::shared_ptr<Transaction> parent
+    );
     bool poll_request(Request& req, CudaEventSet& deps_out);
     void release_request(std::shared_ptr<Request> req, CudaEvent event = {});
 
@@ -70,7 +71,8 @@ class MemoryManager {
     CudaEvent fill_buffer(
         MemoryId memory_id,
         Buffer& buffer,
-        const std::vector<uint8_t>& fill_pattern);
+        const std::vector<uint8_t>& fill_pattern
+    );
     CudaEvent copy_h2d(DeviceId device_id, Buffer& buffer);
     CudaEvent copy_d2h(DeviceId device_id, Buffer& buffer);
 

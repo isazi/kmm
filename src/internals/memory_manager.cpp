@@ -76,7 +76,8 @@ struct MemoryManager::Request {
         std::shared_ptr<Buffer> buffer,
         MemoryId memory_id,
         AccessMode mode,
-        std::shared_ptr<Transaction> parent) :
+        std::shared_ptr<Transaction> parent
+    ) :
         buffer(std::move(buffer)),
         memory_id(memory_id),
         mode(mode),
@@ -180,7 +181,8 @@ void MemoryManager::delete_buffer(std::shared_ptr<Buffer> buffer) {
 }
 
 std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
-    std::shared_ptr<Transaction> parent) {
+    std::shared_ptr<Transaction> parent
+) {
     auto id = m_next_transaction_id++;
     return std::make_shared<Transaction>(Transaction {id, parent});
 }
@@ -189,7 +191,8 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     std::shared_ptr<Buffer> buffer,
     MemoryId memory_id,
     AccessMode mode,
-    std::shared_ptr<Transaction> parent) {
+    std::shared_ptr<Transaction> parent
+) {
     KMM_ASSERT(!buffer->is_deleted);
     buffer->num_requests_active++;
 
@@ -467,7 +470,8 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
         "allocate {} bytes from device {} for buffer {}",
         buffer.layout.size_in_bytes,
         device_id,
-        (void*)&buffer);
+        (void*)&buffer
+    );
 
     CUdeviceptr ptr_out;
     CudaEventSet events;
@@ -502,7 +506,8 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
         size_in_bytes,
         (void*)&buffer,
         device_id,
-        device_entry.access_events);
+        device_entry.access_events
+    );
 
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
     KMM_ASSERT(buffer.access_head == nullptr);
@@ -513,7 +518,8 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
         device_id,
         device_entry.data,
         size_in_bytes,
-        std::move(device_entry.access_events));
+        std::move(device_entry.access_events)
+    );
     remove_from_lru(device_id, buffer);
 
     device_entry.is_allocated = false;
@@ -569,7 +575,8 @@ void MemoryManager::deallocate_host(Buffer& buffer) {
         "free {} bytes on host (dependencies={})",
         size_in_bytes,
         (void*)&buffer,
-        host_entry.access_events);
+        host_entry.access_events
+    );
 
     m_memory->deallocate_host(host_entry.data, size_in_bytes, std::move(host_entry.access_events));
 
@@ -593,7 +600,8 @@ void MemoryManager::lock_allocation_host(Buffer& buffer, Request& req) {
     spdlog::trace(
         "lock allocation on host of buffer {} for request {}",
         (void*)&buffer,
-        (void*)&req);
+        (void*)&req
+    );
 }
 
 bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req) {
@@ -624,7 +632,8 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
                 throw std::runtime_error(fmt::format(
                     "cannot allocate {} bytes on device {}, out of memory",
                     buffer.layout.size_in_bytes,
-                    device_id.get()));
+                    device_id.get()
+                ));
             }
 
             return false;
@@ -643,7 +652,8 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
         "lock allocation on device {} of buffer {} for request {}",
         device_id,
         (void*)&buffer,
-        (void*)&req);
+        (void*)&req
+    );
 
     return true;
 }
@@ -659,7 +669,8 @@ void MemoryManager::unlock_allocation_host(Buffer& buffer, Request& req) {
     spdlog::trace(
         "unlock allocation on host of buffer {} for request {}",
         (void*)&buffer,
-        (void*)&req);
+        (void*)&req
+    );
 }
 
 void MemoryManager::unlock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req) {
@@ -674,7 +685,8 @@ void MemoryManager::unlock_allocation_device(DeviceId device_id, Buffer& buffer,
         "unlock allocation on device {} of buffer {} for request {}",
         device_id,
         (void*)&buffer,
-        (void*)&req);
+        (void*)&req
+    );
 
     if (device_entry.num_allocation_locks == 0) {
         insert_into_lru(device_id, buffer);
@@ -724,7 +736,8 @@ void MemoryManager::poll_access_queue(Buffer& buffer) const {
             (void*)&buffer,
             (void*)req,
             req->memory_id,
-            req->mode);
+            req->mode
+        );
 
         buffer.access_current = buffer.access_current->access_next;
     }
@@ -734,14 +747,16 @@ void MemoryManager::unlock_access(
     MemoryId memory_id,
     Buffer& buffer,
     Request& req,
-    CudaEvent event) {
+    CudaEvent event
+) {
     spdlog::trace(
         "access to buffer {} was revoked from request {} (memory={}, mode={}, CUDA event={})",
         (void*)&buffer,
         (void*)&req,
         req.memory_id,
         req.mode,
-        event);
+        event
+    );
 
     bool is_writer = req.mode != AccessMode::Read;
     BufferEntry& entry = buffer.entry(memory_id);
@@ -761,7 +776,8 @@ bool MemoryManager::try_lock_access(
     MemoryId memory_id,
     Buffer& buffer,
     Request& req,
-    CudaEventSet& deps_out) {
+    CudaEventSet& deps_out
+) {
     if (!req.access_acquired) {
         poll_access_queue(buffer);
 
@@ -837,7 +853,8 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEve
 CudaEvent MemoryManager::fill_buffer(
     MemoryId memory_id,
     Buffer& buffer,
-    const std::vector<uint8_t>& fill_pattern) {
+    const std::vector<uint8_t>& fill_pattern
+) {
     auto& entry = buffer.entry(memory_id);
     KMM_ASSERT(entry.is_allocated && !entry.is_valid);
     KMM_ASSERT(!fill_pattern.empty());
@@ -849,14 +866,16 @@ CudaEvent MemoryManager::fill_buffer(
             buffer.host_entry.data,
             buffer.layout.size_in_bytes,
             fill_pattern,
-            entry.access_events);
+            entry.access_events
+        );
     } else {
         event = m_memory->fill_device(
             memory_id.as_device(),
             buffer.device_entry[memory_id.as_device()].data,
             buffer.layout.size_in_bytes,
             fill_pattern,
-            entry.access_events);
+            entry.access_events
+        );
     }
 
     entry.epoch_event = {event};
@@ -871,7 +890,8 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
         "copy {} bytes from host to device {} for buffer {}",
         buffer.layout.size_in_bytes,
         device_id,
-        (void*)&buffer);
+        (void*)&buffer
+    );
 
     auto& device = m_devices[device_id];
     auto& host_entry = buffer.host_entry;
@@ -889,7 +909,8 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
         host_entry.data,
         device_entry.data,
         buffer.layout.size_in_bytes,
-        std::move(deps));
+        std::move(deps)
+    );
 
     host_entry.access_events.insert(event);
     device_entry.epoch_event = {event};
@@ -905,7 +926,8 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
         "copy {} bytes from device to host {} for buffer {}",
         buffer.layout.size_in_bytes,
         device_id,
-        (void*)&buffer);
+        (void*)&buffer
+    );
 
     auto& device = m_devices[device_id];
     auto& host_entry = buffer.host_entry;
@@ -923,7 +945,8 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
         device_entry.data,
         host_entry.data,
         buffer.layout.size_in_bytes,
-        std::move(deps));
+        std::move(deps)
+    );
 
     device_entry.access_events.insert(event);
     host_entry.epoch_event.insert(event);
@@ -966,7 +989,8 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
         device_id,
         req.buffer->layout.size_in_bytes,
         (void*)req.buffer.get(),
-        (void*)&req);
+        (void*)&req
+    );
 
     spdlog::error("following buffers are currently allocated: ");
 
@@ -979,7 +1003,8 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
                 (void*)buffer.get(),
                 buffer->layout.size_in_bytes,
                 buffer->num_requests_active,
-                entry.num_allocation_locks);
+                entry.num_allocation_locks
+            );
         }
     }
 
@@ -991,7 +1016,8 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
             (void*)it,
             it->buffer->layout.size_in_bytes,
             (void*)it->buffer.get(),
-            (void*)it->parent.get());
+            (void*)it->parent.get()
+        );
     }
 
     spdlog::error("following buffers are pending:");
@@ -1001,7 +1027,8 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
             (void*)it,
             it->buffer->layout.size_in_bytes,
             (void*)it->buffer.get(),
-            (void*)it->parent.get());
+            (void*)it->parent.get()
+        );
     }
 
     return true;

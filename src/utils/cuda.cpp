@@ -18,7 +18,8 @@ void cuda_throw_exception(
     cublasStatus_t result,
     const char* file,
     int line,
-    const char* expression) {
+    const char* expression
+) {
     throw CudaBlasException(fmt::format("{} ({}:{})", expression, file, line), result);
 }
 
@@ -96,7 +97,8 @@ std::optional<CUdevice> get_cuda_device_by_address(const void* address) {
         result = cuPointerGetAttribute(
             &ordinal,
             CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
-            CUdeviceptr(address));
+            CUdeviceptr(address)
+        );
 
         if (result == CUDA_SUCCESS) {
             return CUdevice {ordinal};

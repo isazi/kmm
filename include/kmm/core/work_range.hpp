@@ -20,7 +20,7 @@ using WorkDim = Dim<WORK_DIMS>;
  */
 using WorkIndex = Point<WORK_DIMS>;
 
-struct WorkChunk {
+struct WorkRange {
     WorkIndex begin;  ///< The starting index of the work chunk.
     WorkIndex end;  ///< The ending index of the work chunk.
 
@@ -28,19 +28,19 @@ struct WorkChunk {
      * Initializes an empty chunk.
      */
     KMM_HOST_DEVICE
-    constexpr WorkChunk() {}
+    constexpr WorkRange() {}
 
     /**
      * Constructs a chunk with a given begin and end index.
      */
     KMM_HOST_DEVICE
-    WorkChunk(WorkIndex begin, WorkIndex end) : begin(begin), end(end) {}
+    WorkRange(WorkIndex begin, WorkIndex end) : begin(begin), end(end) {}
 
     /**
      * Constructs a chunk with a given offset and size.
      */
     KMM_HOST_DEVICE
-    WorkChunk(WorkIndex offset, WorkDim size) : begin(offset) {
+    WorkRange(WorkIndex offset, WorkDim size) : begin(offset) {
         // Doing this in the initializer causes a SEGFAULT in GCC
         this->end = offset + size.to_point();
     }
@@ -49,7 +49,7 @@ struct WorkChunk {
      * Constructs a chunk with a given size and starting at the origin.
      */
     KMM_HOST_DEVICE
-    WorkChunk(WorkDim size) : end(size) {}
+    WorkRange(WorkDim size) : end(size) {}
 
     /**
      * Gets the sizes of the work chunk in each dimension.

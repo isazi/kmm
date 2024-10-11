@@ -36,7 +36,8 @@ class TaskGraph {
         BufferId dst_buffer,
         MemoryId dst_memory,
         CopyDescription spec,
-        EventList deps = {});
+        EventList deps = {}
+    );
 
     EventId insert_prefetch(BufferId buffer_id, MemoryId memory_id, EventList deps = {});
 
@@ -44,7 +45,8 @@ class TaskGraph {
         ProcessorId processor_id,
         std::shared_ptr<Task> task,
         const std::vector<BufferRequirement>& buffers,
-        EventList deps = {});
+        EventList deps = {}
+    );
 
     EventId insert_reduction(
         ReductionOp op,
@@ -52,7 +54,8 @@ class TaskGraph {
         MemoryId final_memory_id,
         DataType dtype,
         size_t num_outputs,
-        std::vector<ReductionInput> inputs);
+        std::vector<ReductionInput> inputs
+    );
 
     EventId insert_barrier();
 

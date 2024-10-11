@@ -11,43 +11,40 @@ struct DataTypeInfo {
     size_t size_in_bytes;
     size_t alignment;
     const char* c_name;
-    const char* name;
 };
 
 DataTypeInfo get_info(DataType dtype) {
-#define DTYPE_CASE(D, T) {typeid(T), sizeof(T), alignof(T), #T, #D};
+#define DTYPE_CASE(T) {typeid(T), sizeof(T), alignof(T), #T};
 
     switch (dtype.get()) {
         case ScalarKind::Int8:
-            return DTYPE_CASE(Int8, int8_t);
+            return DTYPE_CASE(int8_t);
         case ScalarKind::Int16:
-            return DTYPE_CASE(Int16, int16_t);
+            return DTYPE_CASE(int16_t);
         case ScalarKind::Int32:
-            return DTYPE_CASE(Int32, int32_t);
+            return DTYPE_CASE(int32_t);
         case ScalarKind::Int64:
-            return DTYPE_CASE(Int64, int64_t);
+            return DTYPE_CASE(int64_t);
         case ScalarKind::Uint8:
-            return DTYPE_CASE(Uint8, uint8_t);
+            return DTYPE_CASE(uint8_t);
         case ScalarKind::Uint16:
-            return DTYPE_CASE(Uint16, uint16_t);
+            return DTYPE_CASE(uint16_t);
         case ScalarKind::Uint32:
-            return DTYPE_CASE(Uint32, uint32_t);
+            return DTYPE_CASE(uint32_t);
         case ScalarKind::Uint64:
-            return DTYPE_CASE(Uint64, uint64_t);
+            return DTYPE_CASE(uint64_t);
         case ScalarKind::Float32:
-            return DTYPE_CASE(Float32, float);
+            return DTYPE_CASE(float);
         case ScalarKind::Float64:
-            return DTYPE_CASE(Float64, double);
+            return DTYPE_CASE(double);
         case ScalarKind::Complex32:
-            return DTYPE_CASE(Complex32, ::std::complex<float>);
+            return DTYPE_CASE(::std::complex<float>);
         case ScalarKind::Complex64:
-            return DTYPE_CASE(Complex64, ::std::complex<double>);
+            return DTYPE_CASE(::std::complex<double>);
         case ScalarKind::KeyAndInt64:
-            return DTYPE_CASE(KeyAndFloat64, KeyValue<int64_t>);
+            return DTYPE_CASE(KeyValue<int64_t>);
         case ScalarKind::KeyAndFloat64:
-            return DTYPE_CASE(KeyAndFloat64, KeyValue<double>);
-        case ScalarKind::Float16:
-        case ScalarKind::Complex16:
+            return DTYPE_CASE(KeyValue<double>);
         default:
             throw std::runtime_error(fmt::format("invalid data type: {}", dtype));
     }
@@ -65,7 +62,7 @@ const char* DataType::c_name() const {
     return get_info(*this).c_name;
 }
 
-const char* DataType::name() const {
+const char* DataType::name() const noexcept {
     switch (m_kind) {
         case ScalarKind::Int8:
             return "Int8";
@@ -89,8 +86,10 @@ const char* DataType::name() const {
             return "Float32";
         case ScalarKind::Float64:
             return "Float64";
+        case ScalarKind::BFloat16:
+            return "BFloat16";
         case ScalarKind::Complex16:
-            return "Complex16";
+            return "Float64";
         case ScalarKind::Complex32:
             return "Complex32";
         case ScalarKind::Complex64:

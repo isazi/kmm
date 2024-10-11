@@ -6,9 +6,10 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/api/access.hpp"
+#include "kmm/api/argument.hpp"
+#include "kmm/api/array_argument.hpp"
 #include "kmm/api/array_backend.hpp"
-#include "kmm/api/packed_array.hpp"
-#include "kmm/api/task_data.hpp"
+#include "kmm/api/array_builder.hpp"
 
 namespace kmm {
 
@@ -93,16 +94,25 @@ class Array: ArrayBase {
     Dim<N> m_shape;
 };
 
-template<typename T, size_t N>
-struct TaskDataProcessor<Read<Array<T, N>, SliceMapping<N>>> {
-    using type = PackedArray<const T, views::layouts::right_to_left<views::domains::subbounds<N>>>;
+template<typename T>
+using Scalar = Array<T, 0>;
 
-    TaskDataProcessor(Read<Array<T, N>, SliceMapping<N>> arg) :
+template<typename T, size_t N, typename A>
+struct ArgumentHandler<Read<Array<T, N>, A>> {
+    using type =
+        ArrayArgument<const T, views::layouts::right_to_left<views::domains::subbounds<N>>>;
+
+    static_assert(
+        is_dimensionality_accepted_by_mapper<A, N>,
+        "mapper of `read` must return N-dimensional region"
+    );
+
+    ArgumentHandler(Read<Array<T, N>, A> arg) :
         m_backend(arg.argument.inner().shared_from_this()),
-        m_mapping(arg.slice_mapping) {}
+        m_access_map(arg.access_map) {}
 
-    type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        auto access_region = m_mapping(chunk, m_backend->array_size());
+    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
+        auto access_region = m_access_map(chunk, m_backend->array_size());
         auto data_chunk = m_backend->find_chunk(access_region);
 
         size_t buffer_index = builder.buffers.size();
@@ -121,46 +131,51 @@ struct TaskDataProcessor<Read<Array<T, N>, SliceMapping<N>>> {
 
   private:
     std::shared_ptr<const ArrayBackend<N>> m_backend;
-    SliceMapping<N> m_mapping;
+    A m_access_map;
 };
 
-template<typename T, size_t N>
-struct TaskDataProcessor<Write<Array<T, N>, SliceMapping<N>>> {
-    using type = PackedArray<T, views::layouts::right_to_left<views::domains::subbounds<N>>>;
+template<typename T, size_t N, typename A>
+struct ArgumentHandler<Write<Array<T, N>, A>> {
+    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::subbounds<N>>>;
 
-    TaskDataProcessor(Write<Array<T, N>, SliceMapping<N>> arg) :
+    static_assert(
+        is_dimensionality_accepted_by_mapper<A, N>,
+        "mapper of `write` must return N-dimensional region"
+    );
+
+    ArgumentHandler(Write<Array<T, N>, A> arg) :
         m_array(arg.argument),
-        m_mapping(arg.slice_mapping),
+        m_access_map(arg.access_map),
         m_builder(arg.argument.shape(), BufferLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
 
-    type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        auto access_region = m_mapping(chunk, m_builder.m_sizes);
+    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
+        auto access_region = m_access_map(chunk, m_builder.m_sizes);
         size_t buffer_index = m_builder.add_chunk(builder, access_region);
         views::domains::subbounds<N> domain = {access_region.offset, access_region.sizes};
         return {buffer_index, domain};
     }
 
     void finalize(const TaskResult& result) {
-        m_array = Array<T, N>(m_builder.build(result.worker));
+        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
     }
 
   private:
     Array<T, N>& m_array;
-    SliceMapping<N> m_mapping;
+    A m_access_map;
     ArrayBuilder<N> m_builder;
 };
 
 template<typename T, size_t N>
-struct TaskDataProcessor<Read<Array<T, N>>> {
-    using type = PackedArray<const T, views::layouts::right_to_left<views::domains::bounds<N>>>;
+struct ArgumentHandler<Read<Array<T, N>>> {
+    using type = ArrayArgument<const T, views::layouts::right_to_left<views::domains::bounds<N>>>;
 
-    TaskDataProcessor(Read<Array<T, N>> arg) : m_backend(arg.argument.inner().shared_from_this()) {}
+    ArgumentHandler(Read<Array<T, N>> arg) : m_backend(arg.argument.inner().shared_from_this()) {}
 
-    type process_chunk(Chunk chunk, TaskBuilder& builder) {
+    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
         auto data_chunk = m_backend->find_chunk(m_backend->array_size());
 
         size_t buffer_index = builder.buffers.size();
@@ -182,10 +197,10 @@ struct TaskDataProcessor<Read<Array<T, N>>> {
 };
 
 template<typename T, size_t N>
-struct TaskDataProcessor<Write<Array<T, N>>> {
-    using type = PackedArray<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
+struct ArgumentHandler<Write<Array<T, N>>> {
+    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
 
-    TaskDataProcessor(Write<Array<T, N>> arg) :
+    ArgumentHandler(Write<Array<T, N>> arg) :
         m_array(arg.argument),
         m_builder(arg.argument.shape(), BufferLayout::for_type<T>()) {
         if (m_array.is_valid()) {
@@ -193,7 +208,7 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
         }
     }
 
-    type process_chunk(Chunk chunk, TaskBuilder& builder) {
+    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
         auto access_region = m_builder.m_sizes;
         size_t buffer_index = m_builder.add_chunk(builder, access_region);
         views::domains::bounds<N> domain = {access_region};
@@ -202,7 +217,7 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
     }
 
     void finalize(const TaskResult& result) {
-        m_array = Array<T, N>(m_builder.build(result.worker));
+        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
     }
 
   private:
@@ -211,19 +226,19 @@ struct TaskDataProcessor<Write<Array<T, N>>> {
 };
 
 template<typename T, size_t N>
-struct TaskDataProcessor<Array<T, N>>: public TaskDataProcessor<Read<Array<T, N>>> {
-    TaskDataProcessor(Array<T, N> arg) : TaskDataProcessor<Read<Array<T, N>>>(read(arg)) {}
+struct ArgumentHandler<Array<T, N>>: public ArgumentHandler<Read<Array<T, N>>> {
+    ArgumentHandler(Array<T, N> arg) : ArgumentHandler<Read<Array<T, N>>>(read(arg)) {}
 };
 
 template<typename T, size_t N>
-struct TaskDataProcessor<Reduce<Array<T, N>>> {
-    using type = PackedArray<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
+struct ArgumentHandler<Reduce<Array<T, N>>> {
+    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
 
-    TaskDataProcessor(Reduce<Array<T, N>, FullMapping> arg) :
+    ArgumentHandler(Reduce<Array<T, N>> arg) :
         m_array(arg.argument),
         m_builder(arg.argument.shape(), DataType::of<T>(), arg.op) {}
 
-    type process_chunk(Chunk chunk, TaskBuilder& builder) {
+    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
         auto access_region = m_builder.m_sizes;
         size_t buffer_index = m_builder.add_chunk(builder, access_region);
         views::domains::bounds<N> domain = {access_region};
@@ -239,21 +254,27 @@ struct TaskDataProcessor<Reduce<Array<T, N>>> {
     ArrayReductionBuilder<N> m_builder;
 };
 
-template<typename T, size_t P, size_t N>
-struct TaskDataProcessor<Reduce<Array<T, N>, FullMapping, SliceMapping<P>>> {
-    using type = PackedArray<T, views::layouts::right_to_left<views::domains::subbounds<P + N>>>;
+template<typename T, size_t N, typename P>
+struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
+    static constexpr size_t K = mapper_dimensionality<P>;
+    static_assert(
+        is_dimensionality_accepted_by_mapper<P, K>,
+        "private mapper of `reduce` must return N-dimensional region"
+    );
 
-    TaskDataProcessor(Reduce<Array<T, N>, FullMapping, SliceMapping<P>> arg) :
+    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::subbounds<K + N>>>;
+
+    ArgumentHandler(Reduce<Array<T, N>, All, P> arg) :
         m_array(arg.argument),
         m_builder(arg.argument.shape(), DataType::of<T>(), arg.op),
-        m_private_mapping(arg.private_mapping) {}
+        m_private_map(arg.private_map) {}
 
-    type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        auto private_region = m_private_mapping(chunk);
+    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
         auto access_region = Rect<N>(m_builder.m_sizes);
+        auto private_region = m_private_map(chunk);
         size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
-        views::domains::subbounds<P + N> domain = {
+        views::domains::subbounds<K + N> domain = {
             private_region.offset.concat(access_region.offset),
             private_region.sizes.concat(access_region.sizes),
         };
@@ -268,25 +289,36 @@ struct TaskDataProcessor<Reduce<Array<T, N>, FullMapping, SliceMapping<P>>> {
   private:
     Array<T, N>& m_array;
     ArrayReductionBuilder<N> m_builder;
-    SliceMapping<P> m_private_mapping;
+    P m_private_map;
 };
 
-template<typename T, size_t P, size_t N>
-struct TaskDataProcessor<Reduce<Array<T, N>, SliceMapping<N>, SliceMapping<P>>> {
-    using type = PackedArray<T, views::layouts::right_to_left<views::domains::subbounds<P + N>>>;
+template<typename T, size_t N, typename A, typename P>
+struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
+    static constexpr size_t K = mapper_dimensionality<P>;
+    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::subbounds<K + N>>>;
 
-    TaskDataProcessor(Reduce<Array<T, N>, SliceMapping<N>, SliceMapping<P>> arg) :
+    static_assert(
+        is_dimensionality_accepted_by_mapper<A, N>,
+        "mapper of `reduce` must return N-dimensional region"
+    );
+
+    static_assert(
+        is_dimensionality_accepted_by_mapper<P, K>,
+        "private mapper of `reduce` must return N-dimensional region"
+    );
+
+    ArgumentHandler(Reduce<Array<T, N>, A, P> arg) :
         m_array(arg.argument),
         m_builder(arg.argument.shape(), DataType::of<T>(), arg.op),
-        m_mapping(arg.slice_mapping),
-        m_private_mapping(arg.private_mapping) {}
+        m_access_map(arg.access_map),
+        m_private_map(arg.private_map) {}
 
-    type process_chunk(Chunk chunk, TaskBuilder& builder) {
-        auto private_region = m_private_mapping(chunk);
-        auto access_region = m_mapping(chunk, m_builder.m_sizes);
+    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
+        auto private_region = m_private_map(chunk);
+        auto access_region = m_access_map(chunk, m_builder.m_sizes);
         size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
-        views::domains::subbounds<P + N> domain = {
+        views::domains::subbounds<K + N> domain = {
             private_region.offset.concat(access_region.offset),
             private_region.sizes.concat(access_region.sizes),
         };
@@ -301,8 +333,8 @@ struct TaskDataProcessor<Reduce<Array<T, N>, SliceMapping<N>, SliceMapping<P>>> 
   private:
     Array<T, N>& m_array;
     ArrayReductionBuilder<N> m_builder;
-    SliceMapping<N> m_mapping;
-    SliceMapping<P> m_private_mapping;
+    A m_access_map;
+    P m_private_map;
 };
 
 }  // namespace kmm
