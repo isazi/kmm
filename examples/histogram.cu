@@ -19,7 +19,7 @@ void initialize_image(
 }
 
 void initialize_images(
-    kmm::WorkChunk subrange,
+    kmm::WorkRange subrange,
     int width,
     int height,
     kmm::subview_mut<uint8_t, 3> images
@@ -30,7 +30,7 @@ void initialize_images(
 }
 
 __global__ void calculate_histogram(
-    kmm::WorkChunk subrange,
+    kmm::WorkRange subrange,
     int width,
     int height,
     kmm::cuda_subview<uint8_t, 3> images,

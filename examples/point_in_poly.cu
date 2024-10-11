@@ -1,10 +1,10 @@
 #include <curand_kernel.h>
 
-#include "kmm/api/access.hpp"
+#include "kmm/api/mapper.hpp"
 #include "kmm/api/runtime.hpp"
 
 __global__ void cn_pnpoly(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     kmm::cuda_subview_mut<int> bitmap,
     kmm::cuda_subview<float2> points,
     int nvertices,
@@ -35,7 +35,7 @@ __global__ void cn_pnpoly(
 }
 
 __global__ void init_points(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     kmm::cuda_subview_mut<float2> points
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
@@ -48,7 +48,7 @@ __global__ void init_points(
 }
 
 void init_polygon(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     int nvertices,
     kmm::view_mut<float2> vertices
 ) {

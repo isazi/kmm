@@ -1,7 +1,7 @@
 #include "kmm/kmm.hpp"
 
 void fill_array(
-    kmm::WorkChunk region,
+    kmm::WorkRange region,
     kmm::subview_mut<float, 2> array,
     float value
 ) {
@@ -14,7 +14,7 @@ void fill_array(
 
 void matrix_multiply(
     kmm::CudaDevice& device,
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     int n,
     int m,
     int k,
@@ -90,4 +90,7 @@ int main() {
         read(A, slice(_x, _z)),
         read(B, slice(_z, _y))
     );
+
+    rt.synchronize();
+    return EXIT_SUCCESS;
 }

@@ -1,7 +1,7 @@
 #include "kmm/kmm.hpp"
 
 __global__ void initialize_matrix_kernel(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     kmm::cuda_subview_mut<float, 2> matrix
 ) {
     int i = blockIdx.y * blockDim.y + threadIdx.y + chunk.begin.y;
@@ -13,7 +13,7 @@ __global__ void initialize_matrix_kernel(
 }
 
 __global__ void sum_total_kernel(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     kmm::cuda_subview<float, 2> matrix,
     kmm::cuda_subview_mut<float, 2> sum
 ) {
@@ -26,7 +26,7 @@ __global__ void sum_total_kernel(
 }
 
 __global__ void sum_rows_kernel(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     kmm::cuda_subview<float, 2> matrix,
     kmm::cuda_subview_mut<float, 2> rows_sum
 ) {
@@ -39,7 +39,7 @@ __global__ void sum_rows_kernel(
 }
 
 __global__ void sum_cols_kernel(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     kmm::cuda_subview<float, 2> matrix,
     kmm::cuda_subview_mut<float, 2> cols_sum
 ) {
@@ -66,12 +66,12 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::CudaKernel(initialize_matrix_kernel, {16, 16}),
-        kmm::write(matrix, slice(_y, _x))
+        write(matrix, slice(_y, _x))
     );
 
     matrix.synchronize();
 
-    auto total_sum = kmm::Array<float, 0>();
+    auto total_sum = kmm::Scalar<float>();
     auto rows_sum = kmm::Array<float>(height);
     auto cols_sum = kmm::Array<float>(width);
 
