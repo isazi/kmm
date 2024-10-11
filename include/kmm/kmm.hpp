@@ -1,6 +1,7 @@
-#pragma once
-
-#include "kmm/array.hpp"
-#include "kmm/runtime_handle.hpp"
-#include "kmm/host/host.hpp"
-#include "kmm/cuda/cuda.hpp"
+#include "kmm/api/argument.hpp"
+#include "kmm/api/array.hpp"
+#include "kmm/api/array_argument.hpp"
+#include "kmm/api/launcher.hpp"
+#include "kmm/api/mapper.hpp"
+#include "kmm/api/partition.hpp"
+#include "kmm/api/runtime.hpp"
