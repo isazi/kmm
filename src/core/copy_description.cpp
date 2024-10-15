@@ -2,12 +2,12 @@
 #include <stdexcept>
 #include <utility>
 
-#include "kmm/core/copy_description.hpp"
+#include "kmm/core/copy_def.hpp"
 #include "kmm/utils/checked_math.hpp"
 
 namespace kmm {
 
-size_t CopyDescription::minimum_source_bytes_needed() const {
+size_t CopyDef::minimum_source_bytes_needed() const {
     size_t result = src_offset;
 
     for (size_t i = 0; i < MAX_DIMS; i++) {
@@ -17,7 +17,7 @@ size_t CopyDescription::minimum_source_bytes_needed() const {
     return result + element_size;
 }
 
-size_t CopyDescription::minimum_destination_bytes_needed() const {
+size_t CopyDef::minimum_destination_bytes_needed() const {
     size_t result = dst_offset;
 
     for (size_t i = 0; i < MAX_DIMS; i++) {
@@ -27,7 +27,7 @@ size_t CopyDescription::minimum_destination_bytes_needed() const {
     return result + element_size;
 }
 
-void CopyDescription::add_dimension(
+void CopyDef::add_dimension(
     size_t count,
     size_t src_offset,
     size_t dst_offset,
@@ -49,7 +49,7 @@ void CopyDescription::add_dimension(
     throw std::length_error("the number of dimensions of a copy operation cannot exceed 3");
 }
 
-size_t CopyDescription::effective_dimensionality() const {
+size_t CopyDef::effective_dimensionality() const {
     for (size_t n = MAX_DIMS; n > 0; n--) {
         if (counts[n - 1] != 1) {
             return n;
@@ -59,11 +59,11 @@ size_t CopyDescription::effective_dimensionality() const {
     return 0;
 }
 
-size_t CopyDescription::number_of_bytes_copied() const {
+size_t CopyDef::number_of_bytes_copied() const {
     return checked_mul(checked_product(counts, counts + MAX_DIMS), element_size);
 }
 
-void CopyDescription::simplify() {
+void CopyDef::simplify() {
     if (number_of_bytes_copied() == 0) {
         element_size = 0;
         src_offset = 0;

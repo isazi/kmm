@@ -344,7 +344,7 @@ void Executor::submit_copy(
     MemoryId src_memory,
     BufferId dst_id,
     MemoryId dst_memory,
-    CopyDescription spec,
+    CopyDef definition,
     CudaEventSet dependencies
 ) {
     KMM_ASSERT(src_id != dst_id || src_memory == dst_memory);

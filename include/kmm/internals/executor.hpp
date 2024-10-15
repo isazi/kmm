@@ -64,7 +64,7 @@ class Executor {
         MemoryId src_memory,
         BufferId dst_id,
         MemoryId dst_memory,
-        CopyDescription spec,
+        CopyDef definition,
         CudaEventSet dependencies = {}
     );
 

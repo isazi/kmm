@@ -196,7 +196,7 @@ void execute_cuda_reduction_async(
     CUstream stream,
     CUdeviceptr src_buffer,
     CUdeviceptr dst_buffer,
-    Reduction reduction
+    ReductionDef reduction
 ) {
     auto element_size = reduction.data_type.size_in_bytes();
 

@@ -7,6 +7,6 @@ namespace kmm {
 /**
  *
  */
-void execute_reduction(const void* src_buffer, void* dst_buffer, Reduction reduction);
+void execute_reduction(const void* src_buffer, void* dst_buffer, ReductionDef reduction);
 
 }  // namespace kmm

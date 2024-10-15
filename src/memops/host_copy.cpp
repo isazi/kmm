@@ -7,11 +7,7 @@
 
 namespace kmm {
 
-inline void execute_copy_impl(
-    const void* src_buffer,
-    void* dst_buffer,
-    CopyDescription copy_description
-) {
+inline void execute_copy_impl(const void* src_buffer, void* dst_buffer, CopyDef copy_description) {
     for (size_t i3 = 0; i3 < copy_description.counts[3]; i3++) {
         for (size_t i2 = 0; i2 < copy_description.counts[2]; i2++) {
             for (size_t i1 = 0; i1 < copy_description.counts[1]; i1++) {
@@ -40,13 +36,13 @@ inline void execute_copy_impl(
 }
 
 template<size_t Align>
-bool is_aligned(const void* src_buffer, void* dst_buffer, CopyDescription copy_description) {
+bool is_aligned(const void* src_buffer, void* dst_buffer, CopyDef copy_description) {
     bool result = reinterpret_cast<uintptr_t>(src_buffer) % Align == 0
         && reinterpret_cast<uintptr_t>(dst_buffer) % Align == 0
         && copy_description.src_offset % Align == 0 && copy_description.dst_offset % Align == 0
         && copy_description.element_size % Align == 0;
 
-    for (size_t i = 0; i < CopyDescription::MAX_DIMS; i++) {
+    for (size_t i = 0; i < CopyDef::MAX_DIMS; i++) {
         if (copy_description.counts[i] > 1) {
             result &= copy_description.src_strides[i] % Align == 0;
             result &= copy_description.dst_strides[i] % Align == 0;
@@ -56,7 +52,7 @@ bool is_aligned(const void* src_buffer, void* dst_buffer, CopyDescription copy_d
     return result;
 }
 
-void execute_copy(const void* src_buffer, void* dst_buffer, CopyDescription copy_description) {
+void execute_copy(const void* src_buffer, void* dst_buffer, CopyDef copy_description) {
     copy_description.simplify();
     return execute_copy_impl(src_buffer, dst_buffer, copy_description);
 }

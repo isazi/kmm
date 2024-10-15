@@ -6,14 +6,8 @@
 
 namespace kmm {
 
-BufferId kmm::TaskGraph::create_buffer(BufferLayout layout) {
-    auto buffer_id = BufferId(m_next_buffer_id);
-    m_next_buffer_id++;
-
-    auto event_id = insert_event(CommandBufferCreate {
-        .id = buffer_id,
-        .layout = layout,
-    });
+BufferId TaskGraph::create_buffer(BufferLayout layout) {
+    auto [buffer_id, event_id] = create_internal_buffer(std::move(layout));
 
     m_buffers.emplace(
         buffer_id,
@@ -29,11 +23,33 @@ EventId TaskGraph::delete_buffer(BufferId id, EventList deps) {
     KMM_ASSERT(it != m_buffers.end());
 
     // Get the list of accesses + user-provided dependencies
-    deps.insert_all(it->second.accesses);
+    auto& meta = it->second;
+    deps.push_back(meta.creation);
+    deps.insert_all(meta.accesses);
 
     // Erase the buffer
     m_buffers.erase(it);
 
+    return delete_internal_buffer(id, std::move(deps));
+}
+
+const EventList& TaskGraph::extract_buffer_dependencies(BufferId id) const {
+    return m_buffers.at(id).accesses;
+}
+
+std::pair<BufferId, EventId> TaskGraph::create_internal_buffer(BufferLayout layout) {
+    auto buffer_id = BufferId(m_next_buffer_id);
+    m_next_buffer_id++;
+
+    auto event_id = insert_event(CommandBufferCreate {
+        .id = buffer_id,
+        .layout = layout,
+    });
+
+    return {buffer_id, event_id};
+}
+
+EventId TaskGraph::delete_internal_buffer(BufferId id, EventList deps) {
     return insert_event(CommandBufferDelete {id}, std::move(deps));
 }
 
@@ -55,11 +71,11 @@ EventId TaskGraph::insert_copy(
     MemoryId src_memory,
     BufferId dst_buffer,
     MemoryId dst_memory,
-    CopyDescription spec,
+    CopyDef spec,
     EventList deps
 ) {
-    access_buffer(src_buffer, AccessMode::Read, deps);
-    access_buffer(dst_buffer, AccessMode::ReadWrite, deps);
+    pre_access_buffer(src_buffer, AccessMode::Read, deps);
+    pre_access_buffer(dst_buffer, AccessMode::ReadWrite, deps);
 
     auto event_id = insert_event(
         CommandCopy {
@@ -71,13 +87,15 @@ EventId TaskGraph::insert_copy(
         std::move(deps)
     );
 
-    m_buffer_accesses.push_back({src_buffer, AccessMode::Read, event_id});
-    m_buffer_accesses.push_back({dst_buffer, AccessMode::ReadWrite, event_id});
+    post_access_buffer(src_buffer, AccessMode::Read, event_id);
+    post_access_buffer(dst_buffer, AccessMode::ReadWrite, event_id);
 
     return event_id;
 }
 
 EventId TaskGraph::insert_prefetch(BufferId buffer_id, MemoryId memory_id, EventList deps) {
+    pre_access_buffer(buffer_id, AccessMode::Read, deps);
+
     auto event_id = insert_event(
         CommandPrefetch {
             .buffer_id = buffer_id,  //
@@ -85,7 +103,7 @@ EventId TaskGraph::insert_prefetch(BufferId buffer_id, MemoryId memory_id, Event
         std::move(deps)
     );
 
-    m_buffer_accesses.push_back({buffer_id, AccessMode::Read, event_id});
+    post_access_buffer(buffer_id, AccessMode::Read, event_id);
     return event_id;
 }
 
@@ -96,7 +114,7 @@ EventId TaskGraph::insert_task(
     EventList deps
 ) {
     for (const auto& buffer : buffers) {
-        access_buffer(buffer.buffer_id, buffer.access_mode, deps);
+        pre_access_buffer(buffer.buffer_id, buffer.access_mode, deps);
     }
 
     auto event_id = insert_event(
@@ -105,111 +123,210 @@ EventId TaskGraph::insert_task(
     );
 
     for (const auto& buffer : buffers) {
-        m_buffer_accesses.push_back({buffer.buffer_id, buffer.access_mode, event_id});
+        post_access_buffer(buffer.buffer_id, buffer.access_mode, event_id);
     }
 
     return event_id;
 }
 
-EventId TaskGraph::insert_reduction(
-    ReductionOp op,
+EventId TaskGraph::insert_multilevel_reduction(
     BufferId final_buffer_id,
     MemoryId final_memory_id,
-    DataType dtype,
-    size_t num_elements,
+    Reduction reduction,
     std::vector<ReductionInput> inputs
 ) {
-    auto layout = BufferLayout {
-        .size_in_bytes = dtype.size_in_bytes() * num_elements,
-        .alignment = dtype.alignment(),
-        .fill_pattern = reduction_identity_value(dtype, op)};
+    auto dtype = reduction.data_type;
+    auto op = reduction.operation;
+    auto num_elements = reduction.num_outputs;
 
-    std::vector<ReductionInput> output_per_device;
+    if (std::all_of(inputs.begin(), inputs.end(), [&](const auto& a) {
+            return a.memory_id == final_memory_id;
+        })) {
+        return insert_local_reduction(
+            final_memory_id,
+            final_buffer_id,
+            reduction,
+            inputs.data(),
+            inputs.size()
+        );
+    }
 
-    for (const auto& input : inputs) {
-        MemoryId local_id = input.memory_id;
-        ReductionInput* output = nullptr;
+    std::stable_sort(inputs.begin(), inputs.end(), [&](const auto& a, const auto& b) {
+        return a.memory_id < b.memory_id;
+    });
 
-        for (size_t i = 0; i < output_per_device.size(); i++) {
-            if (output_per_device[i].memory_id == local_id) {
-                output = &output_per_device[i];
-            }
+    auto temporary_layout = BufferLayout::for_type(dtype).repeat(num_elements);
+    auto temporary_buffers = std::vector<BufferId> {};
+    std::vector<ReductionInput> result_per_device;
+    size_t cursor = 0;
+
+    while (cursor < inputs.size()) {
+        auto memory_id = inputs[cursor].memory_id;
+        size_t begin = cursor;
+
+        while (cursor < inputs.size() && memory_id == inputs[cursor].memory_id) {
+            cursor++;
         }
 
-        if (output == nullptr) {
-            auto temp_buffer_id = BufferId(m_next_buffer_id);
-            m_next_buffer_id++;
+        size_t length = cursor - begin;
 
-            auto temp_creation_id =
-                insert_event(CommandBufferCreate {.id = temp_buffer_id, .layout = layout});
-
-            output_per_device.push_back(ReductionInput {
-                .buffer_id = temp_buffer_id,
-                .memory_id = local_id,
-                .dependencies = {temp_creation_id},
-                .num_inputs_per_output = 1});
-
-            output = &output_per_device.back();
+        // Special case: if there is only one buffer having one input, then we do not need to
+        // create a local scratch buffer.
+        if (length == 1 && inputs[begin].num_inputs_per_output == 1) {
+            result_per_device.push_back(inputs[begin]);
+            continue;
         }
 
+        auto local_buffer_id = create_buffer(temporary_layout);
+        auto event_id =
+            insert_local_reduction(memory_id, local_buffer_id, reduction, &inputs[begin], length);
+
+        temporary_buffers.push_back(local_buffer_id);
+        result_per_device.push_back(ReductionInput {
+            .buffer_id = local_buffer_id,
+            .memory_id = memory_id,
+            .dependencies = {event_id}});
+    }
+
+    auto event_id = insert_local_reduction(
+        final_memory_id,
+        final_buffer_id,
+        reduction,
+        result_per_device.data(),
+        result_per_device.size()
+    );
+
+    for (auto& buffer_id : temporary_buffers) {
+        delete_buffer(buffer_id);
+    }
+}
+
+EventId TaskGraph::insert_local_reduction(
+    MemoryId memory_id,
+    BufferId buffer_id,
+    Reduction reduction,
+    const ReductionInput* inputs,
+    size_t num_inputs
+) {
+    auto dtype = reduction.data_type;
+    auto op = reduction.operation;
+    auto num_elements = reduction.num_outputs;
+
+    if (num_inputs == 1) {
+        const auto& input = inputs[0];
         auto deps = input.dependencies;
-        deps.push_back(output->dependencies[0]);
 
-        auto event_id = insert_event(
-            CommandReduction {
-                .src_buffer = input.buffer_id,
-                .dst_buffer = output->buffer_id,
-                .memory_id = local_id,
-                .reduction =
-                    Reduction {
-                        .operation = op,
-                        .data_type = dtype,
-                        .num_outputs = num_elements,
-                        .num_inputs_per_output = input.num_inputs_per_output,
-                    }},
+        pre_access_buffer(input.buffer_id, AccessMode::Read, deps);
+        pre_access_buffer(buffer_id, AccessMode::ReadWrite, deps);
+
+        EventId event_id = insert_reduction_event(
+            input.buffer_id,
+            input.memory_id,
+            buffer_id,
+            memory_id,
+            ReductionDef {
+                .operation = op,
+                .data_type = dtype,
+                .num_outputs = num_elements,
+                .num_inputs_per_output = input.num_inputs_per_output},
             std::move(deps)
         );
 
-        output->dependencies.push_back(event_id);
+        post_access_buffer(input.buffer_id, AccessMode::Read, event_id);
+        post_access_buffer(buffer_id, AccessMode::ReadWrite, event_id);
 
-        m_buffer_accesses.push_back(BufferAccess {
-            .buffer_id = input.buffer_id,
-            .access_mode = AccessMode::Read,
-            .event_id = event_id});
+        return event_id;
     }
 
-    auto final_reductions = EventList {};
+    auto scratch_layout = BufferLayout::for_type(dtype).repeat(num_elements).repeat(num_inputs);
+    auto [scratch_id, scratch_creation] = create_internal_buffer(scratch_layout);
+    auto scratch_deps = EventList {};
 
-    for (size_t j = 0; j < output_per_device.size(); j++) {
-        auto& partial_output = output_per_device[j];
-        auto deps = partial_output.dependencies;
-        access_buffer(final_buffer_id, AccessMode::Exclusive, deps);
+    for (size_t i = 0; i < num_inputs; i++) {
+        const auto& input = inputs[i];
+        auto deps = input.dependencies;
 
-        auto event_id = insert_event(
-            CommandReduction {
-                .src_buffer = partial_output.buffer_id,
-                .dst_buffer = final_buffer_id,
-                .memory_id = final_memory_id,
-                .reduction =
-                    Reduction {
-                        .operation = op,
-                        .data_type = dtype,
-                        .num_outputs = num_elements,
-                        .num_inputs_per_output = 1}},
+        pre_access_buffer(input.buffer_id, AccessMode::Read, deps);
+        deps.push_back(scratch_creation);
+
+        EventId event_id = insert_reduction_event(
+            input.buffer_id,
+            input.memory_id,
+            scratch_id,
+            memory_id,
+            ReductionDef {
+                .operation = op,
+                .data_type = dtype,
+                .num_outputs = num_elements,
+                .num_inputs_per_output = input.num_inputs_per_output,
+                .src_offset_elements = 0,
+                .dst_offset_elements = i * num_elements},
             std::move(deps)
         );
 
-        m_buffer_accesses.push_back(BufferAccess {
-            .buffer_id = final_buffer_id,
-            .access_mode = AccessMode::Exclusive,
-            .event_id = event_id});
-
-        insert_event(CommandBufferDelete {.id = partial_output.buffer_id}, {event_id});
-
-        final_reductions.push_back(event_id);
+        post_access_buffer(input.buffer_id, AccessMode::Read, event_id);
+        scratch_deps.push_back(event_id);
     }
 
-    return join_events(std::move(final_reductions));
+    pre_access_buffer(buffer_id, AccessMode::ReadWrite, scratch_deps);
+
+    auto event_id = insert_reduction_event(
+        scratch_id,
+        memory_id,
+        buffer_id,
+        memory_id,
+        ReductionDef {
+            .operation = op,
+            .data_type = dtype,
+            .num_outputs = num_elements,
+            .num_inputs_per_output = num_inputs,
+        },
+        std::move(scratch_deps)
+    );
+
+    post_access_buffer(buffer_id, AccessMode::ReadWrite, event_id);
+    delete_internal_buffer(scratch_id, {event_id});
+
+    return event_id;
+}
+
+EventId TaskGraph::insert_reduction_event(
+    BufferId src_buffer,
+    MemoryId src_memory_id,
+    BufferId dst_buffer,
+    MemoryId dst_memory_id,
+    ReductionDef reduction,
+    EventList deps
+) {
+    if (reduction.num_inputs_per_output == 1) {
+        auto dtype = reduction.data_type;
+        auto src_offset = reduction.src_offset_elements;
+        auto dst_offset = reduction.dst_offset_elements;
+        size_t num_elements = reduction.num_outputs;
+
+        auto copy = CopyDef(dtype.size_in_bytes());
+        copy.add_dimension(num_elements, 0, 0, 1, 1);
+        copy.add_dimension(1, src_offset, dst_offset, num_elements, num_elements);
+
+        return insert_event(
+            CommandCopy {
+                .src_buffer = src_buffer,
+                .src_memory = src_memory_id,
+                .dst_buffer = dst_buffer,
+                .dst_memory = dst_memory_id,
+                .definition = copy},
+            std::move(deps)
+        );
+    } else {
+        return insert_event(
+            CommandReduction {
+                .src_buffer = src_buffer,
+                .dst_buffer = dst_buffer,
+                .memory_id = dst_memory_id,
+                .definition = reduction},
+            std::move(deps)
+        );
+    }
 }
 
 EventId TaskGraph::insert_barrier() {
@@ -231,36 +348,7 @@ EventId TaskGraph::shutdown() {
     return join_events(deps);
 }
 
-void TaskGraph::commit() {
-    std::stable_sort(
-        m_buffer_accesses.begin(),
-        m_buffer_accesses.end(),
-        [](const auto& a, const auto& b) { return a.buffer_id < b.buffer_id; }
-    );
-
-    auto current = m_buffer_accesses.begin();
-
-    while (current != m_buffer_accesses.end()) {
-        EventList write_events;
-        auto buffer_id = current->buffer_id;
-        auto& meta = m_buffers.at(buffer_id);
-
-        do {
-            if (current->access_mode != AccessMode::Read) {
-                write_events.push_back(current->event_id);
-            }
-
-            meta.accesses.push_back(current->event_id);
-            current++;
-        } while (current != m_buffer_accesses.end() && current->buffer_id == buffer_id);
-
-        if (!write_events.is_empty()) {
-            meta.last_writes = std::move(write_events);
-        }
-    }
-
-    m_buffer_accesses.clear();
-}
+void TaskGraph::commit() {}
 
 std::vector<Event> TaskGraph::flush() {
     return std::move(m_events);
@@ -285,13 +373,25 @@ EventId TaskGraph::insert_event(Command command, EventList deps) {
     return event_id;
 }
 
-void TaskGraph::access_buffer(BufferId buffer_id, AccessMode mode, EventList& deps_out) {
+void TaskGraph::pre_access_buffer(BufferId buffer_id, AccessMode mode, EventList& deps_out) {
     auto& meta = m_buffers.at(buffer_id);
     deps_out.push_back(meta.creation);
-    deps_out.insert_all(meta.last_writes);
+
+    if (mode == AccessMode::Read) {
+        deps_out.insert_all(meta.last_writes);
+    } else {
+        deps_out.insert_all(meta.accesses);
+    }
+}
+
+void TaskGraph::post_access_buffer(BufferId buffer_id, AccessMode mode, EventId new_event_id) {
+    auto& meta = m_buffers.at(buffer_id);
 
     if (mode != AccessMode::Read) {
-        deps_out.insert_all(meta.accesses);
+        meta.last_writes = {new_event_id};
+        meta.accesses = {new_event_id};
+    } else {
+        meta.accesses.push_back(new_event_id);
     }
 }
 

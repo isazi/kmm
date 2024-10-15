@@ -13,7 +13,7 @@ void execute_cuda_reduction_async(
     CUstream stream,
     CUdeviceptr src_buffer,
     CUdeviceptr dst_buffer,
-    Reduction reduction
+    ReductionDef reduction
 );
 
 }  // namespace kmm

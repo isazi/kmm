@@ -77,13 +77,14 @@ std::shared_ptr<ArrayBackend<N>> ArrayReductionBuilder<N>::build(
         auto& inputs = p.second;
 
         MemoryId memory_id = inputs[0].memory_id;
-        auto num_elements = access_region.size();
+        auto num_elements = checked_cast<size_t>(access_region.size());
 
         auto buffer_id = graph.create_buffer(make_layout(num_elements, m_dtype, m_reduction));
 
-        auto event_id =
-            graph
-                .insert_reduction(m_reduction, buffer_id, memory_id, m_dtype, num_elements, inputs);
+        auto reduction =
+            Reduction {.operation = m_reduction, .data_type = m_dtype, .num_outputs = num_elements};
+
+        auto event_id = graph.insert_multilevel_reduction(buffer_id, memory_id, reduction, inputs);
 
         chunks.push_back(ArrayChunk<N> {
             .buffer_id = buffer_id,

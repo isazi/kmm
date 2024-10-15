@@ -73,7 +73,7 @@ KMM_NOINLINE void execute_reduction_impl(
 }
 
 // NOLINTNEXTLINE
-void execute_reduction(const void* src_buffer, void* dst_buffer, Reduction reduction) {
+void execute_reduction(const void* src_buffer, void* dst_buffer, ReductionDef reduction) {
     // NOLINTNEXTLINE
 #define KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, OP)                                  \
     if constexpr (ReductionFunctorSupported<T, ReductionOp::OP>()) {               \

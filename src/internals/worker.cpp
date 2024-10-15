@@ -176,7 +176,7 @@ void Worker::execute_command(std::shared_ptr<TaskNode> node) {
             e->src_memory,
             e->dst_buffer,
             e->dst_memory,
-            e->spec
+            e->definition
         );
 
     } else if (const auto* e = std::get_if<CommandExecute>(&command)) {

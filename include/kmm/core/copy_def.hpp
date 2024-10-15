@@ -1,12 +1,14 @@
 #pragma once
 
+#include "geometry.hpp"
+
 namespace kmm {
 
-class CopyDescription {
+class CopyDef {
   public:
     static constexpr size_t MAX_DIMS = 3;
 
-    CopyDescription(size_t element_size = 0) : element_size(element_size) {}
+    CopyDef(size_t element_size = 0) : element_size(element_size) {}
 
     void add_dimension(
         size_t count,

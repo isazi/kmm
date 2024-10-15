@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "data_type.hpp"
 #include "identifiers.hpp"
 
 namespace kmm {
@@ -22,8 +23,12 @@ struct BufferLayout {
     }
 
     template<typename T>
-    static BufferLayout for_type(size_t n = 1) {
-        return BufferLayout {sizeof(T), alignof(T)}.repeat(n);
+    static BufferLayout for_type() {
+        return BufferLayout {sizeof(T), alignof(T)};
+    }
+
+    static BufferLayout for_type(DataType dtype) {
+        return BufferLayout {dtype.size_in_bytes(), dtype.alignment()};
     }
 };
 

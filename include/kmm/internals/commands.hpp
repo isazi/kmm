@@ -5,7 +5,7 @@
 #include "fmt/ostream.h"
 
 #include "kmm/core/buffer.hpp"
-#include "kmm/core/copy_description.hpp"
+#include "kmm/core/copy_def.hpp"
 #include "kmm/core/identifiers.hpp"
 #include "kmm/core/reduction.hpp"
 #include "kmm/core/task.hpp"
@@ -31,7 +31,7 @@ struct CommandCopy {
     MemoryId src_memory;
     BufferId dst_buffer;
     MemoryId dst_memory;
-    CopyDescription spec;
+    CopyDef definition;
 };
 
 struct CommandExecute {
@@ -44,7 +44,7 @@ struct CommandReduction {
     BufferId src_buffer;
     BufferId dst_buffer;
     MemoryId memory_id;
-    Reduction reduction;
+    ReductionDef definition;
 };
 
 struct CommandEmpty {};

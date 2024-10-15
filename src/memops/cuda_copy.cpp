@@ -20,7 +20,7 @@ void execute_cuda_h2d_copy_impl(
     std::optional<CUstream> stream,
     const void* src_buffer,
     CUdeviceptr dst_buffer,
-    CopyDescription copy_description
+    CopyDef copy_description
 ) {
     copy_description.simplify();
     size_t dim = copy_description.effective_dimensionality();
@@ -70,7 +70,7 @@ void execute_cuda_d2h_copy_impl(
     std::optional<CUstream> stream,
     CUdeviceptr src_buffer,
     void* dst_buffer,
-    CopyDescription copy_description
+    CopyDef copy_description
 ) {
     copy_description.simplify();
     size_t dim = copy_description.effective_dimensionality();
@@ -120,7 +120,7 @@ void execute_cuda_d2d_copy_impl(
     std::optional<CUstream> stream,
     CUdeviceptr src_buffer,
     CUdeviceptr dst_buffer,
-    CopyDescription copy_description
+    CopyDef copy_description
 ) {
     copy_description.simplify();
     size_t dim = copy_description.effective_dimensionality();
@@ -169,7 +169,7 @@ void execute_cuda_d2d_copy_impl(
 void execute_cuda_h2d_copy(
     const void* src_buffer,
     CUdeviceptr dst_buffer,
-    CopyDescription copy_description
+    CopyDef copy_description
 ) {
     execute_cuda_h2d_copy_impl(std::nullopt, src_buffer, dst_buffer, copy_description);
 }
@@ -178,16 +178,12 @@ void execute_cuda_h2d_copy_async(
     CUstream stream,
     const void* src_buffer,
     CUdeviceptr dst_buffer,
-    CopyDescription copy_description
+    CopyDef copy_description
 ) {
     execute_cuda_h2d_copy_impl(stream, src_buffer, dst_buffer, copy_description);
 }
 
-void execute_cuda_d2h_copy(
-    CUdeviceptr src_buffer,
-    void* dst_buffer,
-    CopyDescription copy_description
-) {
+void execute_cuda_d2h_copy(CUdeviceptr src_buffer, void* dst_buffer, CopyDef copy_description) {
     execute_cuda_d2h_copy_impl(std::nullopt, src_buffer, dst_buffer, copy_description);
 }
 
@@ -195,7 +191,7 @@ void execute_cuda_d2h_copy_async(
     CUstream stream,
     CUdeviceptr src_buffer,
     void* dst_buffer,
-    CopyDescription copy_description
+    CopyDef copy_description
 ) {
     execute_cuda_d2h_copy_impl(stream, src_buffer, dst_buffer, copy_description);
 }
@@ -203,7 +199,7 @@ void execute_cuda_d2h_copy_async(
 void execute_cuda_d2d_copy(
     CUdeviceptr src_buffer,
     CUdeviceptr dst_buffer,
-    CopyDescription copy_description
+    CopyDef copy_description
 ) {
     execute_cuda_d2d_copy_impl(std::nullopt, src_buffer, dst_buffer, copy_description);
 }
@@ -212,7 +208,7 @@ void execute_cuda_d2d_copy_async(
     CUstream stream,
     CUdeviceptr src_buffer,
     CUdeviceptr dst_buffer,
-    CopyDescription copy_description
+    CopyDef copy_description
 ) {
     execute_cuda_d2d_copy_impl(stream, src_buffer, dst_buffer, copy_description);
 }

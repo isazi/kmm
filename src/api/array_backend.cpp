@@ -173,7 +173,7 @@ void ArrayBackend<N>::synchronize() const {
         auto deps = EventList {};
 
         for (const auto& buffer_id : m_buffers) {
-            graph.access_buffer(buffer_id, AccessMode::ReadWrite, deps);
+            deps.insert_all(graph.extract_buffer_dependencies(buffer_id));
         }
 
         return graph.join_events(deps);
@@ -203,7 +203,7 @@ class CopyOutTask: public Task {
         size_t src_stride = 1;
         size_t dst_stride = 1;
 
-        CopyDescription copy(m_element_size);
+        CopyDef copy(m_element_size);
 
         for (size_t j = 0; j < N; j++) {
             size_t i = N - j - 1;
