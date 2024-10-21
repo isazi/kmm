@@ -8,7 +8,7 @@ void initialize_image(
     int height,
     kmm::subview_mut<uint8_t, 2> image
 ) {
-    std::default_random_engine rand {seed};
+    std::mt19937 rand {seed};
     std::uniform_int_distribution<uint8_t> dist {};
 
     for (int i = 0; i < height; i++) {
@@ -48,11 +48,12 @@ __global__ void calculate_histogram(
 
 int main() {
     using namespace kmm::placeholders;
+    spdlog::set_level(spdlog::level::trace);
 
     auto rt = kmm::make_runtime();
     int width = 1080;
     int height = 1920;
-    int num_images = 10'000;
+    int num_images = 2500;
     int images_per_chunk = 500;
     dim3 block_size = 256;
 
@@ -68,7 +69,7 @@ int main() {
         write(images, slice(_x, _, _))
     );
 
-    images.synchronize();
+    rt.synchronize();
 
     rt.parallel_submit(
         {width, height, num_images},

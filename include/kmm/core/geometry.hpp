@@ -28,11 +28,11 @@ class Point: public fixed_array<T, N> {
     }
 
     template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) < N)>::type>
-    KMM_HOST_DEVICE Point(T first, Ts&&... args) {
+    KMM_HOST_DEVICE Point(T first, Ts&&... args) : Point() {
         (*this)[0] = first;
 
         size_t index = 0;
-        (((*this)[index++] = args), ...);
+        (((*this)[++index] = args), ...);
     }
 
     template<size_t M, typename U>
@@ -104,16 +104,16 @@ class Dim: public fixed_array<T, N> {
     KMM_HOST_DEVICE
     constexpr Dim() {
         for (size_t i = 0; i < N; i++) {
-            (*this)[i] = T {1};
+            (*this)[i] = static_cast<T>(1);
         }
     }
 
     template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) < N)>::type>
-    KMM_HOST_DEVICE Dim(T first, Ts&&... args) {
+    KMM_HOST_DEVICE Dim(T first, Ts&&... args) : Dim() {
         (*this)[0] = first;
 
         size_t index = 0;
-        (((*this)[index++] = args), ...);
+        (((*this)[++index] = args), ...);
     }
 
     KMM_HOST_DEVICE

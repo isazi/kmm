@@ -8,7 +8,6 @@ namespace kmm {
 
 BufferId TaskGraph::create_buffer(BufferLayout layout) {
     auto [buffer_id, event_id] = insert_create_buffer_event(std::move(layout));
-
     m_tentative_buffers.emplace(buffer_id, BufferMeta(event_id));
 
     return buffer_id;
@@ -16,14 +15,12 @@ BufferId TaskGraph::create_buffer(BufferLayout layout) {
 
 EventId TaskGraph::delete_buffer(BufferId id, EventList deps) {
     // Find the buffer
-    auto it = m_tentative_buffers.find(id);
-    KMM_ASSERT(it != m_tentative_buffers.end());
+    auto& meta = find_buffer(id);
 
     // Erase the buffer
     m_tentative_deletions.push_back(id);
 
     // Get the list of accesses + user-provided dependencies
-    auto& meta = it->second;
     deps.push_back(meta.creation);
     deps.insert_all(meta.accesses);
 
@@ -293,8 +290,7 @@ EventId TaskGraph::insert_reduction_event(
         size_t num_elements = reduction.num_outputs;
 
         auto copy = CopyDef(dtype.size_in_bytes());
-        copy.add_dimension(num_elements, 0, 0, 1, 1);
-        copy.add_dimension(1, src_offset, dst_offset, num_elements, num_elements);
+        copy.add_dimension(num_elements, src_offset, dst_offset, 1, 1);
 
         return insert_event(
             CommandCopy {

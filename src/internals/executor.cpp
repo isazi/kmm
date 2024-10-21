@@ -104,9 +104,13 @@ class DeviceOperation: public Executor::Operation {
             }
 
             auto& state = executor.device_state(m_device_id, m_dependencies);
-
             executor.stream_manager().wait_for_events(state.stream, m_dependencies);
-            submit(state.device, executor.access_requests(m_requests));
+
+            {
+                CudaContextGuard guard {state.context};
+                submit(state.device, executor.access_requests(m_requests));
+            }
+
             auto event = executor.stream_manager().record_event(state.stream);
 
             m_event = event;
@@ -185,6 +189,10 @@ class CopyHostOperation: public HostOperation {
         m_copy(definition) {}
 
     std::future<void> submit(Executor& executor, std::vector<BufferAccessor> accessors) override {
+        KMM_ASSERT(accessors[0].layout.size_in_bytes >= m_copy.minimum_source_bytes_needed());
+        KMM_ASSERT(accessors[1].layout.size_in_bytes >= m_copy.minimum_destination_bytes_needed());
+        KMM_ASSERT(accessors[1].is_writable);
+
         return std::async(std::launch::async, [=] {
             execute_copy(accessors[0].address, accessors[1].address, m_copy);
         });
@@ -262,6 +270,10 @@ class CopyDeviceOperation: public DeviceOperation {
         m_copy(definition) {}
 
     void submit(CudaDevice& device, std::vector<BufferAccessor> accessors) {
+        KMM_ASSERT(accessors[0].layout.size_in_bytes >= m_copy.minimum_source_bytes_needed());
+        KMM_ASSERT(accessors[1].layout.size_in_bytes >= m_copy.minimum_destination_bytes_needed());
+        KMM_ASSERT(accessors[1].is_writable);
+
         execute_cuda_d2d_copy_async(
             device,
             reinterpret_cast<CUdeviceptr>(accessors[0].address),
@@ -314,12 +326,18 @@ Executor::Executor(
     m_buffer_manager(std::make_shared<BufferManager>()),
     m_memory_manager(memory_manager),
     m_stream_manager(stream_manager),
-    m_scheduler(std::make_shared<Scheduler>(contexts.size())) {}
+    m_scheduler(std::make_shared<Scheduler>(contexts.size())) {
+    for (size_t i = 0; i < contexts.size(); i++) {
+        m_devices.emplace_back(
+            std::make_unique<DeviceState>(DeviceId(i), contexts[i], *stream_manager)
+        );
+    }
+}
 
 Executor::~Executor() {}
 
 bool Executor::is_idle() const {
-    return m_scheduler->is_idle() && m_operation_head != nullptr;
+    return m_scheduler->is_idle() && m_operation_head == nullptr;
 }
 
 bool Executor::is_completed(EventId event_id) const {
@@ -395,7 +413,8 @@ void Executor::submit_command(EventId id, Command command, EventList deps) {
 }
 
 DeviceState& Executor::device_state(DeviceId id, const DeviceEventSet& hint_deps) {
-    return m_devices.at(id);
+    KMM_ASSERT(id < m_devices.size());
+    return *m_devices.at(id);
 }
 
 void Executor::insert_operation(std::unique_ptr<Operation> op) {
@@ -478,7 +497,7 @@ void Executor::execute_command(
     auto src_mem = command.src_memory;
     auto dst_mem = command.dst_memory;
 
-    if (src_mem.is_host() && dst_mem == src_mem) {
+    if (src_mem.is_host() && dst_mem.is_host()) {
         insert_operation(std::make_unique<CopyHostOperation>(
             id,
             command.src_buffer,
@@ -486,17 +505,17 @@ void Executor::execute_command(
             command.definition,
             std::move(dependencies)
         ));
-    } else if (src_mem.is_device() && dst_mem == src_mem) {
+    } else if (dst_mem.is_device()) {
         insert_operation(std::make_unique<CopyDeviceOperation>(
             id,
-            src_mem.as_device(),
+            dst_mem.as_device(),
             command.src_buffer,
             command.dst_buffer,
             command.definition,
             std::move(dependencies)
         ));
-    } else {
-        KMM_PANIC("invalid source and memory destination");
+    } else if (src_mem.is_device()) {
+        KMM_TODO();
     }
 }
 

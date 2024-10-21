@@ -123,9 +123,11 @@ void PoolAllocator::deallocate(void* addr, size_t nbytes, DeviceEventSet deps) {
     auto* prev = region->prev;
 
     if (prev != nullptr && !prev->in_use) {
+        KMM_TODO();
     }
 
     if (next != nullptr && !next->in_use) {
+        KMM_TODO();
     }
 }
 

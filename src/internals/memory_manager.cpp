@@ -168,6 +168,10 @@ void MemoryManager::delete_buffer(std::shared_ptr<Buffer> buffer) {
     }
 
     KMM_ASSERT(buffer->num_requests_active == 0);
+    KMM_ASSERT(buffer->access_head == nullptr);
+    KMM_ASSERT(buffer->access_current == nullptr);
+    KMM_ASSERT(buffer->access_tail == nullptr);
+
     buffer->is_deleted = true;
     m_buffers.erase(buffer);
 
@@ -510,9 +514,6 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
     );
 
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
-    KMM_ASSERT(buffer.access_head == nullptr);
-    KMM_ASSERT(buffer.access_current == nullptr);
-    KMM_ASSERT(buffer.access_tail == nullptr);
 
     m_memory->deallocate_device(
         device_id,
@@ -816,36 +817,42 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceE
 
     KMM_ASSERT(entry.is_allocated);
 
-    if (!entry.is_valid) {
-        if (memory_id.is_host()) {
-            if (auto src_id = find_valid_device_entry(buffer)) {
-                deps_out->insert(copy_d2h(*src_id, buffer));
-                return;
-            }
-        } else {
-            auto device_id = memory_id.as_device();
+    if (entry.is_valid) {
+        deps_out->insert(entry.epoch_event);
+        return;
+    }
 
-            if (buffer.host_entry.is_valid) {
-                deps_out->insert(copy_h2d(device_id, buffer));
-                return;
+    if (memory_id.is_host()) {
+        if (auto src_id = find_valid_device_entry(buffer)) {
+            deps_out->insert(copy_d2h(*src_id, buffer));
+            return;
+        }
+    } else {
+        auto device_id = memory_id.as_device();
+
+        if (buffer.host_entry.is_valid) {
+            deps_out->insert(copy_h2d(device_id, buffer));
+            return;
+        }
+
+        if (auto src_id = find_valid_device_entry(buffer)) {
+            if (!buffer.host_entry.is_allocated) {
+                allocate_host(buffer);
             }
 
-            if (auto src_id = find_valid_device_entry(buffer)) {
-                if (!buffer.host_entry.is_allocated) {
-                    allocate_host(buffer);
-                }
-
-                deps_out->insert(copy_h2d(device_id, buffer));
-                return;
-            }
+            deps_out->insert(copy_d2h(*src_id, buffer));
+            deps_out->insert(copy_h2d(device_id, buffer));
+            return;
         }
     }
 
     if (!buffer.layout.fill_pattern.empty()) {
         auto event = fill_buffer(memory_id, buffer, buffer.layout.fill_pattern);
         deps_out->insert(event);
+        return;
     }
 
+    entry.is_valid = true;
     deps_out->insert(entry.epoch_event);
 }
 

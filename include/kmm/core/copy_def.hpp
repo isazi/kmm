@@ -28,9 +28,9 @@ class CopyDef {
     size_t element_size = 0;
     size_t src_offset = 0;
     size_t dst_offset = 0;
-    size_t counts[MAX_DIMS] = {1};
-    size_t src_strides[MAX_DIMS] = {0};
-    size_t dst_strides[MAX_DIMS] = {0};
+    size_t counts[MAX_DIMS] = {1, 1, 1};
+    size_t src_strides[MAX_DIMS] = {0, 0, 0};
+    size_t dst_strides[MAX_DIMS] = {0, 0, 0};
 };
 
 }  // namespace kmm

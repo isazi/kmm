@@ -133,10 +133,11 @@ bool CudaStreamManager::is_idle() const {
             return false;
         }
 
+        CudaContextGuard guard {stream.context};
         KMM_CUDA_CHECK(cuStreamSynchronize(stream.cuda_stream));
+        KMM_CUDA_CHECK(cuStreamSynchronize(nullptr));
     }
 
-    KMM_CUDA_CHECK(cuStreamSynchronize(nullptr));
     return true;
 }
 
@@ -174,15 +175,17 @@ void CudaStreamManager::attach_callback(CudaStream stream, NotifyHandle callback
 
 DeviceEvent CudaStreamManager::record_event(CudaStream stream_id) {
     auto& stream = m_streams.at(stream_id);
-    CUevent event = m_event_pools[stream.pool_index].pop();
 
     uint64_t event_index = stream.first_pending_index + stream.pending_events.size();
-    stream.pending_events.push_back(event);
+    auto event = DeviceEvent {stream_id, event_index};
 
-    KMM_CUDA_CHECK(cuEventRecord(event, stream.cuda_stream));
+    CUevent cuda_event = m_event_pools[stream.pool_index].pop();
+    stream.pending_events.push_back(cuda_event);
 
-    spdlog::trace("CUDA stream {} records new CUDA event {}", stream_id, event_index);
-    return DeviceEvent {stream_id, event_index};
+    KMM_CUDA_CHECK(cuEventRecord(cuda_event, stream.cuda_stream));
+
+    spdlog::trace("CUDA stream {} records new CUDA event {}", stream_id, event);
+    return event;
 }
 
 void CudaStreamManager::wait_on_default_stream(CudaStream stream_id) {

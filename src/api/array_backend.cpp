@@ -47,12 +47,11 @@ ArrayBackend<N>::ArrayBackend(
         throw std::runtime_error("chunk size cannot be empty");
     }
 
-    size_t num_total_chunks = 1;
-
     for (size_t i = 0; i < N; i++) {
         m_num_chunks[i] = checked_cast<size_t>(div_ceil(array_size[i], m_chunk_size[i]));
-        num_total_chunks *= m_num_chunks[i];
     }
+
+    size_t num_total_chunks = checked_product(m_num_chunks.begin(), m_num_chunks.end());
 
     static constexpr size_t INVALID_INDEX = static_cast<size_t>(-1);
     std::vector<size_t> buffer_locs(num_total_chunks, INVALID_INDEX);
@@ -184,7 +183,7 @@ void ArrayBackend<N>::synchronize() const {
     // Access each buffer once to check for errors.
     for (size_t i = 0; i < m_buffers.size(); i++) {
         auto memory_id = this->chunk(i).owner_id;
-        KMM_TODO();
+        //        KMM_TODO();
         //        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
     }
 }

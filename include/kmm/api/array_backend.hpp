@@ -53,8 +53,8 @@ class ArrayBackend: public std::enable_shared_from_this<ArrayBackend<N>> {
   private:
     std::shared_ptr<Worker> m_worker;
     std::vector<BufferId> m_buffers;
-    Dim<N> m_array_size;
-    Dim<N> m_chunk_size;
+    Dim<N> m_array_size = Dim<N>::zero();
+    Dim<N> m_chunk_size = Dim<N>::zero();
     std::array<size_t, N> m_num_chunks;
 };
 

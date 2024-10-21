@@ -47,7 +47,7 @@ bool Worker::query_event(EventId event_id, std::chrono::system_clock::time_point
 bool Worker::is_idle() {
     std::lock_guard guard {m_mutex};
     flush_events_impl();
-    is_idle_impl();
+    return is_idle_impl();
 }
 
 void Worker::make_progress() {
@@ -134,7 +134,7 @@ std::shared_ptr<Worker> make_worker() {
     auto devices = get_cuda_devices();
 
     if (!devices.empty()) {
-        for (size_t i = 0; i < contexts.size(); i++) {
+        for (size_t i = 0; i < devices.size(); i++) {
             auto context = CudaContextHandle::retain_primary_context_for_device(devices[i]);
             device_mems.push_back(std::make_unique<DevicePoolAllocator>(context, stream_manager));
             contexts.push_back(context);

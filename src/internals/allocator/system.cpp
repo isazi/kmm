@@ -7,7 +7,7 @@ bool SystemAllocator::allocate_impl(size_t nbytes, void*& addr_out) {
     return addr_out != nullptr;
 }
 
-void SystemAllocator::deallocate_impl(void* addr_out, size_t nbytes) {
-    free(addr_out);
+void SystemAllocator::deallocate_impl(void* addr, size_t nbytes) {
+    free(addr);
 }
 }

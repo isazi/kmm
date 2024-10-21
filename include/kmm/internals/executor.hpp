@@ -13,9 +13,15 @@
 namespace kmm {
 
 struct DeviceState {
+    CudaContextHandle context;
     CudaStream stream;
     DeviceEvent last_event;
     CudaDevice device;
+
+    DeviceState(DeviceId id, CudaContextHandle context, CudaStreamManager& stream_manager) :
+        context(context),
+        stream(stream_manager.create_stream(context)),
+        device(CudaDeviceInfo(id, context), context, stream_manager.get(stream)) {}
 };
 
 class Executor {
@@ -76,7 +82,7 @@ class Executor {
     std::shared_ptr<MemoryManager> m_memory_manager;
     std::shared_ptr<CudaStreamManager> m_stream_manager;
     std::shared_ptr<Scheduler> m_scheduler;
-    std::vector<DeviceState> m_devices;
+    std::vector<std::unique_ptr<DeviceState>> m_devices;
 };
 
 }  // namespace kmm

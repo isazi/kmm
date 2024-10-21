@@ -109,7 +109,7 @@ Rect<1> IndexMap::apply(TaskChunk chunk) const {
 
     int64_t bn;
 
-    if (b0 < b1 && m_length > 0) {
+    if (b0 <= b1 && m_length > 0) {
         bn = (b1 - b0) + m_length;
     } else {
         bn = 0;

@@ -42,7 +42,7 @@ Scheduler::Scheduler(size_t num_devices) {
     m_queues.resize(NUM_DEFAULT_QUEUES + num_devices);
 
     for (size_t i = 0; i < num_devices; i++) {
-        m_queues[QUEUE_DEVICES + i].max_concurrent_jobs = 1;
+        m_queues[QUEUE_DEVICES + i].max_concurrent_jobs = 5;
     }
 }
 

@@ -11,7 +11,11 @@ size_t CopyDef::minimum_source_bytes_needed() const {
     size_t result = src_offset;
 
     for (size_t i = 0; i < MAX_DIMS; i++) {
-        result += checked_mul(counts[i], src_strides[i]);
+        if (counts[i] < 1) {
+            return 0;
+        }
+
+        result += checked_mul(counts[i] - 1, src_strides[i]);
     }
 
     return result + element_size;
@@ -21,7 +25,11 @@ size_t CopyDef::minimum_destination_bytes_needed() const {
     size_t result = dst_offset;
 
     for (size_t i = 0; i < MAX_DIMS; i++) {
-        result += checked_mul(counts[i], dst_strides[i]);
+        if (counts[i] < 1) {
+            return 0;
+        }
+
+        result += checked_mul(counts[i] - 1, dst_strides[i]);
     }
 
     return result + element_size;

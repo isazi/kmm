@@ -11,7 +11,7 @@ class SystemAllocator: public DirectMemoryAllocator {
 
   protected:
     bool allocate_impl(size_t nbytes, void*& addr_out) final;
-    void deallocate_impl(void* addr_out, size_t nbytes) final;
+    void deallocate_impl(void* addr, size_t nbytes) final;
 };
 
 }

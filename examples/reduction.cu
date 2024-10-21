@@ -53,11 +53,12 @@ __global__ void sum_cols_kernel(
 
 int main() {
     using namespace kmm::placeholders;
+    spdlog::set_level(spdlog::level::trace);
 
-    int width = 4096;
-    int height = 4096;
-    int chunk_width = 1024;
-    int chunk_height = 1024;
+    int width = 32768;
+    int height = 32768;
+    int chunk_width = width / 8;
+    int chunk_height = height / 8;
 
     auto rt = kmm::make_runtime();
     auto matrix = kmm::Array<float, 2>{{height, width}};
@@ -69,7 +70,7 @@ int main() {
         write(matrix, slice(_y, _x))
     );
 
-    matrix.synchronize();
+    rt.synchronize();
 
     auto total_sum = kmm::Scalar<float>();
     auto rows_sum = kmm::Array<float>(height);
