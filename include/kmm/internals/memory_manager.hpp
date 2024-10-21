@@ -7,6 +7,7 @@
 #include "kmm/core/buffer.hpp"
 #include "kmm/internals/cuda_stream_manager.hpp"
 #include "kmm/internals/memory_system.hpp"
+#include "kmm/utils/poll.hpp"
 
 namespace kmm {
 
@@ -38,8 +39,8 @@ class MemoryManager {
         AccessMode mode,
         std::shared_ptr<Transaction> parent
     );
-    bool poll_request(Request& req, CudaEventSet& deps_out);
-    void release_request(std::shared_ptr<Request> req, CudaEvent event = {});
+    Poll poll_request(Request& req, DeviceEventSet* deps_out);
+    void release_request(std::shared_ptr<Request> req, DeviceEvent event = {});
 
     BufferAccessor get_accessor(Request& req);
 
@@ -63,18 +64,23 @@ class MemoryManager {
     std::optional<DeviceId> find_valid_device_entry(const Buffer& buffer) const;
     bool is_access_allowed(const Buffer& buffer, MemoryId memory_id, AccessMode mode) const;
     void poll_access_queue(Buffer& buffer) const;
-    void unlock_access(MemoryId memory_id, Buffer& buffer, Request& req, CudaEvent event);
+    void unlock_access(MemoryId memory_id, Buffer& buffer, Request& req, DeviceEvent event);
 
-    void make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEventSet& deps_out);
-    bool try_lock_access(MemoryId memory_id, Buffer& buffer, Request& req, CudaEventSet& deps_out);
+    void make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceEventSet* deps_out);
+    bool try_lock_access(
+        MemoryId memory_id,
+        Buffer& buffer,
+        Request& req,
+        DeviceEventSet* deps_out
+    );
 
-    CudaEvent fill_buffer(
+    DeviceEvent fill_buffer(
         MemoryId memory_id,
         Buffer& buffer,
         const std::vector<uint8_t>& fill_pattern
     );
-    CudaEvent copy_h2d(DeviceId device_id, Buffer& buffer);
-    CudaEvent copy_d2h(DeviceId device_id, Buffer& buffer);
+    DeviceEvent copy_h2d(DeviceId device_id, Buffer& buffer);
+    DeviceEvent copy_d2h(DeviceId device_id, Buffer& buffer);
 
     void add_to_allocation_queue(DeviceId device_id, Request& req) const;
     void remove_from_allocation_queue(DeviceId device_id, Request& req) const;
@@ -94,5 +100,6 @@ class MemoryManager {
 };
 
 using MemoryRequest = std::shared_ptr<MemoryManager::Request>;
+using MemoryRequestList = std::vector<std::shared_ptr<MemoryManager::Request>>;
 
 }  // namespace kmm

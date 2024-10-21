@@ -28,7 +28,7 @@ class TaskGraph {
 
     EventId delete_buffer(BufferId id, EventList deps = {});
 
-    const EventList& extract_buffer_dependencies(BufferId id) const;
+    const EventList& extract_buffer_dependencies(BufferId id);
 
     EventId join_events(EventList deps);
 
@@ -57,10 +57,18 @@ class TaskGraph {
         std::vector<ReductionInput> inputs
     );
 
+    EventId insert_local_reduction(
+        MemoryId memory_id,
+        BufferId buffer_id,
+        Reduction reduction,
+        std::vector<ReductionInput> inputs
+    );
+
     EventId insert_barrier();
 
     EventId shutdown();
 
+    void rollback();
     void commit();
 
     std::vector<Event> flush();
@@ -68,19 +76,9 @@ class TaskGraph {
   private:
     EventId insert_event(Command command, EventList deps = {});
 
-    std::pair<BufferId, EventId> create_internal_buffer(BufferLayout layout);
-    EventId delete_internal_buffer(BufferId id, EventList deps);
+    std::pair<BufferId, EventId> insert_create_buffer_event(BufferLayout layout);
 
-    void pre_access_buffer(BufferId buffer_id, AccessMode mode, EventList& deps_out);
-    void post_access_buffer(BufferId buffer_id, AccessMode mode, EventId new_event_id);
-
-    EventId insert_local_reduction(
-        MemoryId memory_id,
-        BufferId buffer_id,
-        Reduction reduction,
-        const ReductionInput* inputs,
-        size_t num_inputs
-    );
+    EventId insert_delete_buffer_event(BufferId id, EventList deps);
 
     EventId insert_reduction_event(
         BufferId src_buffer,
@@ -91,23 +89,38 @@ class TaskGraph {
         EventList deps
     );
 
-    uint64_t m_next_event_id = 1;
-    EventList m_events_since_last_barrier;
-
     struct BufferMeta {
+        BufferMeta(EventId epoch_event) :
+            creation(epoch_event),
+            last_write(epoch_event),
+            accesses {epoch_event} {}
+
+        MemoryId owner_id = MemoryId::host();
         EventId creation;
-        EventList last_writes;
+        EventId last_write;
         EventList accesses;
     };
 
-    struct BufferAccess {
-        BufferId buffer_id;
-        AccessMode access_mode;
-        EventId event_id;
-    };
+    BufferMeta& find_buffer(BufferId id);
+    void pre_access_buffer(
+        BufferId buffer_id,
+        AccessMode mode,
+        MemoryId memory_id,
+        EventList& deps_out
+    );
+    void post_access_buffer(
+        BufferId buffer_id,
+        AccessMode mode,
+        MemoryId memory_id,
+        EventId new_event_id
+    );
 
     uint64_t m_next_buffer_id = 1;
-    std::unordered_map<BufferId, BufferMeta> m_buffers;
+    uint64_t m_next_event_id = 1;
+    EventList m_events_since_last_barrier;
+    std::unordered_map<BufferId, BufferMeta> m_persistent_buffers;
+    std::unordered_map<BufferId, BufferMeta> m_tentative_buffers;
+    std::vector<BufferId> m_tentative_deletions;
     std::vector<Event> m_events;
 };
 

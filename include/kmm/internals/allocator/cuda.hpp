@@ -39,8 +39,8 @@ class DevicePoolAllocator: public MemoryAllocator {
   public:
     DevicePoolAllocator(CudaContextHandle context, std::shared_ptr<CudaStreamManager> streams, size_t max_bytes=std::numeric_limits<size_t>::max());
     ~DevicePoolAllocator();
-    bool allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out) final;
-    void deallocate(void* addr, size_t nbytes, CudaEventSet deps) final;
+    bool allocate(size_t nbytes, void*& addr_out, DeviceEventSet& deps_out) final;
+    void deallocate(void* addr, size_t nbytes, DeviceEventSet deps) final;
 
   private:
     struct Allocation;

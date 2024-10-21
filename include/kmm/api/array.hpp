@@ -104,7 +104,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,
-        "mapper of `read` must return N-dimensional region"
+        "mapper of 'read' must return N-dimensional region"
     );
 
     ArgumentHandler(Read<Array<T, N>, A> arg) :
@@ -140,7 +140,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,
-        "mapper of `write` must return N-dimensional region"
+        "mapper of 'write' must return N-dimensional region"
     );
 
     ArgumentHandler(Write<Array<T, N>, A> arg) :
@@ -259,7 +259,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
     static constexpr size_t K = mapper_dimensionality<P>;
     static_assert(
         is_dimensionality_accepted_by_mapper<P, K>,
-        "private mapper of `reduce` must return N-dimensional region"
+        "private mapper of 'reduce' must return N-dimensional region"
     );
 
     using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::subbounds<K + N>>>;
@@ -299,12 +299,12 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,
-        "mapper of `reduce` must return N-dimensional region"
+        "mapper of 'reduce' must return N-dimensional region"
     );
 
     static_assert(
         is_dimensionality_accepted_by_mapper<P, K>,
-        "private mapper of `reduce` must return N-dimensional region"
+        "private mapper of 'reduce' must return N-dimensional region"
     );
 
     ArgumentHandler(Reduce<Array<T, N>, A, P> arg) :

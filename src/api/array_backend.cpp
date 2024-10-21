@@ -184,7 +184,8 @@ void ArrayBackend<N>::synchronize() const {
     // Access each buffer once to check for errors.
     for (size_t i = 0; i < m_buffers.size(); i++) {
         auto memory_id = this->chunk(i).owner_id;
-        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
+        KMM_TODO();
+        //        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
     }
 }
 

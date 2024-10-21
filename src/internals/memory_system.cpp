@@ -64,11 +64,11 @@ void MemorySystem::make_progress() {
     }
 }
 
-bool MemorySystem::allocate_host(size_t nbytes, void*& ptr_out, CudaEventSet& deps_out) {
+bool MemorySystem::allocate_host(size_t nbytes, void*& ptr_out, DeviceEventSet& deps_out) {
     return m_host->allocate(nbytes, ptr_out, deps_out);
 }
 
-void MemorySystem::deallocate_host(void* ptr, size_t nbytes, CudaEventSet deps) {
+void MemorySystem::deallocate_host(void* ptr, size_t nbytes, DeviceEventSet deps) {
     return m_host->deallocate(ptr, nbytes, std::move(deps));
 }
 
@@ -76,7 +76,7 @@ bool MemorySystem::allocate_device(
     DeviceId device_id,
     size_t nbytes,
     CUdeviceptr& ptr_out,
-    CudaEventSet& deps_out
+    DeviceEventSet& deps_out
 ) {
     auto& device = *m_devices.at(device_id);
     void* addr;
@@ -93,22 +93,22 @@ void MemorySystem::deallocate_device(
     DeviceId device_id,
     CUdeviceptr ptr,
     size_t nbytes,
-    CudaEventSet deps
+    DeviceEventSet deps
 ) {
     auto& device = *m_devices.at(device_id);
     return device.allocator->deallocate((void*)ptr, nbytes, std::move(deps));
 }
 
-CudaEvent MemorySystem::fill_host(
+DeviceEvent MemorySystem::fill_host(
     void* dst_addr,
     size_t nbytes,
     const std::vector<uint8_t>& fill_pattern,
-    CudaEventSet deps
+    DeviceEventSet deps
 ) {
     // FIXME: this should not be synchronously
     m_streams->wait_until_ready(deps);
     execute_fill(dst_addr, nbytes, fill_pattern.data(), fill_pattern.size());
-    return CudaEvent {};
+    return DeviceEvent {};
 }
 
 // Copies smaller than this threshold are put onto a high priority stream. This can improve
@@ -116,12 +116,12 @@ CudaEvent MemorySystem::fill_host(
 // slow copy jobs of several gigabytes.
 static constexpr size_t HIGH_PRIORITY_THRESHOLD = 1024L * 1024;
 
-CudaEvent MemorySystem::fill_device(
+DeviceEvent MemorySystem::fill_device(
     DeviceId device_id,
     CUdeviceptr dst_addr,
     size_t nbytes,
     const std::vector<uint8_t>& fill_pattern,
-    CudaEventSet deps
+    DeviceEventSet deps
 ) {
     auto& device = *m_devices.at(device_id);
 
@@ -133,12 +133,12 @@ CudaEvent MemorySystem::fill_device(
     });
 }
 
-CudaEvent MemorySystem::copy_host_to_device(
+DeviceEvent MemorySystem::copy_host_to_device(
     DeviceId device_id,
     const void* src_addr,
     CUdeviceptr dst_addr,
     size_t nbytes,
-    CudaEventSet deps
+    DeviceEventSet deps
 ) {
     auto& device = *m_devices.at(device_id);
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.h2d_hi_stream : device.h2d_stream;
@@ -148,12 +148,12 @@ CudaEvent MemorySystem::copy_host_to_device(
     });
 }
 
-CudaEvent MemorySystem::copy_device_to_host(
+DeviceEvent MemorySystem::copy_device_to_host(
     DeviceId device_id,
     CUdeviceptr src_addr,
     void* dst_addr,
     size_t nbytes,
-    CudaEventSet deps
+    DeviceEventSet deps
 ) {
     auto& device = *m_devices.at(device_id);
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.d2h_hi_stream : device.d2h_stream;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <future>
+
 #include "buffer_manager.hpp"
 #include "cuda_stream_manager.hpp"
 #include "memory_manager.hpp"
@@ -10,76 +12,71 @@
 
 namespace kmm {
 
-class Executor;
-class Operation;
+struct DeviceState {
+    CudaStream stream;
+    DeviceEvent last_event;
+    CudaDevice device;
+};
 
 class Executor {
     KMM_NOT_COPYABLE_OR_MOVABLE(Executor)
+
   public:
+    class Operation {
+        KMM_NOT_COPYABLE_OR_MOVABLE(Operation)
+
+      public:
+        Operation() = default;
+        virtual ~Operation() = default;
+        virtual Poll poll(Executor& executor) = 0;
+
+        //      private:
+        std::unique_ptr<Operation> next = nullptr;
+    };
+
     Executor(
         std::vector<CudaContextHandle> contexts,
-        std::shared_ptr<CudaStreamManager> streams,
-        std::shared_ptr<BufferManager> buffers,
-        std::shared_ptr<MemoryManager> memory,
-        std::shared_ptr<Scheduler> scheduler
+        std::shared_ptr<CudaStreamManager> stream_manager,
+        std::shared_ptr<MemoryManager> memory_manager
     );
+
     ~Executor();
 
-    void make_progress();
     bool is_idle() const;
+    bool is_completed(EventId event_id) const;
+    void make_progress();
+    void submit_command(EventId id, Command command, EventList deps);
 
-    void submit_task(
-        std::shared_ptr<TaskNode> job,
-        ProcessorId processor_id,
-        std::shared_ptr<Task> task,
-        std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies = {}
-    );
+    DeviceState& device_state(DeviceId id, const DeviceEventSet& hint_deps = {});
 
-    void submit_host_task(
-        std::shared_ptr<TaskNode> job,
-        std::shared_ptr<Task> task,
-        std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies = {}
-    );
+    CudaStreamManager& stream_manager() {
+        return *m_stream_manager;
+    }
 
-    void submit_device_task(
-        std::shared_ptr<TaskNode> job,
-        DeviceId device_id,
-        std::shared_ptr<Task> task,
-        std::vector<BufferRequirement> buffers,
-        CudaEventSet dependencies = {}
-    );
+    Scheduler& scheduler() {
+        return *m_scheduler;
+    }
 
-    void submit_prefetch(
-        std::shared_ptr<TaskNode> job,
-        BufferId buffer_id,
-        MemoryId memory_id,
-        CudaEventSet dependencies = {}
-    );
-
-    void submit_copy(
-        std::shared_ptr<TaskNode> job,
-        BufferId src_id,
-        MemoryId src_memory,
-        BufferId dst_id,
-        MemoryId dst_memory,
-        CopyDef definition,
-        CudaEventSet dependencies = {}
-    );
-
-    friend class Operation;
-    friend class HostOperation;
-    friend class DeviceOperation;
+    MemoryRequestList create_requests(const std::vector<BufferRequirement>& buffers);
+    Poll poll_requests(const MemoryRequestList& requests, DeviceEventSet* dependencies);
+    std::vector<BufferAccessor> access_requests(const MemoryRequestList& requests);
+    void release_requests(MemoryRequestList& requests, DeviceEvent event = {});
 
   private:
-    std::shared_ptr<struct OperationQueue> m_queue;
-    std::shared_ptr<CudaStreamManager> m_streams;
-    std::shared_ptr<MemoryManager> m_memory;
-    std::shared_ptr<BufferManager> m_buffers;
+    void insert_operation(std::unique_ptr<Operation> op);
+    void execute_command(EventId id, const Command& command, DeviceEventSet dependencies);
+    void execute_command(EventId id, const CommandExecute& command, DeviceEventSet dependencies);
+    void execute_command(EventId id, const CommandCopy& command, DeviceEventSet dependencies);
+    void execute_command(EventId id, const CommandReduction& command, DeviceEventSet dependencies);
+
+    std::unique_ptr<Operation> m_operation_head = nullptr;
+    Operation* m_operation_tail = nullptr;
+
+    std::shared_ptr<BufferManager> m_buffer_manager;
+    std::shared_ptr<MemoryManager> m_memory_manager;
+    std::shared_ptr<CudaStreamManager> m_stream_manager;
     std::shared_ptr<Scheduler> m_scheduler;
-    std::vector<std::unique_ptr<Operation>> m_operations;
-    std::vector<std::pair<CudaStream, std::unique_ptr<CudaDevice>>> m_devices;
+    std::vector<DeviceState> m_devices;
 };
 
 }  // namespace kmm

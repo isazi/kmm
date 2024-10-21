@@ -82,7 +82,7 @@ DevicePoolAllocator::DevicePoolAllocator(CudaContextHandle context, std::shared_
 struct DevicePoolAllocator::Allocation {
     void* addr;
     size_t nbytes;
-    CudaEvent event;
+    DeviceEvent event;
 };
 
 DevicePoolAllocator::~DevicePoolAllocator() {
@@ -97,7 +97,7 @@ DevicePoolAllocator::~DevicePoolAllocator() {
     KMM_CUDA_CHECK(cuMemPoolDestroy(m_pool));
 }
 
-bool DevicePoolAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out) {
+bool DevicePoolAllocator::allocate(size_t nbytes, void*& addr_out, DeviceEventSet& deps_out) {
     while (true) {
         if (m_pending_deallocs.empty()) {
             break;
@@ -141,7 +141,7 @@ bool DevicePoolAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventSet&
     }
 }
 
-void DevicePoolAllocator::deallocate(void* addr, size_t nbytes, CudaEventSet deps) {
+void DevicePoolAllocator::deallocate(void* addr, size_t nbytes, DeviceEventSet deps) {
     CUdeviceptr device_ptr = (CUdeviceptr)addr;
 
     auto event = m_streams->with_stream(m_dealloc_stream, deps, [&](auto stream) {

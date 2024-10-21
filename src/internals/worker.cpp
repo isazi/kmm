@@ -14,7 +14,7 @@ bool Worker::query_event(EventId event_id, std::chrono::system_clock::time_point
     std::unique_lock guard {m_mutex};
     flush_events_impl();
 
-    if (m_scheduler->is_completed(event_id)) {
+    if (m_executor.is_completed(event_id)) {
         return true;
     }
 
@@ -23,7 +23,7 @@ bool Worker::query_event(EventId event_id, std::chrono::system_clock::time_point
     while (true) {
         make_progress_impl();
 
-        if (m_scheduler->is_completed(event_id)) {
+        if (m_executor.is_completed(event_id)) {
             return true;
         }
 
@@ -44,6 +44,12 @@ bool Worker::query_event(EventId event_id, std::chrono::system_clock::time_point
     }
 }
 
+bool Worker::is_idle() {
+    std::lock_guard guard {m_mutex};
+    flush_events_impl();
+    is_idle_impl();
+}
+
 void Worker::make_progress() {
     std::lock_guard guard {m_mutex};
     flush_events_impl();
@@ -58,10 +64,10 @@ void Worker::shutdown() {
 
     m_has_shutdown = true;
 
-    m_graph->shutdown();
+    m_graph.shutdown();
     flush_events_impl();
 
-    while (!m_scheduler->is_idle() || !m_executor->is_idle() || !m_memory->is_idle(*m_streams)) {
+    while (!is_idle_impl()) {
         make_progress_impl();
 
         guard.unlock();
@@ -69,177 +75,84 @@ void Worker::shutdown() {
         guard.lock();
     }
 
-    m_streams->wait_until_idle();
-}
-
-struct BufferGuardTracker {
-    KMM_NOT_COPYABLE_OR_MOVABLE(BufferGuardTracker)
-
-  public:
-    BufferGuardTracker(
-        std::shared_ptr<Worker> worker,
-        std::shared_ptr<MemoryManager::Request> request
-    ) :
-        m_worker(std::move(worker)),
-        m_request(std::move(request)) {
-        KMM_ASSERT(m_worker != nullptr && m_request != nullptr);
-    }
-
-    ~BufferGuardTracker() {
-        std::unique_lock guard {m_worker->m_mutex};
-        m_worker->m_memory->release_request(m_request);
-    }
-
-    std::shared_ptr<Worker> m_worker;
-    std::shared_ptr<MemoryManager::Request> m_request;
-};
-
-BufferGuard Worker::access_buffer(BufferId buffer_id, MemoryId memory_id, AccessMode mode) {
-    // We must declare the tracker before the `unique_lock`. This way, if an exception is thrown, the lock is released
-    // before the tracker is destroyed. This is necessary since the tracker also obtains the worker lock.
-    std::shared_ptr<BufferGuardTracker> tracker;
-
-    std::unique_lock guard {m_mutex};
-    flush_events_impl();
-    make_progress_impl();
-
-    // Create the request and immediately put into the tracker. This ensures that the request is
-    // always released in case an exception is thrown while polling.
-    auto buffer = m_buffers->get(buffer_id);
-    auto req = m_memory->create_request(buffer, memory_id, mode, m_root_transaction);
-    tracker = std::make_shared<BufferGuardTracker>(shared_from_this(), req);
-
-    CudaEventSet deps;
-
-    // Poll until the request is ready.
-    while (!m_memory->poll_request(*req, deps) || !m_streams->is_ready(deps)) {
-        make_progress_impl();
-
-        guard.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds {10});
-        guard.lock();
-    }
-
-    return {m_memory->get_accessor(*req), std::move(tracker)};
+    m_stream_manager->wait_until_idle();
 }
 
 void Worker::flush_events_impl() {
     // Flush all events from the DAG builder to the scheduler
-    for (auto event : m_graph->flush()) {
-        m_scheduler
-            ->insert_event(event.id, std::move(event.command), std::move(event.dependencies));
+    for (auto event : m_graph.flush()) {
+        m_executor
+            .submit_command(event.id, std::move(event.command), std::move(event.dependencies));
     }
 }
 
 void Worker::make_progress_impl() {
-    flush_events_impl();
-    bool update_happened = true;
-
-    while (update_happened) {
-        update_happened = false;
-        m_streams->make_progress();
-        m_memory->make_progress();
-        m_executor->make_progress();
-
-        while (auto node = m_scheduler->pop_ready()) {
-            update_happened = true;
-            execute_command(*node);
-        }
-    }
+    m_stream_manager->make_progress();
+    m_memory_manager->make_progress();
+    m_executor.make_progress();
 }
 
-void Worker::execute_command(std::shared_ptr<TaskNode> node) {
-    const Command& command = node->get_command();
-
-    if (const auto* e = std::get_if<CommandEmpty>(&command)) {
-        m_scheduler->set_complete(node);
-
-    } else if (const auto* e = std::get_if<CommandBufferCreate>(&command)) {
-        spdlog::debug("create buffer {} (size={})", e->id, e->layout.size_in_bytes);
-        auto buffer = m_memory->create_buffer(e->layout);
-        m_buffers->add(e->id, buffer);
-        m_scheduler->set_complete(node);
-
-    } else if (const auto* e = std::get_if<CommandBufferDelete>(&command)) {
-        spdlog::debug("delete buffer {}", e->id);
-        auto buffer = m_buffers->remove(e->id);
-        m_memory->delete_buffer(buffer);
-        m_scheduler->set_complete(node);
-
-    } else if (const auto* e = std::get_if<CommandPrefetch>(&command)) {
-        m_executor->submit_prefetch(node, e->buffer_id, e->memory_id);
-
-    } else if (const auto* e = std::get_if<CommandCopy>(&command)) {
-        m_executor->submit_copy(
-            node,
-            e->src_buffer,
-            e->src_memory,
-            e->dst_buffer,
-            e->dst_memory,
-            e->definition
-        );
-
-    } else if (const auto* e = std::get_if<CommandExecute>(&command)) {
-        m_executor->submit_task(node, e->processor_id, e->task, e->buffers);
-
-    } else {
-        KMM_PANIC("invalid command");
-    }
-}
-
-Worker::Worker(std::vector<CudaContextHandle> contexts) {
-    m_streams = std::make_shared<CudaStreamManager>();
-    m_scheduler = std::make_shared<Scheduler>(contexts.size());
-    m_graph = std::make_shared<TaskGraph>();
-    m_buffers = std::make_shared<BufferManager>();
-
-    std::unique_ptr<MemoryAllocator> host_mem;
-    std::vector<std::unique_ptr<MemoryAllocator>> device_mems;
-    std::vector<CudaDeviceInfo> device_infos;
-
-    if (!contexts.empty()) {
-        host_mem = std::make_unique<PinnedMemoryAllocator>(contexts.at(0), m_streams);
-
-        for (size_t i = 0; i < contexts.size(); i++) {
-            auto device_id = DeviceId(i);
-            auto context = contexts[i];
-
-            device_infos.push_back(CudaDeviceInfo(device_id, context));
-            device_mems.push_back(std::make_unique<DevicePoolAllocator>(contexts[i], m_streams));
-        }
-    } else {
-        host_mem = std::make_unique<SystemAllocator>(m_streams);
-    }
-
-    spdlog::info("detected {} CUDA device(s):", device_infos.size());
-    for (auto f : device_infos) {
-        spdlog::info(" - {} ({:.2} GB)", f.name(), f.total_memory_size() / 1e9);
-    }
-
-    m_info = SystemInfo(device_infos);
-    m_memory = std::make_shared<MemoryManager>(std::make_unique<MemorySystem>(
-        m_streams,
-        contexts,
-        std::move(host_mem),
-        std::move(device_mems)
-    ));
-    m_root_transaction = m_memory->create_transaction();
-
-    m_executor = std::make_shared<Executor>(contexts, m_streams, m_buffers, m_memory, m_scheduler);
+bool Worker::is_idle_impl() {
+    return m_stream_manager->is_idle() && m_memory_manager->is_idle(*m_stream_manager)
+        && m_executor.is_idle();
 }
 
 Worker::~Worker() {
     shutdown();
 }
 
-std::shared_ptr<Worker> make_worker() {
-    std::vector<CUdevice> devices = get_cuda_devices();
-    std::vector<CudaContextHandle> contexts;
+SystemInfo make_system_info(const std::vector<CudaContextHandle>& contexts) {
+    spdlog::info("detected {} CUDA device(s):", contexts.size());
+    std::vector<CudaDeviceInfo> device_infos;
 
-    for (auto device : devices) {
-        contexts.push_back(CudaContextHandle::retain_primary_context_for_device(device));
+    for (size_t i = 0; i < contexts.size(); i++) {
+        auto info = CudaDeviceInfo(DeviceId(i), contexts[i]);
+
+        spdlog::info(" - {} ({:.2} GB)", info.name(), info.total_memory_size() / 1e9);
+        device_infos.push_back(info);
     }
 
-    return std::make_shared<Worker>(std::move(contexts));
+    return device_infos;
+}
+
+Worker::Worker(
+    std::vector<CudaContextHandle> contexts,
+    std::shared_ptr<CudaStreamManager> stream_manager,
+    std::shared_ptr<MemoryManager> memory_manager
+) :
+    m_info(make_system_info(contexts)),
+    m_executor(contexts, stream_manager, memory_manager),
+    m_stream_manager(stream_manager),
+    m_memory_manager(memory_manager) {}
+
+std::shared_ptr<Worker> make_worker() {
+    std::unique_ptr<MemoryAllocator> host_mem;
+    std::vector<std::unique_ptr<MemoryAllocator>> device_mems;
+
+    auto stream_manager = std::make_shared<CudaStreamManager>();
+    auto contexts = std::vector<CudaContextHandle>();
+    auto devices = get_cuda_devices();
+
+    if (!devices.empty()) {
+        for (size_t i = 0; i < contexts.size(); i++) {
+            auto context = CudaContextHandle::retain_primary_context_for_device(devices[i]);
+            device_mems.push_back(std::make_unique<DevicePoolAllocator>(context, stream_manager));
+            contexts.push_back(context);
+        }
+
+        host_mem = std::make_unique<PinnedMemoryAllocator>(contexts.at(0), stream_manager);
+    } else {
+        host_mem = std::make_unique<SystemAllocator>(stream_manager);
+    }
+
+    auto memory_system = std::make_unique<MemorySystem>(
+        stream_manager,
+        contexts,
+        std::move(host_mem),
+        std::move(device_mems)
+    );
+
+    auto memory_manager = std::make_shared<MemoryManager>(std::move(memory_system));
+    return std::make_shared<Worker>(contexts, stream_manager, memory_manager);
 }
 }  // namespace kmm

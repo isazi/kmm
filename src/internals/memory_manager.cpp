@@ -19,10 +19,10 @@ struct BufferEntry {
     // * allocation_event <= epoch_event
     // * epoch_event <= write_events
     // * write_events <= access_events
-    CudaEventSet allocation_event;
-    CudaEventSet epoch_event;
-    CudaEventSet write_events;
-    CudaEventSet access_events;
+    DeviceEventSet allocation_event;
+    DeviceEventSet epoch_event;
+    DeviceEventSet write_events;
+    DeviceEventSet access_events;
 };
 
 struct HostEntry: public BufferEntry {
@@ -207,7 +207,7 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     return req;
 }
 
-bool MemoryManager::poll_request(Request& req, CudaEventSet& deps_out) {
+Poll MemoryManager::poll_request(Request& req, DeviceEventSet* deps_out) {
     auto& buffer = *req.buffer;
     auto memory_id = req.memory_id;
 
@@ -216,30 +216,30 @@ bool MemoryManager::poll_request(Request& req, CudaEventSet& deps_out) {
             lock_allocation_host(buffer, req);
         } else {
             if (!lock_allocation_device(memory_id.as_device(), buffer, req)) {
-                return false;
+                return Poll::Pending;
             }
         }
 
-        deps_out.insert(buffer.entry(memory_id).allocation_event);
+        deps_out->insert(buffer.entry(memory_id).allocation_event);
         req.status = Request::Status::Allocated;
     }
 
     if (req.status == Request::Status::Allocated) {
         if (!try_lock_access(memory_id, buffer, req, deps_out)) {
-            return false;
+            return Poll::Pending;
         }
 
         req.status = Request::Status::Ready;
     }
 
     if (req.status == Request::Status::Ready) {
-        return true;
+        return Poll::Ready;
     }
 
     throw std::runtime_error("cannot poll a deleted request");
 }
 
-void MemoryManager::release_request(std::shared_ptr<Request> req, CudaEvent event) {
+void MemoryManager::release_request(std::shared_ptr<Request> req, DeviceEvent event) {
     auto memory_id = req->memory_id;
     auto& buffer = *req->buffer;
     auto status = std::exchange(req->status, Request::Status::Deleted);
@@ -474,7 +474,7 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
     );
 
     CUdeviceptr ptr_out;
-    CudaEventSet events;
+    DeviceEventSet events;
     auto success =
         m_memory->allocate_device(device_id, buffer.layout.size_in_bytes, ptr_out, events);
 
@@ -543,7 +543,7 @@ void MemoryManager::allocate_host(Buffer& buffer) {
     spdlog::trace("allocate {} bytes from host", size_in_bytes, (void*)&buffer);
 
     void* ptr;
-    CudaEventSet events;
+    DeviceEventSet events;
     bool success = m_memory->allocate_host(size_in_bytes, ptr, events);
 
     if (!success) {
@@ -747,7 +747,7 @@ void MemoryManager::unlock_access(
     MemoryId memory_id,
     Buffer& buffer,
     Request& req,
-    CudaEvent event
+    DeviceEvent event
 ) {
     spdlog::trace(
         "access to buffer {} was revoked from request {} (memory={}, mode={}, CUDA event={})",
@@ -758,12 +758,10 @@ void MemoryManager::unlock_access(
         event
     );
 
-    bool is_writer = req.mode != AccessMode::Read;
     BufferEntry& entry = buffer.entry(memory_id);
-
     entry.access_events.insert(event);
 
-    if (is_writer) {
+    if (req.mode != AccessMode::Read) {
         entry.write_events.insert(event);
 
         if (req.mode == AccessMode::Exclusive) {
@@ -776,7 +774,7 @@ bool MemoryManager::try_lock_access(
     MemoryId memory_id,
     Buffer& buffer,
     Request& req,
-    CudaEventSet& deps_out
+    DeviceEventSet* deps_out
 ) {
     if (!req.access_acquired) {
         poll_access_queue(buffer);
@@ -794,26 +792,26 @@ bool MemoryManager::try_lock_access(
     if (is_writer) {
         if (!memory_id.is_host()) {
             buffer.host_entry.is_valid = false;
-            deps_out.insert(buffer.host_entry.access_events);
+            deps_out->insert(buffer.host_entry.access_events);
         }
 
         // Invalidate all _other_ device entries
         for (auto& peer_entry : buffer.device_entry) {
             if (&peer_entry != &entry) {
                 peer_entry.is_valid = false;
-                deps_out.insert(peer_entry.access_events);
+                deps_out->insert(peer_entry.access_events);
             }
         }
 
         if (req.mode == AccessMode::Exclusive) {
-            deps_out.insert(entry.access_events);
+            deps_out->insert(entry.access_events);
         }
     }
 
     return true;
 }
 
-void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEventSet& deps_out) {
+void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceEventSet* deps_out) {
     auto& entry = buffer.entry(memory_id);
 
     KMM_ASSERT(entry.is_allocated);
@@ -821,14 +819,14 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEve
     if (!entry.is_valid) {
         if (memory_id.is_host()) {
             if (auto src_id = find_valid_device_entry(buffer)) {
-                deps_out.insert(copy_d2h(*src_id, buffer));
+                deps_out->insert(copy_d2h(*src_id, buffer));
                 return;
             }
         } else {
             auto device_id = memory_id.as_device();
 
             if (buffer.host_entry.is_valid) {
-                deps_out.insert(copy_h2d(device_id, buffer));
+                deps_out->insert(copy_h2d(device_id, buffer));
                 return;
             }
 
@@ -837,20 +835,21 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, CudaEve
                     allocate_host(buffer);
                 }
 
-                deps_out.insert(copy_h2d(device_id, buffer));
+                deps_out->insert(copy_h2d(device_id, buffer));
                 return;
             }
         }
     }
 
     if (!buffer.layout.fill_pattern.empty()) {
-        fill_buffer(memory_id, buffer, buffer.layout.fill_pattern);
+        auto event = fill_buffer(memory_id, buffer, buffer.layout.fill_pattern);
+        deps_out->insert(event);
     }
 
-    deps_out.insert(entry.epoch_event);
+    deps_out->insert(entry.epoch_event);
 }
 
-CudaEvent MemoryManager::fill_buffer(
+DeviceEvent MemoryManager::fill_buffer(
     MemoryId memory_id,
     Buffer& buffer,
     const std::vector<uint8_t>& fill_pattern
@@ -859,7 +858,7 @@ CudaEvent MemoryManager::fill_buffer(
     KMM_ASSERT(entry.is_allocated && !entry.is_valid);
     KMM_ASSERT(!fill_pattern.empty());
 
-    CudaEvent event;
+    DeviceEvent event;
 
     if (memory_id.is_host()) {
         event = m_memory->fill_host(
@@ -885,7 +884,7 @@ CudaEvent MemoryManager::fill_buffer(
     return event;
 }
 
-CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
+DeviceEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     spdlog::trace(
         "copy {} bytes from host to device {} for buffer {}",
         buffer.layout.size_in_bytes,
@@ -900,7 +899,7 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated && device_entry.is_allocated);
     KMM_ASSERT(host_entry.is_valid && !device_entry.is_valid);
 
-    CudaEventSet deps;
+    DeviceEventSet deps;
     deps.insert(device_entry.access_events);
     deps.insert(host_entry.write_events);
 
@@ -921,7 +920,7 @@ CudaEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     return event;
 }
 
-CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
+DeviceEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     spdlog::trace(
         "copy {} bytes from device to host {} for buffer {}",
         buffer.layout.size_in_bytes,
@@ -936,7 +935,7 @@ CudaEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated && device_entry.is_allocated);
     KMM_ASSERT(!host_entry.is_valid && device_entry.is_valid);
 
-    CudaEventSet deps;
+    DeviceEventSet deps;
     deps.insert(device_entry.write_events);
     deps.insert(host_entry.access_events);
 

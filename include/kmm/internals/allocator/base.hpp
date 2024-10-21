@@ -7,8 +7,8 @@ namespace kmm {
 class MemoryAllocator {
   public:
     virtual ~MemoryAllocator() = default;
-    virtual bool allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out) = 0;
-    virtual void deallocate(void* addr, size_t nbytes, CudaEventSet deps = {}) = 0;
+    virtual bool allocate(size_t nbytes, void*& addr_out, DeviceEventSet& deps_out) = 0;
+    virtual void deallocate(void* addr, size_t nbytes, DeviceEventSet deps = {}) = 0;
     virtual void make_progress() {}
 };
 
@@ -17,8 +17,8 @@ class DirectMemoryAllocator: public MemoryAllocator {
   public:
     DirectMemoryAllocator(std::shared_ptr<CudaStreamManager> streams, size_t max_bytes=std::numeric_limits<size_t>::max());
     ~DirectMemoryAllocator();
-    bool allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out) final;
-    void deallocate(void* addr, size_t nbytes, CudaEventSet deps) final;
+    bool allocate(size_t nbytes, void*& addr_out, DeviceEventSet& deps_out) final;
+    void deallocate(void* addr, size_t nbytes, DeviceEventSet deps) final;
     void make_progress() final;
 
   protected:

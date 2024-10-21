@@ -17,7 +17,7 @@ CachingMemoryAllocator::~CachingMemoryAllocator() {
 struct CachingMemoryAllocator::AllocationSlot {
     void* addr = nullptr;
     size_t nbytes = 0;
-    CudaEventSet dependencies;
+    DeviceEventSet dependencies;
     std::unique_ptr<AllocationSlot> next = nullptr;
     AllocationSlot* lru_older = nullptr;
     AllocationSlot* lru_newer = nullptr;
@@ -31,7 +31,7 @@ size_t round_up_allocation_size(size_t nbytes) {
     }
 }
 
-bool CachingMemoryAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out) {
+bool CachingMemoryAllocator::allocate(size_t nbytes, void*& addr_out, DeviceEventSet& deps_out) {
     nbytes = round_up_allocation_size(nbytes);
     auto& [head, _] = m_allocations[nbytes];
 
@@ -73,7 +73,7 @@ bool CachingMemoryAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventS
     return true;
 }
 
-void CachingMemoryAllocator::deallocate(void* addr, size_t nbytes, CudaEventSet deps) {
+void CachingMemoryAllocator::deallocate(void* addr, size_t nbytes, DeviceEventSet deps) {
     nbytes = round_up_allocation_size(nbytes);
     m_bytes_in_use -= nbytes;
 

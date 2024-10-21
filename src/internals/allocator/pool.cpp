@@ -19,9 +19,9 @@ struct PoolAllocator::Region {
     size_t offset_in_block = 0;
     size_t size = 0;
     bool in_use = true;
-    CudaEventSet dependencies;
+    DeviceEventSet dependencies;
 
-    Region(Block* parent, size_t offset_in_block, size_t size, CudaEventSet deps={}) {
+    Region(Block* parent, size_t offset_in_block, size_t size, DeviceEventSet deps={}) {
         this->parent = parent;
         this->offset_in_block = offset_in_block;
         this->size = size;
@@ -43,7 +43,7 @@ struct PoolAllocator::Block {
     void* base_addr = nullptr;
     size_t size = 0;
 
-    Block(void* addr, size_t size, CudaEventSet deps) {
+    Block(void* addr, size_t size, DeviceEventSet deps) {
         this->head = std::make_unique<Region>(this, 0, size, std::move(deps));
         this->tail = head.get();
         this->base_addr = addr;
@@ -53,7 +53,7 @@ struct PoolAllocator::Block {
 
 static constexpr size_t MAX_ALIGNMENT = 256;
 
-bool PoolAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_out) {
+bool PoolAllocator::allocate(size_t nbytes, void*& addr_out, DeviceEventSet& deps_out) {
     size_t alignment = nbytes < MAX_ALIGNMENT ? round_up_to_power_of_two(nbytes) : MAX_ALIGNMENT;
     nbytes = round_up_to_multiple(nbytes, alignment);
 
@@ -71,7 +71,7 @@ bool PoolAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_
     Region *region = nullptr;
 
     if (it == m_free_regions.end()) {
-        CudaEventSet deps;
+        DeviceEventSet deps;
         void* base_addr;
         if (!m_allocator->allocate(nbytes, base_addr, deps)) {
             return false;
@@ -106,7 +106,7 @@ bool PoolAllocator::allocate(size_t nbytes, void*& addr_out, CudaEventSet& deps_
     return true;
 }
 
-void PoolAllocator::deallocate(void* addr, size_t nbytes, CudaEventSet deps) {
+void PoolAllocator::deallocate(void* addr, size_t nbytes, DeviceEventSet deps) {
     auto it = m_used_regions.find(addr);
     KMM_ASSERT(it != m_used_regions.end());
 
