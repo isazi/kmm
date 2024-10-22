@@ -12,7 +12,7 @@
 
 namespace kmm {
 
-struct Event {
+struct CommandNode {
     EventId id;
     Command command;
     EventList dependencies;
@@ -71,7 +71,7 @@ class TaskGraph {
     void rollback();
     void commit();
 
-    std::vector<Event> flush();
+    std::vector<CommandNode> flush();
 
   private:
     EventId insert_event(Command command, EventList deps = {});
@@ -102,12 +102,14 @@ class TaskGraph {
     };
 
     BufferMeta& find_buffer(BufferId id);
+
     void pre_access_buffer(
         BufferId buffer_id,
         AccessMode mode,
         MemoryId memory_id,
         EventList& deps_out
     );
+
     void post_access_buffer(
         BufferId buffer_id,
         AccessMode mode,
@@ -121,7 +123,7 @@ class TaskGraph {
     std::unordered_map<BufferId, BufferMeta> m_persistent_buffers;
     std::unordered_map<BufferId, BufferMeta> m_tentative_buffers;
     std::vector<BufferId> m_tentative_deletions;
-    std::vector<Event> m_events;
+    std::vector<CommandNode> m_events;
 };
 
 }  // namespace kmm

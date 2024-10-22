@@ -55,7 +55,7 @@ class Runtime {
      * @return The event identifier for the submitted task.
      */
     template<typename L, typename... Args>
-    EventId submit(TaskPartition partition, L launcher, Args&&... args) {
+    EventId parallel_submit(TaskPartition partition, L launcher, Args&&... args) {
         return kmm::parallel_submit(
             m_worker,
             info(),

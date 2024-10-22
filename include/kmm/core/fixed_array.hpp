@@ -4,6 +4,10 @@
 
 namespace kmm {
 
+KMM_HOST_DEVICE bool is_less(size_t a, size_t b) {
+    return a < b;
+}
+
 template<typename T, size_t N>
 struct fixed_array {
     KMM_HOST_DEVICE
@@ -179,7 +183,7 @@ KMM_HOST_DEVICE bool operator==(const fixed_array<T, N>& lhs, const fixed_array<
 
     bool result = true;
 
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; is_less(i, N); i++) {
         result &= lhs[i] == rhs[i];
     }
 
@@ -202,7 +206,7 @@ namespace kmm {
 template<typename T, size_t N>
 std::ostream& operator<<(std::ostream& stream, const fixed_array<T, N>& p) {
     stream << "{";
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; is_less(i, N); i++) {
         if (i != 0) {
             stream << ", ";
         }
@@ -223,7 +227,7 @@ template<size_t N, typename T>
 struct std::hash<kmm::fixed_array<T, N>> {
     size_t operator()(const kmm::fixed_array<T, N>& p) const {
         size_t result = 0;
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; kmm::is_less(i, N); i++) {
             kmm::hash_combine(result, p[i]);
         }
         return result;

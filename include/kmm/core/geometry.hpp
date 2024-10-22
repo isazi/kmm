@@ -22,7 +22,7 @@ class Point: public fixed_array<T, N> {
 
     KMM_HOST_DEVICE
     constexpr Point() {
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             (*this)[i] = T {};
         }
     }
@@ -39,7 +39,7 @@ class Point: public fixed_array<T, N> {
     KMM_HOST_DEVICE static constexpr Point from(const fixed_array<U, M>& that) {
         Point result;
 
-        for (size_t i = 0; i < N && i < M; i++) {
+        for (size_t i = 0; is_less(i, N) && is_less(i, M); i++) {
             result[i] = that[i];
         }
 
@@ -50,7 +50,7 @@ class Point: public fixed_array<T, N> {
     static constexpr Point fill(T value) {
         Point result;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             result[i] = value;
         }
 
@@ -81,11 +81,11 @@ class Point: public fixed_array<T, N> {
     KMM_HOST_DEVICE Point<N + M> concat(const Point<M>& that) const {
         fixed_array<T, N + M> result;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             result[i] = (*this)[i];
         }
 
-        for (size_t i = 0; i < M; i++) {
+        for (size_t i = 0; is_less(i, M); i++) {
             result[N + i] = that[i];
         }
 
@@ -103,7 +103,7 @@ class Dim: public fixed_array<T, N> {
 
     KMM_HOST_DEVICE
     constexpr Dim() {
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             (*this)[i] = static_cast<T>(1);
         }
     }
@@ -125,7 +125,7 @@ class Dim: public fixed_array<T, N> {
     KMM_HOST_DEVICE static constexpr Dim from(const fixed_array<U, M>& that) {
         Dim result;
 
-        for (size_t i = 0; i < N && i < M; i++) {
+        for (size_t i = 0; is_less(i, N) && is_less(i, M); i++) {
             result[i] = that[i];
         }
 
@@ -151,7 +151,7 @@ class Dim: public fixed_array<T, N> {
     bool is_empty() const {
         bool is_empty = false;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             is_empty |= (*this)[i] <= static_cast<T>(0);
         }
 
@@ -160,7 +160,7 @@ class Dim: public fixed_array<T, N> {
 
     KMM_HOST_DEVICE
     T get(size_t i) const {
-        return KMM_LIKELY(i < N) ? (*this)[i] : static_cast<T>(1);
+        return KMM_LIKELY(is_less(i, N)) ? (*this)[i] : static_cast<T>(1);
     }
 
     KMM_HOST_DEVICE
@@ -175,7 +175,7 @@ class Dim: public fixed_array<T, N> {
 
         T volume = (*this)[0];
 
-        for (size_t i = 1; i < N; i++) {
+        for (size_t i = 1; is_less(i, N); i++) {
             volume *= (*this)[i];
         }
 
@@ -186,7 +186,7 @@ class Dim: public fixed_array<T, N> {
     Dim intersection(const Dim& that) const {
         Dim<N, T> new_sizes;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             if (that[i] <= 0 || (*this)[i] <= 0) {
                 new_sizes[i] = static_cast<T>(0);
             } else if ((*this)[i] <= that[i]) {
@@ -211,7 +211,7 @@ class Dim: public fixed_array<T, N> {
 
     KMM_HOST_DEVICE
     bool contains(const Point<N, T>& that) const {
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             if (that[i] < static_cast<T>(0) || that[i] >= (*this)[i]) {
                 return false;
             }
@@ -286,7 +286,7 @@ class Rect {
     KMM_HOST_DEVICE
     Point<N, T> end() const {
         Point<N, T> result;
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             result[i] = end(i);
         }
 
@@ -309,7 +309,7 @@ class Rect {
         Dim<N, T> new_sizes;
         bool is_empty = false;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             auto first_a = this->offset[i] < that.offset[i];
 
             auto ai = first_a ? this->offset[i] : that.offset[i];
@@ -342,7 +342,7 @@ class Rect {
     bool overlaps(const Rect& that) const {
         bool overlapping = true;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             auto first_this = this->offset[i] < that.offset[i];
 
             auto ai = first_this ? this->offset[i] : that.offset[i];
@@ -367,7 +367,7 @@ class Rect {
 
         bool contain = true;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             auto ai = this->offset[i];
             auto an = this->sizes[i];
 
@@ -400,7 +400,7 @@ class Rect {
     bool contains(const Point<N, T>& that) const {
         bool contain = true;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; is_less(i, N); i++) {
             auto ai = this->offset[i];
             auto an = this->sizes[i];
 
@@ -479,7 +479,7 @@ KMM_HOST_DEVICE bool operator!=(const Rect<N, T>& a, const Rect<N, T>& b) {
     template<size_t N, typename T>                                                        \
     KMM_HOST_DEVICE Point<N, T> operator OP(const Point<N, T>& a, const Point<N, T>& b) { \
         Point<N, T> result;                                                               \
-        for (size_t i = 0; i < N; i++) {                                                  \
+        for (size_t i = 0; is_less(i, N); i++) {                                          \
             result[i] = a[i] OP b[i];                                                     \
         }                                                                                 \
                                                                                           \
@@ -510,7 +510,7 @@ std::ostream& operator<<(std::ostream& stream, const Dim<N, T>& p) {
 template<size_t N, typename T>
 std::ostream& operator<<(std::ostream& stream, const Rect<N, T>& p) {
     stream << "{";
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; is_less(i, N); i++) {
         if (i != 0) {
             stream << ", ";
         }

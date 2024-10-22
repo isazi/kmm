@@ -5,7 +5,7 @@
 #ifdef KMM_USE_CUDA
 namespace kmm {
 
-CudaDeviceInfo::CudaDeviceInfo(DeviceId id, CudaContextHandle context) : m_id(id) {
+DeviceInfo::DeviceInfo(DeviceId id, CudaContextHandle context) : m_id(id) {
     CudaContextGuard guard {context};
 
     KMM_CUDA_CHECK(cuCtxGetDevice(&m_device_id));
@@ -23,7 +23,7 @@ CudaDeviceInfo::CudaDeviceInfo(DeviceId id, CudaContextHandle context) : m_id(id
     KMM_CUDA_CHECK(cuMemGetInfo(&ignore_free_memory, &m_memory_capacity));
 }
 
-dim3 CudaDeviceInfo::max_block_dim() const {
+dim3 DeviceInfo::max_block_dim() const {
     return dim3(
         attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
         attribute(CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
@@ -31,7 +31,7 @@ dim3 CudaDeviceInfo::max_block_dim() const {
     );
 }
 
-dim3 CudaDeviceInfo::max_grid_dim() const {
+dim3 DeviceInfo::max_grid_dim() const {
     return dim3(
         attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X),
         attribute(CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y),
@@ -39,16 +39,16 @@ dim3 CudaDeviceInfo::max_grid_dim() const {
     );
 }
 
-int CudaDeviceInfo::compute_capability() const {
+int DeviceInfo::compute_capability() const {
     return attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) * 10
         + attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR);
 }
 
-int CudaDeviceInfo::max_threads_per_block() const {
+int DeviceInfo::max_threads_per_block() const {
     return attribute(CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK);
 }
 
-int CudaDeviceInfo::attribute(CUdevice_attribute attrib) const {
+int DeviceInfo::attribute(CUdevice_attribute attrib) const {
     if (attrib < NUM_ATTRIBUTES) {
         return m_attributes[attrib];
     }
@@ -56,17 +56,17 @@ int CudaDeviceInfo::attribute(CUdevice_attribute attrib) const {
     throw std::runtime_error("unsupported attribute requested");
 }
 
-SystemInfo::SystemInfo(std::vector<CudaDeviceInfo> devices) : m_devices(devices) {}
+SystemInfo::SystemInfo(std::vector<DeviceInfo> devices) : m_devices(devices) {}
 
 size_t SystemInfo::num_devices() const {
     return m_devices.size();
 }
 
-const CudaDeviceInfo& SystemInfo::device(DeviceId id) const {
+const DeviceInfo& SystemInfo::device(DeviceId id) const {
     return m_devices.at(id.get());
 }
 
-const CudaDeviceInfo& SystemInfo::device_by_ordinal(CUdevice ordinal) const {
+const DeviceInfo& SystemInfo::device_by_ordinal(CUdevice ordinal) const {
     for (auto& device : m_devices) {
         if (device.device_ordinal() == ordinal) {
             return device;

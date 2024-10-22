@@ -98,4 +98,6 @@ int main() {
     );
 
     rt.synchronize();
+
+    return EXIT_SUCCESS;
 }

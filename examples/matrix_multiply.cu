@@ -13,7 +13,7 @@ void fill_array(
 }
 
 void matrix_multiply(
-    kmm::CudaDevice& device,
+    kmm::DeviceContext& device,
     kmm::WorkRange chunk,
     int n,
     int m,
@@ -33,20 +33,20 @@ void matrix_multiply(
         device.cublas(),
         CUBLAS_OP_T,
         CUBLAS_OP_T,
-        chunk.size(0),
-        chunk.size(1),
-        chunk.size(2),
+        chunk.sizes().x,
+        chunk.sizes().y,
+        chunk.sizes().z,
         &alpha,
         A_ptr,
         CUDA_R_32F,
-        A.stride(0),
+        A.stride(),
         B_ptr,
         CUDA_R_32F,
-        B.stride(0),
+        B.stride(),
         &beta,
         C_ptr,
         CUDA_R_32F,
-        C.stride(0),
+        C.stride(),
         CUDA_R_32F,
         CUBLAS_GEMM_DEFAULT
     ));
@@ -54,12 +54,13 @@ void matrix_multiply(
 
 int main() {
     using namespace kmm::placeholders;
+    spdlog::set_level(spdlog::level::trace);
 
     auto rt = kmm::make_runtime();
-    int n = 500;
-    int m = 500;
-    int k = 500;
-    int chunk_size = 100;
+    int n = 5000;
+    int m = 5000;
+    int k = 5000;
+    int chunk_size = n / 2;
 
     auto A = kmm::Array<float, 2>{{n, k}};
     auto B = kmm::Array<float, 2>{{k, m}};
@@ -81,16 +82,26 @@ int main() {
         1.0F
     );
 
-    rt.parallel_submit(
-        {n, m, k},
-        {chunk_size, chunk_size, chunk_size},
-        kmm::Cuda(matrix_multiply),
-        n, m, k,
-        reduce(C, kmm::ReductionOp::Sum, slice(_x, _y)),
-        read(A, slice(_x, _z)),
-        read(B, slice(_z, _y))
-    );
+    for (size_t repeat = 0; repeat < 10; repeat++) {
+        C = decltype(C)(C.shape());
 
-    rt.synchronize();
+        printf("REPEAT A: %d\n", int(repeat));
+        rt.parallel_submit(
+            {n, m, k},
+            {chunk_size, chunk_size, chunk_size},
+            kmm::Cuda(matrix_multiply),
+            n,
+            m,
+            k,
+            reduce(C, kmm::ReductionOp::Sum, slice(_x, _y)),
+            read(A, slice(_x, _z)),
+            read(B, slice(_z, _y))
+        );
+
+                printf("REPEAT B: %d\n", int(repeat));
+        rt.synchronize();
+        printf("REPEAT C: %d\n", int(repeat));
+    }
+
     return EXIT_SUCCESS;
 }

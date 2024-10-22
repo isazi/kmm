@@ -8,12 +8,15 @@ struct DirectMemoryAllocator::DeferredDealloc {
     DeviceEventSet dependencies;
 };
 
-DirectMemoryAllocator::DirectMemoryAllocator(std::shared_ptr<CudaStreamManager> streams, size_t max_bytes):
-    m_streams(streams), m_bytes_limit(max_bytes), m_bytes_in_use(0) {}
+DirectMemoryAllocator::DirectMemoryAllocator(
+    std::shared_ptr<CudaStreamManager> streams,
+    size_t max_bytes
+) :
+    m_streams(streams),
+    m_bytes_limit(max_bytes),
+    m_bytes_in_use(0) {}
 
-DirectMemoryAllocator::~DirectMemoryAllocator() {
-}
-
+DirectMemoryAllocator::~DirectMemoryAllocator() {}
 
 bool DirectMemoryAllocator::allocate(size_t nbytes, void*& addr_out, DeviceEventSet& deps_out) {
     KMM_ASSERT(nbytes > 0);
@@ -66,4 +69,4 @@ void DirectMemoryAllocator::make_progress() {
     }
 }
 
-}
+}  // namespace kmm

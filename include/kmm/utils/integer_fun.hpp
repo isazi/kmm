@@ -13,7 +13,7 @@ T div_floor(T a, T b) {
     T quotient = a / b;
 
     // Adjust the quotient if a and b have different signs
-    if (a % b != 0 && ((a >= 0) ^ (b >= 0))) {
+    if (a % b != zero && ((a >= zero) ^ (b >= zero))) {
         quotient -= 1;
     }
 
@@ -34,7 +34,7 @@ T div_ceil(T a, T b) {
     T quotient = a / b;
 
     // Adjust the quotient if both a and b have the same sign
-    if (a % b != 0 && !((a >= 0) ^ (b >= 0))) {
+    if (a % b != zero && !((a >= zero) ^ (b >= zero))) {
         quotient += 1;
     }
 

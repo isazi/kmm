@@ -3,14 +3,14 @@
 #include "fmt/format.h"
 #include "spdlog/spdlog.h"
 
-#include "kmm/core/cuda_device.hpp"
+#include "kmm/core/device_context.hpp"
 #include "kmm/memops/cuda_fill.hpp"
 #include "kmm/utils/checked_math.hpp"
 
 namespace kmm {
 
-CudaDevice::CudaDevice(CudaDeviceInfo info, CudaContextHandle context, CUstream stream) :
-    CudaDeviceInfo(info),
+DeviceContext::DeviceContext(DeviceInfo info, CudaContextHandle context, CUstream stream) :
+    DeviceInfo(info),
     m_context(context),
     m_stream(stream) {
     CudaContextGuard guard {m_context};
@@ -19,18 +19,18 @@ CudaDevice::CudaDevice(CudaDeviceInfo info, CudaContextHandle context, CUstream 
     KMM_CUDA_CHECK(cublasSetStream(m_cublas_handle, m_stream));
 }
 
-CudaDevice::~CudaDevice() {
+DeviceContext::~DeviceContext() {
     CudaContextGuard guard {m_context};
     KMM_CUDA_CHECK(cublasDestroy(m_cublas_handle));
 }
 
-void CudaDevice::synchronize() const {
+void DeviceContext::synchronize() const {
     CudaContextGuard guard {m_context};
     KMM_CUDA_CHECK(cuStreamSynchronize(nullptr));
     KMM_CUDA_CHECK(cuStreamSynchronize(m_stream));
 }
 
-void CudaDevice::fill_bytes(
+void DeviceContext::fill_bytes(
     void* dest_buffer,
     size_t nbytes,
     const void* fill_pattern,
@@ -46,7 +46,7 @@ void CudaDevice::fill_bytes(
     );
 }
 
-void CudaDevice::copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
+void DeviceContext::copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
     CudaContextGuard guard {m_context};
     KMM_CUDA_CHECK(cuMemcpyAsync(
         reinterpret_cast<CUdeviceptr>(dest_buffer),

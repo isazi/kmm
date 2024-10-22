@@ -37,7 +37,7 @@ struct ArgumentHandler {
 
     ArgumentHandler(T value) : m_value(value) {}
 
-    type process_chunk(TaskChunk chunk, TaskBuilder& builder) {
+    type process_chunk(TaskBuilder& builder) {
         return Argument<T>::pack(builder, m_value);
     }
 

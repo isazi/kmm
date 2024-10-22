@@ -9,16 +9,17 @@ class TaskGraph;
 class Worker;
 
 struct TaskBuilder {
-    TaskGraph& graph;
     std::shared_ptr<Worker>& worker;
+    TaskGraph& graph;
+    TaskChunk chunk;
     MemoryId memory_id;
     std::vector<BufferRequirement> buffers;
     EventList dependencies;
 };
 
 struct TaskResult {
-    TaskGraph& graph;
     std::shared_ptr<Worker>& worker;
+    TaskGraph& graph;
     EventList events;
 };
 

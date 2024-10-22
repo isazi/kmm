@@ -7,7 +7,7 @@
 #include "memory_manager.hpp"
 #include "scheduler.hpp"
 
-#include "kmm/core/cuda_device.hpp"
+#include "kmm/core/device_context.hpp"
 #include "kmm/utils/poll.hpp"
 
 namespace kmm {
@@ -16,28 +16,28 @@ struct DeviceState {
     CudaContextHandle context;
     CudaStream stream;
     DeviceEvent last_event;
-    CudaDevice device;
+    DeviceContext device;
 
     DeviceState(DeviceId id, CudaContextHandle context, CudaStreamManager& stream_manager) :
         context(context),
         stream(stream_manager.create_stream(context)),
-        device(CudaDeviceInfo(id, context), context, stream_manager.get(stream)) {}
+        device(DeviceInfo(id, context), context, stream_manager.get(stream)) {}
 };
 
 class Executor {
     KMM_NOT_COPYABLE_OR_MOVABLE(Executor)
 
   public:
-    class Operation {
-        KMM_NOT_COPYABLE_OR_MOVABLE(Operation)
+    class Job {
+        KMM_NOT_COPYABLE_OR_MOVABLE(Job)
 
       public:
-        Operation() = default;
-        virtual ~Operation() = default;
+        Job() = default;
+        virtual ~Job() = default;
         virtual Poll poll(Executor& executor) = 0;
 
         //      private:
-        std::unique_ptr<Operation> next = nullptr;
+        std::unique_ptr<Job> next = nullptr;
     };
 
     Executor(
@@ -69,14 +69,14 @@ class Executor {
     void release_requests(MemoryRequestList& requests, DeviceEvent event = {});
 
   private:
-    void insert_operation(std::unique_ptr<Operation> op);
+    void insert_job(std::unique_ptr<Job> job);
     void execute_command(EventId id, const Command& command, DeviceEventSet dependencies);
     void execute_command(EventId id, const CommandExecute& command, DeviceEventSet dependencies);
     void execute_command(EventId id, const CommandCopy& command, DeviceEventSet dependencies);
     void execute_command(EventId id, const CommandReduction& command, DeviceEventSet dependencies);
 
-    std::unique_ptr<Operation> m_operation_head = nullptr;
-    Operation* m_operation_tail = nullptr;
+    std::unique_ptr<Job> m_jobs_head = nullptr;
+    Job* m_jobs_tail = nullptr;
 
     std::shared_ptr<BufferManager> m_buffer_manager;
     std::shared_ptr<MemoryManager> m_memory_manager;

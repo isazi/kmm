@@ -349,7 +349,7 @@ void TaskGraph::commit() {
     m_tentative_buffers.clear();
 }
 
-std::vector<Event> TaskGraph::flush() {
+std::vector<CommandNode> TaskGraph::flush() {
     rollback();
     return std::move(m_events);
 }

@@ -103,10 +103,10 @@ Worker::~Worker() {
 
 SystemInfo make_system_info(const std::vector<CudaContextHandle>& contexts) {
     spdlog::info("detected {} CUDA device(s):", contexts.size());
-    std::vector<CudaDeviceInfo> device_infos;
+    std::vector<DeviceInfo> device_infos;
 
     for (size_t i = 0; i < contexts.size(); i++) {
-        auto info = CudaDeviceInfo(DeviceId(i), contexts[i]);
+        auto info = DeviceInfo(DeviceId(i), contexts[i]);
 
         spdlog::info(" - {} ({:.2} GB)", info.name(), info.total_memory_size() / 1e9);
         device_infos.push_back(info);

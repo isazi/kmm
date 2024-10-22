@@ -12,12 +12,12 @@
 
 namespace kmm {
 
-class CudaDevice: public CudaDeviceInfo, public ExecutionContext {
-    KMM_NOT_COPYABLE_OR_MOVABLE(CudaDevice);
+class DeviceContext: public DeviceInfo, public ExecutionContext {
+    KMM_NOT_COPYABLE_OR_MOVABLE(DeviceContext);
 
   public:
-    CudaDevice(CudaDeviceInfo info, CudaContextHandle context, CUstream stream);
-    ~CudaDevice();
+    DeviceContext(DeviceInfo info, CudaContextHandle context, CUstream stream);
+    ~DeviceContext();
 
     /**
      * Returns a handle to the CUDA context associated with this device.

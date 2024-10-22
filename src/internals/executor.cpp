@@ -6,9 +6,9 @@
 
 namespace kmm {
 
-class JoinOperation: public Executor::Operation {
+class MergeJob: public Executor::Job {
   public:
-    JoinOperation(EventId id, DeviceEventSet dependencies) :
+    MergeJob(EventId id, DeviceEventSet dependencies) :
         m_id(id),
         m_dependencies(std::move(dependencies)) {}
 
@@ -26,20 +26,20 @@ class JoinOperation: public Executor::Operation {
     DeviceEventSet m_dependencies;
 };
 
-class HostOperation: public Executor::Operation {
+class HostJob: public Executor::Job {
   public:
-    HostOperation(EventId id, std::vector<BufferRequirement> buffers, DeviceEventSet dependencies) :
+    HostJob(EventId id, std::vector<BufferRequirement> buffers, DeviceEventSet dependencies) :
         m_id(id),
-        m_buffers(buffers),
-        m_dependencies(dependencies) {}
+        m_buffers(std::move(buffers)),
+        m_dependencies(std::move(dependencies)) {}
 
     Poll poll(Executor& executor) final {
         if (m_status == Status::Init) {
             m_requests = executor.create_requests(m_buffers);
-            m_status = Status::Pending;
+            m_status = Status::Waiting;
         }
 
-        if (m_status == Status::Pending) {
+        if (m_status == Status::Waiting) {
             if (executor.poll_requests(m_requests, &m_dependencies) == Poll::Pending) {
                 return Poll::Pending;
             }
@@ -69,7 +69,7 @@ class HostOperation: public Executor::Operation {
     virtual std::future<void> submit(Executor& executor, std::vector<BufferAccessor> accessors) = 0;
 
   private:
-    enum struct Status { Init, Pending, Running, Completed };
+    enum struct Status { Init, Waiting, Running, Completed };
 
     Status m_status = Status::Init;
     EventId m_id;
@@ -79,9 +79,9 @@ class HostOperation: public Executor::Operation {
     DeviceEventSet m_dependencies;
 };
 
-class DeviceOperation: public Executor::Operation {
+class DeviceJob: public Executor::Job {
   public:
-    DeviceOperation(
+    DeviceJob(
         EventId id,
         DeviceId device_id,
         std::vector<BufferRequirement> buffers,
@@ -89,8 +89,8 @@ class DeviceOperation: public Executor::Operation {
     ) :
         m_id(id),
         m_device_id(device_id),
-        m_buffers(buffers),
-        m_dependencies(dependencies) {}
+        m_buffers(std::move(buffers)),
+        m_dependencies(std::move(dependencies)) {}
 
     Poll poll(Executor& executor) final {
         if (m_status == Status::Init) {
@@ -111,10 +111,9 @@ class DeviceOperation: public Executor::Operation {
                 submit(state.device, executor.access_requests(m_requests));
             }
 
-            auto event = executor.stream_manager().record_event(state.stream);
+            m_event = executor.stream_manager().record_event(state.stream);
 
-            m_event = event;
-            state.last_event = event;
+            state.last_event = m_event;
             executor.scheduler().set_scheduled(m_id, m_event);
 
             executor.release_requests(m_requests, m_event);
@@ -134,7 +133,7 @@ class DeviceOperation: public Executor::Operation {
     }
 
   protected:
-    virtual void submit(CudaDevice& device, std::vector<BufferAccessor> accessors) = 0;
+    virtual void submit(DeviceContext& device, std::vector<BufferAccessor> accessors) = 0;
 
   private:
     enum struct Status { Init, Pending, Running, Completed };
@@ -148,15 +147,15 @@ class DeviceOperation: public Executor::Operation {
     DeviceEventSet m_dependencies;
 };
 
-class ExecuteHostOperation: public HostOperation {
+class ExecuteHostJob: public HostJob {
   public:
-    ExecuteHostOperation(
+    ExecuteHostJob(
         EventId id,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
         DeviceEventSet dependencies
     ) :
-        HostOperation(id, std::move(buffers), std::move(dependencies)),
+        HostJob(id, std::move(buffers), std::move(dependencies)),
         m_task(std::move(task)) {}
 
     std::future<void> submit(Executor& executor, std::vector<BufferAccessor> accessors) override {
@@ -171,16 +170,16 @@ class ExecuteHostOperation: public HostOperation {
     std::shared_ptr<Task> m_task;
 };
 
-class CopyHostOperation: public HostOperation {
+class CopyHostJob: public HostJob {
   public:
-    CopyHostOperation(
+    CopyHostJob(
         EventId id,
         BufferId src_buffer,
         BufferId dst_buffer,
         CopyDef definition,
         DeviceEventSet dependencies
     ) :
-        HostOperation(
+        HostJob(
             id,
             {BufferRequirement {src_buffer, MemoryId::host(), AccessMode::Read},
              BufferRequirement {dst_buffer, MemoryId::host(), AccessMode::ReadWrite}},
@@ -202,16 +201,16 @@ class CopyHostOperation: public HostOperation {
     CopyDef m_copy;
 };
 
-class ReductionHostOperation: public HostOperation {
+class ReductionHostJob: public HostJob {
   public:
-    ReductionHostOperation(
+    ReductionHostJob(
         EventId id,
         BufferId src_buffer,
         BufferId dst_buffer,
         ReductionDef definition,
         DeviceEventSet dependencies
     ) :
-        HostOperation(
+        HostJob(
             id,
             {BufferRequirement {src_buffer, MemoryId::host(), AccessMode::Read},
              BufferRequirement {dst_buffer, MemoryId::host(), AccessMode::ReadWrite}},
@@ -229,19 +228,19 @@ class ReductionHostOperation: public HostOperation {
     ReductionDef m_reduction;
 };
 
-class ExecuteDeviceOperation: public DeviceOperation {
+class ExecuteDeviceJob: public DeviceJob {
   public:
-    ExecuteDeviceOperation(
+    ExecuteDeviceJob(
         EventId id,
         DeviceId device_id,
         std::shared_ptr<Task> task,
         std::vector<BufferRequirement> buffers,
         DeviceEventSet dependencies
     ) :
-        DeviceOperation(id, device_id, std::move(buffers), std::move(dependencies)),
+        DeviceJob(id, device_id, std::move(buffers), std::move(dependencies)),
         m_task(std::move(task)) {}
 
-    void submit(CudaDevice& device, std::vector<BufferAccessor> accessors) {
+    void submit(DeviceContext& device, std::vector<BufferAccessor> accessors) {
         auto context = TaskContext {std::move(accessors)};
         m_task->execute(device, context);
     }
@@ -250,9 +249,9 @@ class ExecuteDeviceOperation: public DeviceOperation {
     std::shared_ptr<Task> m_task;
 };
 
-class CopyDeviceOperation: public DeviceOperation {
+class CopyDeviceJob: public DeviceJob {
   public:
-    CopyDeviceOperation(
+    CopyDeviceJob(
         EventId id,
         DeviceId device_id,
         BufferId src_buffer,
@@ -260,7 +259,7 @@ class CopyDeviceOperation: public DeviceOperation {
         CopyDef definition,
         DeviceEventSet dependencies
     ) :
-        DeviceOperation(
+        DeviceJob(
             id,
             device_id,
             {BufferRequirement {src_buffer, device_id, AccessMode::Read},
@@ -269,7 +268,7 @@ class CopyDeviceOperation: public DeviceOperation {
         ),
         m_copy(definition) {}
 
-    void submit(CudaDevice& device, std::vector<BufferAccessor> accessors) {
+    void submit(DeviceContext& device, std::vector<BufferAccessor> accessors) {
         KMM_ASSERT(accessors[0].layout.size_in_bytes >= m_copy.minimum_source_bytes_needed());
         KMM_ASSERT(accessors[1].layout.size_in_bytes >= m_copy.minimum_destination_bytes_needed());
         KMM_ASSERT(accessors[1].is_writable);
@@ -286,9 +285,9 @@ class CopyDeviceOperation: public DeviceOperation {
     CopyDef m_copy;
 };
 
-class ReductionDeviceOperation: public DeviceOperation {
+class ReductionDeviceJob: public DeviceJob {
   public:
-    ReductionDeviceOperation(
+    ReductionDeviceJob(
         EventId id,
         DeviceId device_id,
         BufferId src_buffer,
@@ -296,7 +295,7 @@ class ReductionDeviceOperation: public DeviceOperation {
         ReductionDef definition,
         DeviceEventSet dependencies
     ) :
-        DeviceOperation(
+        DeviceJob(
             id,
             device_id,
             {BufferRequirement {src_buffer, device_id, AccessMode::Read},
@@ -305,7 +304,7 @@ class ReductionDeviceOperation: public DeviceOperation {
         ),
         m_definition(std::move(definition)) {}
 
-    void submit(CudaDevice& device, std::vector<BufferAccessor> accessors) {
+    void submit(DeviceContext& device, std::vector<BufferAccessor> accessors) {
         execute_cuda_reduction_async(
             device,
             reinterpret_cast<CUdeviceptr>(accessors[0].address),
@@ -316,6 +315,46 @@ class ReductionDeviceOperation: public DeviceOperation {
 
   private:
     ReductionDef m_definition;
+};
+
+class PrefetchJob: public Executor::Job {
+  public:
+    PrefetchJob(EventId id, BufferId buffer_id, MemoryId memory_id, DeviceEventSet dependencies) :
+        m_id(id),
+        m_buffers {{buffer_id, memory_id, AccessMode::Read}},
+        m_dependencies(std::move(dependencies)) {}
+
+    Poll poll(Executor& executor) final {
+        if (m_status == Status::Init) {
+            m_requests = executor.create_requests(m_buffers);
+            m_status = Status::Waiting;
+        }
+
+        if (m_status == Status::Waiting) {
+            if (executor.poll_requests(m_requests, &m_dependencies) == Poll::Pending) {
+                return Poll::Pending;
+            }
+
+            if (!executor.stream_manager().is_ready(m_dependencies)) {
+                return Poll::Pending;
+            }
+
+            executor.release_requests(m_requests);
+            executor.scheduler().set_complete(m_id);
+            m_status = Status::Completed;
+        }
+
+        return Poll::Ready;
+    }
+
+  private:
+    enum struct Status { Init, Waiting, Completed };
+
+    Status m_status = Status::Init;
+    EventId m_id;
+    std::vector<BufferRequirement> m_buffers;
+    MemoryRequestList m_requests;
+    DeviceEventSet m_dependencies;
 };
 
 Executor::Executor(
@@ -337,7 +376,7 @@ Executor::Executor(
 Executor::~Executor() {}
 
 bool Executor::is_idle() const {
-    return m_scheduler->is_idle() && m_operation_head == nullptr;
+    return m_scheduler->is_idle() && m_jobs_head == nullptr;
 }
 
 bool Executor::is_completed(EventId event_id) const {
@@ -345,8 +384,8 @@ bool Executor::is_completed(EventId event_id) const {
 }
 
 void Executor::make_progress() {
-    Operation* prev = nullptr;
-    std::unique_ptr<Operation>* current_ptr = &m_operation_head;
+    Job* prev = nullptr;
+    std::unique_ptr<Job>* current_ptr = &m_jobs_head;
 
     while (auto* current = current_ptr->get()) {
         if (current->poll(*this) == Poll::Ready) {
@@ -357,7 +396,7 @@ void Executor::make_progress() {
         }
     }
 
-    m_operation_tail = prev;
+    m_jobs_tail = prev;
 
     DeviceEventSet deps;
     while (auto cmd = m_scheduler->pop_ready(&deps)) {
@@ -417,15 +456,15 @@ DeviceState& Executor::device_state(DeviceId id, const DeviceEventSet& hint_deps
     return *m_devices.at(id);
 }
 
-void Executor::insert_operation(std::unique_ptr<Operation> op) {
+void Executor::insert_job(std::unique_ptr<Job> op) {
     if (op->poll(*this) == Poll::Ready) {
         return;
     }
 
-    if (auto* old_tail = std::exchange(m_operation_tail, op.get())) {
+    if (auto* old_tail = std::exchange(m_jobs_tail, op.get())) {
         old_tail->next = std::move(op);
     } else {
-        m_operation_head = std::move(op);
+        m_jobs_head = std::move(op);
     }
 }
 
@@ -441,11 +480,7 @@ void Executor::execute_command(EventId id, const Command& command, DeviceEventSe
         m_scheduler->set_complete(id);
 
     } else if (const auto* e = std::get_if<CommandEmpty>(&command)) {
-        if (!dependencies.is_empty()) {
-            insert_operation(std::make_unique<JoinOperation>(id, std::move(dependencies)));
-        } else {
-            m_scheduler->set_complete(id);
-        }
+        insert_job(std::make_unique<MergeJob>(id, std::move(dependencies)));
 
     } else if (const auto* e = std::get_if<CommandPrefetch>(&command)) {
         execute_command(id, CommandEmpty {}, std::move(dependencies));
@@ -472,7 +507,7 @@ void Executor::execute_command(
     auto proc = command.processor_id;
 
     if (proc.is_device()) {
-        insert_operation(std::make_unique<ExecuteDeviceOperation>(
+        insert_job(std::make_unique<ExecuteDeviceJob>(
             id,
             proc.as_device(),
             command.task,
@@ -480,7 +515,7 @@ void Executor::execute_command(
             std::move(dependencies)
         ));
     } else {
-        insert_operation(std::make_unique<ExecuteHostOperation>(
+        insert_job(std::make_unique<ExecuteHostJob>(
             id,
             command.task,
             command.buffers,
@@ -498,7 +533,7 @@ void Executor::execute_command(
     auto dst_mem = command.dst_memory;
 
     if (src_mem.is_host() && dst_mem.is_host()) {
-        insert_operation(std::make_unique<CopyHostOperation>(
+        insert_job(std::make_unique<CopyHostJob>(
             id,
             command.src_buffer,
             command.dst_buffer,
@@ -506,7 +541,7 @@ void Executor::execute_command(
             std::move(dependencies)
         ));
     } else if (dst_mem.is_device()) {
-        insert_operation(std::make_unique<CopyDeviceOperation>(
+        insert_job(std::make_unique<CopyDeviceJob>(
             id,
             dst_mem.as_device(),
             command.src_buffer,
@@ -527,7 +562,7 @@ void Executor::execute_command(
     auto memory_id = command.memory_id;
 
     if (memory_id.is_device()) {
-        insert_operation(std::make_unique<ReductionDeviceOperation>(
+        insert_job(std::make_unique<ReductionDeviceJob>(
             id,
             memory_id.as_device(),
             command.src_buffer,
@@ -536,7 +571,7 @@ void Executor::execute_command(
             std::move(dependencies)
         ));
     } else {
-        insert_operation(std::make_unique<ReductionHostOperation>(
+        insert_job(std::make_unique<ReductionHostJob>(
             id,
             command.src_buffer,
             command.dst_buffer,

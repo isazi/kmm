@@ -34,11 +34,10 @@ class Scheduler {
         Status status = Status::Pending;
         Command command;
         size_t queue_id;
-        std::optional<DeviceEvent> cuda_event;
+        std::optional<DeviceEvent> device_event;
         small_vector<std::shared_ptr<Node>> successors;
-        DeviceEventSet dependency_events;
-        size_t dependencies_not_scheduled = 0;
-        size_t dependencies_not_completed = 0;
+        DeviceEventSet dependencies_events;
+        size_t dependencies_pending = 0;
     };
 
     Scheduler(size_t num_devices);
@@ -61,6 +60,6 @@ class Scheduler {
     std::unordered_map<EventId, std::shared_ptr<Node>> m_events;
 };
 
-using SchedulerTask = std::shared_ptr<Scheduler::Node>;
+using TaskNode = std::shared_ptr<Scheduler::Node>;
 
 }  // namespace kmm

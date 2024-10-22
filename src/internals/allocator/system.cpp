@@ -10,4 +10,4 @@ bool SystemAllocator::allocate_impl(size_t nbytes, void*& addr_out) {
 void SystemAllocator::deallocate_impl(void* addr, size_t nbytes) {
     free(addr);
 }
-}
+}  // namespace kmm

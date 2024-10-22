@@ -107,12 +107,12 @@ class DeviceEvent {
     }
 
     constexpr bool operator==(const DeviceEvent& that) const {
-        return that.m_event_and_stream == m_event_and_stream;
+        return this->m_event_and_stream == that.m_event_and_stream;
     }
 
     constexpr bool operator<(const DeviceEvent& that) const {
         // This is equivalent to tuple(this.stream, this.event) < tuple(that.stream, that.event)
-        return that.m_event_and_stream < m_event_and_stream;
+        return this->m_event_and_stream < that.m_event_and_stream;
     }
 
     KMM_IMPL_COMPARISON_OPS(DeviceEvent)

@@ -3,8 +3,12 @@
 
 namespace kmm {
 
-
-CachingMemoryAllocator::CachingMemoryAllocator(std::unique_ptr<MemoryAllocator> allocator):m_allocator(std::move(allocator)) {
+CachingMemoryAllocator::CachingMemoryAllocator(
+    std::unique_ptr<MemoryAllocator> allocator,
+    size_t initial_watermark
+) :
+    m_allocator(std::move(allocator)),
+    m_bytes_watermark(initial_watermark) {
     KMM_ASSERT(m_allocator != nullptr);
 }
 
@@ -37,7 +41,8 @@ bool CachingMemoryAllocator::allocate(size_t nbytes, void*& addr_out, DeviceEven
 
     if (head == nullptr) {
         while (true) {
-            if (nbytes < m_bytes_watermark - m_bytes_allocated || m_bytes_in_use == m_bytes_allocated) {
+            if (nbytes < m_bytes_watermark - m_bytes_allocated
+                || m_bytes_in_use == m_bytes_allocated) {
                 if (m_allocator->allocate(nbytes, addr_out, deps_out)) {
                     m_bytes_allocated += nbytes;
                     m_bytes_in_use += nbytes;
@@ -77,11 +82,9 @@ void CachingMemoryAllocator::deallocate(void* addr, size_t nbytes, DeviceEventSe
     nbytes = round_up_allocation_size(nbytes);
     m_bytes_in_use -= nbytes;
 
-    auto slot = std::make_unique<AllocationSlot>(AllocationSlot {
-        .addr = addr,
-        .nbytes = nbytes,
-        .dependencies = std::move(deps)
-    });
+    auto slot = std::make_unique<AllocationSlot>(
+        AllocationSlot {.addr = addr, .nbytes = nbytes, .dependencies = std::move(deps)}
+    );
 
     auto* slot_addr = slot.get();
 
@@ -136,4 +139,4 @@ size_t CachingMemoryAllocator::free_some_memory() {
     return slot->nbytes;
 }
 
-}
+}  // namespace kmm

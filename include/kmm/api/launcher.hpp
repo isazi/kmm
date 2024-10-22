@@ -1,7 +1,7 @@
 #pragma once
 
 #include "kmm/api/argument.hpp"
-#include "kmm/core/cuda_device.hpp"
+#include "kmm/core/device_context.hpp"
 #include "kmm/internals/worker.hpp"
 
 namespace kmm {
@@ -39,7 +39,7 @@ struct Cuda {
     template<typename... Args>
     void operator()(ExecutionContext& exec, TaskChunk chunk, Args... args) {
         auto region = WorkRange(chunk.offset, chunk.size);
-        m_fun(exec.cast<CudaDevice>(), region, args...);
+        m_fun(exec.cast<DeviceContext>(), region, args...);
     }
 
   private:
@@ -77,7 +77,7 @@ struct CudaKernel {
         };
 
         auto region = WorkRange(chunk.offset, chunk.size);
-        exec.cast<CudaDevice>().launch(  //
+        exec.cast<DeviceContext>().launch(  //
             grid_dim,
             block_size,
             shared_memory,
@@ -140,8 +140,9 @@ EventId parallel_submit_impl(
             ProcessorId processor_id = launcher.find_processor(system_info, chunk);
 
             TaskBuilder builder {
-                .graph = graph,
                 .worker = worker,
+                .graph = graph,
+                .chunk = chunk,
                 .memory_id = system_info.affinity_memory(processor_id),
                 .buffers = {},
                 .dependencies = {}};
@@ -150,7 +151,7 @@ EventId parallel_submit_impl(
                 TaskImpl<Launcher, typename ArgumentHandler<std::decay_t<Args>>::type...>>(
                 chunk,
                 launcher,
-                std::get<Is>(handlers).process_chunk(chunk, builder)...
+                std::get<Is>(handlers).process_chunk(builder)...
             );
 
             EventId id = graph.insert_task(
@@ -163,7 +164,7 @@ EventId parallel_submit_impl(
             events.push_back(id);
         }
 
-        TaskResult result {.graph = graph, .worker = worker, .events = std::move(events)};
+        TaskResult result {.worker = worker, .graph = graph, .events = std::move(events)};
         (std::get<Is>(handlers).finalize(result), ...);
 
         return graph.join_events(result.events);

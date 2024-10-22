@@ -3,10 +3,9 @@
 
 namespace kmm {
 
-
-PoolAllocator::PoolAllocator(std::unique_ptr<MemoryAllocator> allocator, size_t min_block_size):
-    m_allocator(std::move(allocator)), m_min_block_size(min_block_size) {
-}
+PoolAllocator::PoolAllocator(std::unique_ptr<MemoryAllocator> allocator, size_t min_block_size) :
+    m_allocator(std::move(allocator)),
+    m_min_block_size(min_block_size) {}
 
 PoolAllocator::~PoolAllocator() {
     KMM_TODO();
@@ -21,7 +20,7 @@ struct PoolAllocator::Region {
     bool in_use = true;
     DeviceEventSet dependencies;
 
-    Region(Block* parent, size_t offset_in_block, size_t size, DeviceEventSet deps={}) {
+    Region(Block* parent, size_t offset_in_block, size_t size, DeviceEventSet deps = {}) {
         this->parent = parent;
         this->offset_in_block = offset_in_block;
         this->size = size;
@@ -57,18 +56,19 @@ bool PoolAllocator::allocate(size_t nbytes, void*& addr_out, DeviceEventSet& dep
     size_t alignment = nbytes < MAX_ALIGNMENT ? round_up_to_power_of_two(nbytes) : MAX_ALIGNMENT;
     nbytes = round_up_to_multiple(nbytes, alignment);
 
-    auto it = m_free_regions.lower_bound(RegionSize{ nbytes });
+    auto it = m_free_regions.lower_bound(RegionSize {nbytes});
 
     while (it != m_free_regions.end()) {
         auto& region = **it;
-        auto padding = round_up_to_multiple(region.offset_in_block, alignment) - region.offset_in_block;
+        auto padding =
+            round_up_to_multiple(region.offset_in_block, alignment) - region.offset_in_block;
 
         if (region.size >= padding + nbytes) {
             break;
         }
     }
 
-    Region *region = nullptr;
+    Region* region = nullptr;
 
     if (it == m_free_regions.end()) {
         DeviceEventSet deps;
@@ -85,7 +85,8 @@ bool PoolAllocator::allocate(size_t nbytes, void*& addr_out, DeviceEventSet& dep
         m_free_regions.erase(it);
     }
 
-    auto padding = round_up_to_multiple(region->offset_in_block, alignment) - region->offset_in_block;
+    auto padding =
+        round_up_to_multiple(region->offset_in_block, alignment) - region->offset_in_block;
 
     if (padding > 0) {
         auto [left, right] = split_region(region, padding);
@@ -131,9 +132,8 @@ void PoolAllocator::deallocate(void* addr, size_t nbytes, DeviceEventSet deps) {
     }
 }
 
-auto PoolAllocator::split_region(Region* region, size_t left_size) -> std::pair<Region*, Region*>{
+auto PoolAllocator::split_region(Region* region, size_t left_size) -> std::pair<Region*, Region*> {
     KMM_TODO();
 }
 
-}
-
+}  // namespace kmm

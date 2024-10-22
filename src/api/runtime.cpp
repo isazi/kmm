@@ -1,5 +1,5 @@
 #include "kmm/api/runtime.hpp"
-#include "kmm/core/cuda_device.hpp"
+#include "kmm/core/device_context.hpp"
 #include "kmm/internals/worker.hpp"
 
 namespace kmm {
@@ -14,7 +14,7 @@ class CopyInTask: public Task {
 
         void* dst_addr = context.accessors[0].address;
 
-        if (auto* device = proc.cast_if<CudaDevice>()) {
+        if (auto* device = proc.cast_if<DeviceContext>()) {
             device->copy_bytes(m_src_addr, dst_addr, m_nbytes);
         } else if (proc.is<HostContext>()) {
             ::memcpy(dst_addr, m_src_addr, m_nbytes);

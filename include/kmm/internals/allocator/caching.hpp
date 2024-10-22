@@ -8,7 +8,7 @@ namespace kmm {
 
 class CachingMemoryAllocator {
   public:
-    CachingMemoryAllocator(std::unique_ptr<MemoryAllocator> allocator);
+    CachingMemoryAllocator(std::unique_ptr<MemoryAllocator> allocator, size_t initial_watermark=0);
     ~CachingMemoryAllocator();
     bool allocate(size_t nbytes, void*& addr_out, DeviceEventSet& deps_out);
     void deallocate(void* addr, size_t nbytes, DeviceEventSet deps);

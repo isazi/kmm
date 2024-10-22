@@ -52,43 +52,53 @@ void Scheduler::insert_event(EventId event_id, Command command, const EventList&
     spdlog::debug("submit event {} (command={}, dependencies={})", event_id, command, deps);
 
     auto node = std::make_shared<Node>(event_id, std::move(command));
-    size_t num_not_scheduled = deps.size();
-    size_t num_not_completed = deps.size();
+    size_t num_pending = deps.size();
     DeviceEventSet dependency_events;
 
     for (EventId dep_id : deps) {
         auto it = m_events.find(dep_id);
 
         if (it == m_events.end()) {
-            num_not_completed--;
-            num_not_scheduled--;
+            num_pending--;
             continue;
         }
 
         auto& dep = it->second;
         dep->successors.push_back(node);
 
-        if (auto event = dep->cuda_event) {
-            num_not_scheduled--;
+        if (auto event = dep->device_event) {
+            num_pending--;
             dependency_events.insert(*event);
         }
     }
 
     node->queue_id = determine_queue_id(node->command);
-    node->dependencies_not_completed = num_not_completed;
-    node->dependencies_not_scheduled = num_not_scheduled;
-    node->dependency_events = std::move(dependency_events);
+    node->dependencies_pending = num_pending;
+    node->dependencies_events = std::move(dependency_events);
     enqueue_if_ready(nullptr, node);
 
     m_events.emplace(event_id, std::move(node));
 }
 
-bool Scheduler::is_completed(EventId id) const {
-    return m_events.find(id) == m_events.end();
-}
+std::optional<std::shared_ptr<Scheduler::Node>> Scheduler::pop_ready(DeviceEventSet* deps_out) {
+    std::shared_ptr<Node> result;
 
-bool Scheduler::is_idle() const {
-    return m_events.empty();
+    for (auto& q : m_queues) {
+        if (q.pop_job(result)) {
+            spdlog::debug(
+                "scheduling event {} (command={}, CUDA deps={})",
+                result->id(),
+                result->command,
+                result->dependencies_events
+            );
+
+            result->status = Node::Status::Scheduled;
+            *deps_out = std::move(result->dependencies_events);
+            return result;
+        }
+    }
+
+    return std::nullopt;
 }
 
 void Scheduler::set_scheduled(EventId id, DeviceEvent event) {
@@ -100,19 +110,19 @@ void Scheduler::set_scheduled(EventId id, DeviceEvent event) {
     auto node = it->second;
 
     spdlog::debug(
-        "scheduled event {} (command={}, cuda event={})",
+        "scheduled event {} (command={}, CUDA event={})",
         node->id(),
         node->command,
         event
     );
 
     KMM_ASSERT(node->status == Node::Status::Scheduled);
-    KMM_ASSERT(node->cuda_event == std::nullopt);
-    node->cuda_event = event;
+    KMM_ASSERT(node->device_event == std::nullopt);
+    node->device_event = event;
 
     for (const auto& succ : node->successors) {
-        succ->dependency_events.insert(event);
-        succ->dependencies_not_scheduled -= 1;
+        succ->dependencies_events.insert(event);
+        succ->dependencies_pending -= 1;
         enqueue_if_ready(node.get(), succ);
     }
 
@@ -130,31 +140,23 @@ void Scheduler::set_complete(EventId id) {
 
     KMM_ASSERT(node->status == Node::Status::Scheduled);
     node->status = Node::Status::Done;
-    node->cuda_event = std::nullopt;
     m_events.erase(node->event_id);
 
-    for (const auto& succ : node->successors) {
-        succ->dependencies_not_completed -= 1;
-        enqueue_if_ready(node.get(), succ);
+    if (node->device_event == std::nullopt) {
+        for (const auto& succ : node->successors) {
+            succ->dependencies_pending -= 1;
+            enqueue_if_ready(node.get(), succ);
+        }
     }
 
     m_queues.at(node->queue_id).completed_job(node);
 }
+bool Scheduler::is_completed(EventId id) const {
+    return m_events.find(id) == m_events.end();
+}
 
-std::optional<std::shared_ptr<Scheduler::Node>> Scheduler::pop_ready(DeviceEventSet* deps_out) {
-    std::shared_ptr<Node> result;
-
-    for (auto& q : m_queues) {
-        if (q.pop_job(result)) {
-            spdlog::debug("scheduling event {} (command={})", result->id(), result->command);
-
-            result->status = Node::Status::Scheduled;
-            *deps_out = std::move(result->dependency_events);
-            return result;
-        }
-    }
-
-    return std::nullopt;
+bool Scheduler::is_idle() const {
+    return m_events.empty();
 }
 
 size_t Scheduler::determine_queue_id(const Command& cmd) {
@@ -176,7 +178,7 @@ void Scheduler::enqueue_if_ready(const Node* predecessor, const std::shared_ptr<
         return;
     }
 
-    if (node->dependencies_not_completed > 0 && node->dependencies_not_scheduled > 0) {
+    if (node->dependencies_pending > 0) {
         return;
     }
 
