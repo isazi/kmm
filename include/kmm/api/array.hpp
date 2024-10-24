@@ -81,7 +81,7 @@ class Array: ArrayBase {
         }
     }
 
-    void clear() {
+    void reset() {
         m_backend = nullptr;
     }
 

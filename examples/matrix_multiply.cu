@@ -83,9 +83,8 @@ int main() {
     );
 
     for (size_t repeat = 0; repeat < 10; repeat++) {
-        C = decltype(C)(C.shape());
+        C.reset();
 
-        printf("REPEAT A: %d\n", int(repeat));
         rt.parallel_submit(
             {n, m, k},
             {chunk_size, chunk_size, chunk_size},
@@ -98,9 +97,7 @@ int main() {
             read(B, slice(_z, _y))
         );
 
-                printf("REPEAT B: %d\n", int(repeat));
         rt.synchronize();
-        printf("REPEAT C: %d\n", int(repeat));
     }
 
     return EXIT_SUCCESS;
