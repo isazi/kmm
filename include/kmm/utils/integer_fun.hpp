@@ -71,7 +71,7 @@ T round_up_to_multiple(T input, T multiple) {
 
 /**
  * Return the smallest number that is a power of two and is not less than `input`. This function
- * returns `0` if not such number exists.
+ * returns `numeric_limits<T>::max()` if not such number exists.
  */
 template<typename T>
 static T round_up_to_power_of_two(T input) {
