@@ -4,6 +4,7 @@
 #include "kmm/memops/cuda_fill.hpp"
 #include "kmm/utils/cuda.hpp"
 #include "kmm/utils/integer_fun.hpp"
+#include "kmm/utils/panic.hpp"
 
 namespace kmm {
 
@@ -111,6 +112,7 @@ void execute_cuda_fill_async(
         ));
 
     } else if (is_fill_pattern_repetitive<8>(fill_pattern, fill_pattern_size)) {
+        KMM_ASSERT(dest_buffer % 8 == 0);  // must be aligned?
         submit_fill_kernel<uint64_t>(stream, dest_buffer, nbytes / sizeof(uint64_t), fill_pattern);
     } else {
         throw CudaException(fmt::format(
