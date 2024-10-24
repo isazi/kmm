@@ -11,7 +11,7 @@
 namespace kmm {
 
 class CudaStreamManager;
-class CudaStream;
+class DeviceStream;
 class DeviceEvent;
 class DeviceEventSet;
 
@@ -24,29 +24,29 @@ class CudaStreamManager {
 
     bool make_progress();
 
-    CudaStream create_stream(CudaContextHandle context, bool high_priority = false);
+    DeviceStream create_stream(CudaContextHandle context, bool high_priority = false);
 
     void wait_until_idle() const;
-    void wait_until_ready(CudaStream stream) const;
+    void wait_until_ready(DeviceStream stream) const;
     void wait_until_ready(DeviceEvent event) const;
     void wait_until_ready(const DeviceEventSet& events) const;
 
     bool is_idle() const;
-    bool is_ready(CudaStream stream) const;
+    bool is_ready(DeviceStream stream) const;
     bool is_ready(DeviceEvent event) const;
     bool is_ready(const DeviceEventSet& events) const;
     bool is_ready(DeviceEventSet& events) const;
 
     void attach_callback(DeviceEvent event, NotifyHandle callback);
-    void attach_callback(CudaStream event, NotifyHandle callback);
+    void attach_callback(DeviceStream event, NotifyHandle callback);
 
-    DeviceEvent record_event(CudaStream stream);
-    void wait_on_default_stream(CudaStream stream);
+    DeviceEvent record_event(DeviceStream stream);
+    void wait_on_default_stream(DeviceStream stream);
 
-    void wait_for_event(CudaStream stream, DeviceEvent event) const;
-    void wait_for_events(CudaStream stream, const DeviceEventSet& events);
-    void wait_for_events(CudaStream stream, const DeviceEvent* begin, const DeviceEvent* end);
-    void wait_for_events(CudaStream stream, const std::vector<DeviceEvent>& events);
+    void wait_for_event(DeviceStream stream, DeviceEvent event) const;
+    void wait_for_events(DeviceStream stream, const DeviceEventSet& events);
+    void wait_for_events(DeviceStream stream, const DeviceEvent* begin, const DeviceEvent* end);
+    void wait_for_events(DeviceStream stream, const std::vector<DeviceEvent>& events);
 
     /**
      * Check if the given `source` event must occur before the given `target` event. In other words,
@@ -54,14 +54,14 @@ class CudaStreamManager {
      */
     bool event_happens_before(DeviceEvent source, DeviceEvent target) const;
 
-    CudaContextHandle context(CudaStream device_id) const;
-    CUstream get(CudaStream stream) const;
+    CudaContextHandle context(DeviceStream device_id) const;
+    CUstream get(DeviceStream stream) const;
 
     template<typename F>
-    DeviceEvent with_stream(CudaStream stream, const DeviceEventSet& deps, F fun);
+    DeviceEvent with_stream(DeviceStream stream, const DeviceEventSet& deps, F fun);
 
     template<typename F>
-    DeviceEvent with_stream(CudaStream stream, F fun);
+    DeviceEvent with_stream(DeviceStream stream, F fun);
 
   private:
     struct StreamState;
@@ -71,9 +71,9 @@ class CudaStreamManager {
     std::vector<EventPool> m_event_pools;
 };
 
-class CudaStream {
+class DeviceStream {
   public:
-    CudaStream(uint8_t i = 0) : m_index(i) {}
+    DeviceStream(uint8_t i = 0) : m_index(i) {}
 
     uint8_t get() const {
         return m_index;
@@ -83,7 +83,7 @@ class CudaStream {
         return m_index;
     }
 
-    friend std::ostream& operator<<(std::ostream&, const CudaStream& e);
+    friend std::ostream& operator<<(std::ostream&, const DeviceStream& e);
 
   private:
     uint8_t m_index;
@@ -93,12 +93,12 @@ class DeviceEvent {
   public:
     DeviceEvent() = default;
 
-    DeviceEvent(CudaStream stream, uint64_t index) {
+    DeviceEvent(DeviceStream stream, uint64_t index) {
         KMM_ASSERT(index < (1ULL << 56));
         m_event_and_stream = (uint64_t(stream.get()) << 56) | index;
     }
 
-    CudaStream stream() const {
+    DeviceStream stream() const {
         return static_cast<uint8_t>(m_event_and_stream >> 56);
     }
 
@@ -153,7 +153,7 @@ class DeviceEventSet {
 };
 
 template<typename F>
-DeviceEvent CudaStreamManager::with_stream(CudaStream stream, const DeviceEventSet& deps, F fun) {
+DeviceEvent CudaStreamManager::with_stream(DeviceStream stream, const DeviceEventSet& deps, F fun) {
     wait_for_events(stream, deps);
 
     try {
@@ -167,14 +167,14 @@ DeviceEvent CudaStreamManager::with_stream(CudaStream stream, const DeviceEventS
 }
 
 template<typename F>
-DeviceEvent CudaStreamManager::with_stream(CudaStream stream, F fun) {
+DeviceEvent CudaStreamManager::with_stream(DeviceStream stream, F fun) {
     return with_stream(stream, {}, fun);
 }
 
 }  // namespace kmm
 
 template<>
-struct fmt::formatter<kmm::CudaStream>: fmt::ostream_formatter {};
+struct fmt::formatter<kmm::DeviceStream>: fmt::ostream_formatter {};
 template<>
 struct fmt::formatter<kmm::DeviceEvent>: fmt::ostream_formatter {};
 template<>

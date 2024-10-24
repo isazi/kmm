@@ -6,6 +6,7 @@
 #include "scheduler.hpp"
 #include "task_graph.hpp"
 
+#include "kmm/core/config.hpp"
 #include "kmm/core/system_info.hpp"
 
 namespace kmm {
@@ -19,12 +20,13 @@ class Worker: public std::enable_shared_from_this<Worker> {
     Worker(
         std::vector<CudaContextHandle> contexts,
         std::shared_ptr<CudaStreamManager> stream_manager,
-        std::shared_ptr<MemoryManager> memory_system
+        std::shared_ptr<MemorySystem> memory_system
     );
     ~Worker();
 
     bool query_event(EventId event_id, std::chrono::system_clock::time_point deadline);
     bool is_idle();
+    void trim_memory();
     void make_progress();
     void shutdown();
 
@@ -69,9 +71,9 @@ class Worker: public std::enable_shared_from_this<Worker> {
     TaskGraph m_graph;
 
     std::shared_ptr<CudaStreamManager> m_stream_manager;
-    std::shared_ptr<MemoryManager> m_memory_manager;
+    std::shared_ptr<MemorySystem> m_memory_system;
 };
 
-std::shared_ptr<Worker> make_worker();
+std::shared_ptr<Worker> make_worker(const WorkerConfig& config);
 
 }  // namespace kmm

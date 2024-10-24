@@ -1,4 +1,4 @@
-#include "kmm/internals/allocator/base.hpp"
+#include "kmm/allocators/base.hpp"
 #include "kmm/internals/cuda_stream_manager.hpp"
 #include "kmm/utils/macros.hpp"
 
@@ -9,25 +9,29 @@ class MemorySystem {
 
   public:
     MemorySystem(
-        std::shared_ptr<CudaStreamManager> streams,
+        std::shared_ptr<CudaStreamManager> stream_manager,
         std::vector<CudaContextHandle> device_contexts,
-        std::unique_ptr<MemoryAllocator> host_mem,
-        std::vector<std::unique_ptr<MemoryAllocator>> device_mem
+        std::unique_ptr<AsyncAllocator> host_mem,
+        std::vector<std::unique_ptr<AsyncAllocator>> device_mem
     );
 
     ~MemorySystem();
 
     void make_progress();
 
-    bool allocate_host(size_t nbytes, void*& ptr_out, DeviceEventSet& deps_out);
+    void trim_host(size_t bytes_remaining = 0);
+    void trim_device(size_t bytes_remaining = 0);
+
+    bool allocate_host(size_t nbytes, void** ptr_out, DeviceEventSet* deps_out);
     void deallocate_host(void* ptr, size_t nbytes, DeviceEventSet deps = {});
 
     bool allocate_device(
         DeviceId device_id,
         size_t nbytes,
-        CUdeviceptr& ptr_out,
-        DeviceEventSet& deps_out
+        CUdeviceptr* ptr_out,
+        DeviceEventSet* deps_out
     );
+
     void deallocate_device(
         DeviceId device_id,
         CUdeviceptr ptr,
@@ -70,7 +74,7 @@ class MemorySystem {
     struct Device;
 
     std::shared_ptr<CudaStreamManager> m_streams;
-    std::unique_ptr<MemoryAllocator> m_host;
-    std::vector<std::unique_ptr<Device>> m_devices;
+    std::unique_ptr<AsyncAllocator> m_host;
+    std::unique_ptr<Device> m_devices[MAX_DEVICES];
 };
 }  // namespace kmm

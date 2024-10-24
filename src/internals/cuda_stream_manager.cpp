@@ -48,7 +48,7 @@ struct CudaStreamManager::EventPool {
 
 CudaStreamManager::CudaStreamManager() {}
 
-CudaStream CudaStreamManager::create_stream(CudaContextHandle context, bool high_priority) {
+DeviceStream CudaStreamManager::create_stream(CudaContextHandle context, bool high_priority) {
     size_t pool_index;
     bool found_pool = false;
 
@@ -76,7 +76,7 @@ CudaStream CudaStreamManager::create_stream(CudaContextHandle context, bool high
     KMM_CUDA_CHECK(cuStreamCreateWithPriority(&cuda_stream, CU_STREAM_NON_BLOCKING, priority));
     m_streams.emplace_back(pool_index, context, cuda_stream);
 
-    return CudaStream(index);
+    return DeviceStream(index);
 }
 
 CudaStreamManager::~CudaStreamManager() {
@@ -103,7 +103,7 @@ void CudaStreamManager::wait_until_idle() const {
     }
 }
 
-void CudaStreamManager::wait_until_ready(CudaStream stream) const {
+void CudaStreamManager::wait_until_ready(DeviceStream stream) const {
     KMM_CUDA_CHECK(cuStreamSynchronize(get(stream)));
 }
 
@@ -141,7 +141,7 @@ bool CudaStreamManager::is_idle() const {
     return true;
 }
 
-bool CudaStreamManager::is_ready(CudaStream stream) const {
+bool CudaStreamManager::is_ready(DeviceStream stream) const {
     return m_streams.at(stream).pending_events.empty();
 }
 
@@ -169,11 +169,11 @@ void CudaStreamManager::attach_callback(DeviceEvent event, NotifyHandle callback
     stream.callbacks_heap.emplace(event.index(), std::move(callback));
 }
 
-void CudaStreamManager::attach_callback(CudaStream stream, NotifyHandle callback) {
+void CudaStreamManager::attach_callback(DeviceStream stream, NotifyHandle callback) {
     attach_callback(record_event(stream), std::move(callback));
 }
 
-DeviceEvent CudaStreamManager::record_event(CudaStream stream_id) {
+DeviceEvent CudaStreamManager::record_event(DeviceStream stream_id) {
     auto& stream = m_streams.at(stream_id);
 
     uint64_t event_index = stream.first_pending_index + stream.pending_events.size();
@@ -188,7 +188,7 @@ DeviceEvent CudaStreamManager::record_event(CudaStream stream_id) {
     return event;
 }
 
-void CudaStreamManager::wait_on_default_stream(CudaStream stream_id) {
+void CudaStreamManager::wait_on_default_stream(DeviceStream stream_id) {
     auto& stream = m_streams.at(stream_id);
 
     CUevent cuda_event = m_event_pools[stream.pool_index].pop();
@@ -198,7 +198,7 @@ void CudaStreamManager::wait_on_default_stream(CudaStream stream_id) {
     KMM_CUDA_CHECK(cuStreamWaitEvent(stream.cuda_stream, cuda_event, CU_EVENT_WAIT_DEFAULT));
 }
 
-void CudaStreamManager::wait_for_event(CudaStream stream, DeviceEvent event) const {
+void CudaStreamManager::wait_for_event(DeviceStream stream, DeviceEvent event) const {
     // Stream never needs to wait on events from itself
     if (event.stream() == stream) {
         return;
@@ -220,7 +220,7 @@ void CudaStreamManager::wait_for_event(CudaStream stream, DeviceEvent event) con
 }
 
 void CudaStreamManager::wait_for_events(
-    CudaStream stream,
+    DeviceStream stream,
     const DeviceEvent* begin,
     const DeviceEvent* end
 ) {
@@ -229,11 +229,14 @@ void CudaStreamManager::wait_for_events(
     }
 }
 
-void CudaStreamManager::wait_for_events(CudaStream stream, const DeviceEventSet& events) {
+void CudaStreamManager::wait_for_events(DeviceStream stream, const DeviceEventSet& events) {
     wait_for_events(stream, events.begin(), events.end());
 }
 
-void CudaStreamManager::wait_for_events(CudaStream stream, const std::vector<DeviceEvent>& events) {
+void CudaStreamManager::wait_for_events(
+    DeviceStream stream,
+    const std::vector<DeviceEvent>& events
+) {
     wait_for_events(stream, &*events.begin(), &*events.end());
 }
 
@@ -241,12 +244,12 @@ bool CudaStreamManager::event_happens_before(DeviceEvent source, DeviceEvent tar
     return source.stream() == target.stream() && source.index() < target.index();
 }
 
-CudaContextHandle CudaStreamManager::context(CudaStream stream) const {
+CudaContextHandle CudaStreamManager::context(DeviceStream stream) const {
     KMM_ASSERT(stream.get() < m_streams.size());
     return m_streams[stream.get()].context;
 }
 
-CUstream CudaStreamManager::get(CudaStream stream) const {
+CUstream CudaStreamManager::get(DeviceStream stream) const {
     KMM_ASSERT(stream < m_streams.size());
     return m_streams[stream].cuda_stream;
 }
@@ -327,7 +330,7 @@ void CudaStreamManager::EventPool::push(CUevent event) {
     m_events.push_back(event);
 }
 
-std::ostream& operator<<(std::ostream& f, const CudaStream& e) {
+std::ostream& operator<<(std::ostream& f, const DeviceStream& e) {
     return f << uint32_t(e.get());
 }
 
@@ -368,8 +371,24 @@ void DeviceEventSet::insert(DeviceEvent e) {
 }
 
 void DeviceEventSet::insert(const DeviceEventSet& events) {
+    size_t n = m_events.size();
+
     for (DeviceEvent e : events) {
-        insert(e);
+        bool found = false;
+        size_t found_index;
+
+        for (size_t i = 0; i < n; i++) {
+            if (m_events[i].stream() == e.stream()) {
+                found = true;
+                found_index = i;
+            }
+        }
+
+        if (found) {
+            m_events[found_index] = std::max(m_events[found_index], e);
+        } else {
+            m_events.push_back(e);
+        }
     }
 }
 

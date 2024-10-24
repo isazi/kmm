@@ -22,7 +22,7 @@ class MemoryManager {
     struct Device;
     struct Transaction;
 
-    MemoryManager(std::unique_ptr<MemorySystem> memory);
+    MemoryManager(std::shared_ptr<MemorySystem> memory);
     ~MemoryManager();
 
     void make_progress();
@@ -96,7 +96,7 @@ class MemoryManager {
     std::unordered_set<std::shared_ptr<Buffer>> m_buffers;
     std::unordered_set<std::shared_ptr<Request>> m_active_requests;
     std::unique_ptr<Device[]> m_devices;
-    std::unique_ptr<MemorySystem> m_memory;
+    std::shared_ptr<MemorySystem> m_memory;
 };
 
 using MemoryRequest = std::shared_ptr<MemoryManager::Request>;

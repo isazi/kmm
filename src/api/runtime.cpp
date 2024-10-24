@@ -96,8 +96,8 @@ const Worker& Runtime::worker() const {
     return *m_worker;
 }
 
-Runtime make_runtime() {
-    return make_worker();
+Runtime make_runtime(const WorkerConfig& config) {
+    return make_worker(config);
 }
 
 }  // namespace kmm

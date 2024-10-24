@@ -2,8 +2,9 @@
 
 #include "spdlog/spdlog.h"
 
-#include "kmm/internals/allocator/cuda.hpp"
-#include "kmm/internals/allocator/system.hpp"
+#include "kmm/allocators/block.hpp"
+#include "kmm/allocators/device.hpp"
+#include "kmm/allocators/system.hpp"
 #include "kmm/internals/worker.hpp"
 
 namespace kmm {
@@ -50,6 +51,12 @@ bool Worker::is_idle() {
     return is_idle_impl();
 }
 
+void Worker::trim_memory() {
+    std::lock_guard guard {m_mutex};
+    m_memory_system->trim_host();
+    m_memory_system->trim_device();
+}
+
 void Worker::make_progress() {
     std::lock_guard guard {m_mutex};
     flush_events_impl();
@@ -88,13 +95,12 @@ void Worker::flush_events_impl() {
 
 void Worker::make_progress_impl() {
     m_stream_manager->make_progress();
-    m_memory_manager->make_progress();
+    m_memory_system->make_progress();
     m_executor.make_progress();
 }
 
 bool Worker::is_idle_impl() {
-    return m_stream_manager->is_idle() && m_memory_manager->is_idle(*m_stream_manager)
-        && m_executor.is_idle();
+    return m_stream_manager->is_idle() && m_executor.is_idle();
 }
 
 Worker::~Worker() {
@@ -118,16 +124,17 @@ SystemInfo make_system_info(const std::vector<CudaContextHandle>& contexts) {
 Worker::Worker(
     std::vector<CudaContextHandle> contexts,
     std::shared_ptr<CudaStreamManager> stream_manager,
-    std::shared_ptr<MemoryManager> memory_manager
+    std::shared_ptr<MemorySystem> memory_system
 ) :
     m_info(make_system_info(contexts)),
-    m_executor(contexts, stream_manager, memory_manager),
+    m_executor(contexts, stream_manager, memory_system),
     m_stream_manager(stream_manager),
-    m_memory_manager(memory_manager) {}
+    m_memory_system(memory_system) {}
 
-std::shared_ptr<Worker> make_worker() {
-    std::unique_ptr<MemoryAllocator> host_mem;
-    std::vector<std::unique_ptr<MemoryAllocator>> device_mems;
+std::shared_ptr<Worker> make_worker(const WorkerConfig& config) {
+    std::unique_ptr<AsyncAllocator> host_mem;
+    std::unique_ptr<AsyncAllocator> device_mem;
+    std::vector<std::unique_ptr<AsyncAllocator>> device_mems;
 
     auto stream_manager = std::make_shared<CudaStreamManager>();
     auto contexts = std::vector<CudaContextHandle>();
@@ -136,23 +143,71 @@ std::shared_ptr<Worker> make_worker() {
     if (!devices.empty()) {
         for (size_t i = 0; i < devices.size(); i++) {
             auto context = CudaContextHandle::retain_primary_context_for_device(devices[i]);
-            device_mems.push_back(std::make_unique<DevicePoolAllocator>(context, stream_manager));
             contexts.push_back(context);
+
+            switch (config.device_memory_kind) {
+                case DeviceMemoryKind::NoPool:
+                    device_mem = std::make_unique<DeviceMemoryAllocator>(
+                        context,
+                        stream_manager,
+                        config.device_memory_limit
+                    );
+                    break;
+
+                case DeviceMemoryKind::DefaultPool:
+                    device_mem = std::make_unique<DevicePoolAllocator>(
+                        context,
+                        stream_manager,
+                        DevicePoolKind::Default,
+                        config.device_memory_limit
+                    );
+                    break;
+
+                case DeviceMemoryKind::PrivatePool:
+                    device_mem = std::make_unique<DevicePoolAllocator>(
+                        context,
+                        stream_manager,
+                        DevicePoolKind::Create,
+                        config.device_memory_limit
+                    );
+                    break;
+            }
+
+            device_mems.push_back(std::move(device_mem));
         }
 
-        host_mem = std::make_unique<PinnedMemoryAllocator>(contexts.at(0), stream_manager);
+        host_mem = std::make_unique<PinnedMemoryAllocator>(
+            contexts.at(0),
+            stream_manager,
+            config.host_memory_limit
+        );
     } else {
-        host_mem = std::make_unique<SystemAllocator>(stream_manager);
+        host_mem = std::make_unique<SystemAllocator>(stream_manager, config.host_memory_limit);
     }
 
-    auto memory_system = std::make_unique<MemorySystem>(
+    if (config.host_memory_block_size > 0) {
+        host_mem = std::make_unique<BlockAllocator>(  //
+            std::move(host_mem),
+            config.host_memory_block_size
+        );
+    }
+
+    if (config.device_memory_block_size > 0) {
+        for (size_t i = 0; i < devices.size(); i++) {
+            device_mems[i] = std::make_unique<BlockAllocator>(
+                std::move(device_mems[i]),
+                config.device_memory_block_size
+            );
+        }
+    }
+
+    auto memory_system = std::make_shared<MemorySystem>(
         stream_manager,
         contexts,
         std::move(host_mem),
         std::move(device_mems)
     );
 
-    auto memory_manager = std::make_shared<MemoryManager>(std::move(memory_system));
-    return std::make_shared<Worker>(contexts, stream_manager, memory_manager);
+    return std::make_shared<Worker>(contexts, stream_manager, memory_system);
 }
 }  // namespace kmm

@@ -215,6 +215,6 @@ class Runtime {
     std::shared_ptr<Worker> m_worker;
 };
 
-Runtime make_runtime();
+Runtime make_runtime(const WorkerConfig& config = default_config_from_environment());
 
 }  // namespace kmm

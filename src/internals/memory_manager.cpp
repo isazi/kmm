@@ -16,10 +16,8 @@ struct BufferEntry {
     size_t num_allocation_locks = 0;
 
     // let `<=` the happens-before operator. Then it should ALWAYS hold that
-    // * allocation_event <= epoch_event
     // * epoch_event <= write_events
     // * write_events <= access_events
-    DeviceEventSet allocation_event;
     DeviceEventSet epoch_event;
     DeviceEventSet write_events;
     DeviceEventSet access_events;
@@ -114,8 +112,8 @@ struct MemoryManager::Device {
     Device() = default;
 };
 
-MemoryManager::MemoryManager(std::unique_ptr<MemorySystem> allocator) :
-    m_memory(std::move(allocator)),
+MemoryManager::MemoryManager(std::shared_ptr<MemorySystem> memory_system) :
+    m_memory(std::move(memory_system)),
     m_devices(std::make_unique<Device[]>(MAX_DEVICES)) {}
 
 MemoryManager::~MemoryManager() {
@@ -134,14 +132,12 @@ bool MemoryManager::is_idle(CudaStreamManager& streams) const {
             result &= streams.is_ready(e.access_events);
             result &= streams.is_ready(e.write_events);
             result &= streams.is_ready(e.epoch_event);
-            result &= streams.is_ready(e.allocation_event);
         }
 
         auto& e = buffer->host_entry;
         result &= streams.is_ready(e.access_events);
         result &= streams.is_ready(e.write_events);
         result &= streams.is_ready(e.epoch_event);
-        result &= streams.is_ready(e.allocation_event);
     }
 
     return result;
@@ -224,7 +220,7 @@ Poll MemoryManager::poll_request(Request& req, DeviceEventSet* deps_out) {
             }
         }
 
-        deps_out->insert(buffer.entry(memory_id).allocation_event);
+        deps_out->insert(buffer.entry(memory_id).epoch_event);
         req.status = Request::Status::Allocated;
     }
 
@@ -480,7 +476,7 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
     CUdeviceptr ptr_out;
     DeviceEventSet events;
     auto success =
-        m_memory->allocate_device(device_id, buffer.layout.size_in_bytes, ptr_out, events);
+        m_memory->allocate_device(device_id, buffer.layout.size_in_bytes, &ptr_out, &events);
 
     if (!success) {
         return false;
@@ -489,10 +485,9 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
     device_entry.data = ptr_out;
     device_entry.is_allocated = true;
     device_entry.is_valid = false;
-    device_entry.allocation_event = events;
     device_entry.epoch_event = events;
     device_entry.access_events = events;
-    device_entry.write_events = events;
+    device_entry.write_events = std::move(events);
     return true;
 }
 
@@ -525,7 +520,6 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
 
     device_entry.is_allocated = false;
     device_entry.is_valid = false;
-    device_entry.allocation_event.clear();
     device_entry.epoch_event.clear();
     device_entry.write_events.clear();
     device_entry.access_events.clear();
@@ -545,7 +539,7 @@ void MemoryManager::allocate_host(Buffer& buffer) {
 
     void* ptr;
     DeviceEventSet events;
-    bool success = m_memory->allocate_host(size_in_bytes, ptr, events);
+    bool success = m_memory->allocate_host(size_in_bytes, &ptr, &events);
 
     if (!success) {
         throw std::runtime_error("could not allocate, out of host memory");
@@ -554,10 +548,9 @@ void MemoryManager::allocate_host(Buffer& buffer) {
     host_entry.data = ptr;
     host_entry.is_allocated = true;
     host_entry.is_valid = false;
-    host_entry.allocation_event = events;
     host_entry.epoch_event = events;
     host_entry.access_events = events;
-    host_entry.write_events = events;
+    host_entry.write_events = std::move(events);
 }
 
 void MemoryManager::deallocate_host(Buffer& buffer) {
@@ -759,13 +752,16 @@ void MemoryManager::unlock_access(
         event
     );
 
+    bool is_writer = req.mode != AccessMode::Read;
+    bool is_exclusive = req.mode == AccessMode::Exclusive;
+
     BufferEntry& entry = buffer.entry(memory_id);
     entry.access_events.insert(event);
 
-    if (req.mode != AccessMode::Read) {
+    if (is_writer) {
         entry.write_events.insert(event);
 
-        if (req.mode == AccessMode::Exclusive) {
+        if (is_exclusive) {
             entry.epoch_event.insert(event);
         }
     }
@@ -786,6 +782,7 @@ bool MemoryManager::try_lock_access(
     }
 
     bool is_writer = req.mode != AccessMode::Read;
+    bool is_exclusive = req.mode == AccessMode::Exclusive;
     auto& entry = buffer.entry(memory_id);
 
     make_entry_valid(memory_id, buffer, deps_out);
@@ -804,7 +801,7 @@ bool MemoryManager::try_lock_access(
             }
         }
 
-        if (req.mode == AccessMode::Exclusive) {
+        if (is_exclusive) {
             deps_out->insert(entry.access_events);
         }
     }
@@ -884,10 +881,10 @@ DeviceEvent MemoryManager::fill_buffer(
         );
     }
 
+    entry.is_valid = true;
     entry.epoch_event = {event};
     entry.access_events = {event};
     entry.write_events = {event};
-    entry.is_valid = true;
     return event;
 }
 

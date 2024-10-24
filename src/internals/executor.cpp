@@ -360,12 +360,12 @@ class PrefetchJob: public Executor::Job {
 Executor::Executor(
     std::vector<CudaContextHandle> contexts,
     std::shared_ptr<CudaStreamManager> stream_manager,
-    std::shared_ptr<MemoryManager> memory_manager
+    std::shared_ptr<MemorySystem> memory_system
 ) :
-    m_buffer_manager(std::make_shared<BufferManager>()),
-    m_memory_manager(memory_manager),
+    m_buffer_manager(std::make_unique<BufferManager>()),
+    m_memory_manager(std::make_unique<MemoryManager>(memory_system)),
     m_stream_manager(stream_manager),
-    m_scheduler(std::make_shared<Scheduler>(contexts.size())) {
+    m_scheduler(std::make_unique<Scheduler>(contexts.size())) {
     for (size_t i = 0; i < contexts.size(); i++) {
         m_devices.emplace_back(
             std::make_unique<DeviceState>(DeviceId(i), contexts[i], *stream_manager)
