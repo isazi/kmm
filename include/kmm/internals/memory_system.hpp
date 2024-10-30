@@ -1,5 +1,5 @@
 #include "kmm/allocators/base.hpp"
-#include "kmm/internals/cuda_stream_manager.hpp"
+#include "kmm/internals/device_stream_manager.hpp"
 #include "kmm/utils/macros.hpp"
 
 namespace kmm {
@@ -9,7 +9,7 @@ class MemorySystem {
 
   public:
     MemorySystem(
-        std::shared_ptr<CudaStreamManager> stream_manager,
+        std::shared_ptr<DeviceStreamManager> stream_manager,
         std::vector<CudaContextHandle> device_contexts,
         std::unique_ptr<AsyncAllocator> host_mem,
         std::vector<std::unique_ptr<AsyncAllocator>> device_mem
@@ -73,7 +73,7 @@ class MemorySystem {
   private:
     struct Device;
 
-    std::shared_ptr<CudaStreamManager> m_streams;
+    std::shared_ptr<DeviceStreamManager> m_streams;
     std::unique_ptr<AsyncAllocator> m_host;
     std::unique_ptr<Device> m_devices[MAX_DEVICES];
 };

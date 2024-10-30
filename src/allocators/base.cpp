@@ -8,7 +8,7 @@ struct SyncAllocator::DeferredDealloc {
     DeviceEventSet dependencies;
 };
 
-SyncAllocator::SyncAllocator(std::shared_ptr<CudaStreamManager> streams, size_t max_bytes) :
+SyncAllocator::SyncAllocator(std::shared_ptr<DeviceStreamManager> streams, size_t max_bytes) :
     m_streams(streams),
     m_bytes_limit(max_bytes),
     m_bytes_in_use(0) {}

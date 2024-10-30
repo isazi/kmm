@@ -182,7 +182,7 @@ TEST(SmallVector, contains) {
 }
 
 TEST(SmallVector, iterate) {
-    small_vector<int> x = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    small_vector<int, 4> x = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
     size_t index = 0;
     for (const auto& v: x) {

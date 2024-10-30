@@ -23,7 +23,7 @@ struct MemorySystem::Device {
     Device(
         CudaContextHandle context,
         std::unique_ptr<AsyncAllocator> allocator,
-        CudaStreamManager& streams
+        DeviceStreamManager& streams
     ) :
         context(context),
         allocator(std::move(allocator)),
@@ -34,7 +34,7 @@ struct MemorySystem::Device {
 };
 
 MemorySystem::MemorySystem(
-    std::shared_ptr<CudaStreamManager> stream_manager,
+    std::shared_ptr<DeviceStreamManager> stream_manager,
     std::vector<CudaContextHandle> device_contexts,
     std::unique_ptr<AsyncAllocator> host_mem,
     std::vector<std::unique_ptr<AsyncAllocator>> device_mems
@@ -60,9 +60,11 @@ void MemorySystem::make_progress() {
     m_host->make_progress();
 
     for (const auto& device : m_devices) {
-        if (device != nullptr) {
-            device->allocator->make_progress();
+        if (device == nullptr) {
+            break;
         }
+
+        device->allocator->make_progress();
     }
 }
 
@@ -71,10 +73,16 @@ void MemorySystem::trim_host(size_t bytes_remaining) {
 }
 
 bool MemorySystem::allocate_host(size_t nbytes, void** ptr_out, DeviceEventSet* deps_out) {
-    return m_host->allocate_async(nbytes, ptr_out, deps_out);
+    if (!m_host->allocate_async(nbytes, ptr_out, deps_out)) {
+        return false;
+    }
+
+    deps_out->remove_completed(*m_streams);
+    return true;
 }
 
 void MemorySystem::deallocate_host(void* ptr, size_t nbytes, DeviceEventSet deps) {
+    deps.remove_completed(*m_streams);
     return m_host->deallocate_async(ptr, nbytes, std::move(deps));
 }
 
@@ -96,12 +104,13 @@ bool MemorySystem::allocate_device(
     auto& device = *m_devices[device_id];
     void* addr;
 
-    if (device.allocator->allocate_async(nbytes, &addr, deps_out)) {
-        *ptr_out = (CUdeviceptr)addr;
-        return true;
+    if (!device.allocator->allocate_async(nbytes, &addr, deps_out)) {
+        return false;
     }
 
-    return false;
+    deps_out->remove_completed(*m_streams);
+    *ptr_out = (CUdeviceptr)addr;
+    return true;
 }
 
 void MemorySystem::deallocate_device(
@@ -110,6 +119,8 @@ void MemorySystem::deallocate_device(
     size_t nbytes,
     DeviceEventSet deps
 ) {
+    deps.remove_completed(*m_streams);
+
     KMM_ASSERT(m_devices[device_id]);
     auto& device = *m_devices[device_id];
     return device.allocator->deallocate_async((void*)ptr, nbytes, std::move(deps));

@@ -19,7 +19,7 @@ class Worker: public std::enable_shared_from_this<Worker> {
   public:
     Worker(
         std::vector<CudaContextHandle> contexts,
-        std::shared_ptr<CudaStreamManager> stream_manager,
+        std::shared_ptr<DeviceStreamManager> stream_manager,
         std::shared_ptr<MemorySystem> memory_system
     );
     ~Worker();
@@ -70,7 +70,7 @@ class Worker: public std::enable_shared_from_this<Worker> {
     Executor m_executor;
     TaskGraph m_graph;
 
-    std::shared_ptr<CudaStreamManager> m_stream_manager;
+    std::shared_ptr<DeviceStreamManager> m_stream_manager;
     std::shared_ptr<MemorySystem> m_memory_system;
 };
 

@@ -123,7 +123,7 @@ SystemInfo make_system_info(const std::vector<CudaContextHandle>& contexts) {
 
 Worker::Worker(
     std::vector<CudaContextHandle> contexts,
-    std::shared_ptr<CudaStreamManager> stream_manager,
+    std::shared_ptr<DeviceStreamManager> stream_manager,
     std::shared_ptr<MemorySystem> memory_system
 ) :
     m_info(make_system_info(contexts)),
@@ -133,15 +133,16 @@ Worker::Worker(
 
 std::shared_ptr<Worker> make_worker(const WorkerConfig& config) {
     std::unique_ptr<AsyncAllocator> host_mem;
-    std::unique_ptr<AsyncAllocator> device_mem;
     std::vector<std::unique_ptr<AsyncAllocator>> device_mems;
 
-    auto stream_manager = std::make_shared<CudaStreamManager>();
+    auto stream_manager = std::make_shared<DeviceStreamManager>();
     auto contexts = std::vector<CudaContextHandle>();
     auto devices = get_cuda_devices();
 
     if (!devices.empty()) {
         for (size_t i = 0; i < devices.size(); i++) {
+            std::unique_ptr<AsyncAllocator> device_mem;
+
             auto context = CudaContextHandle::retain_primary_context_for_device(devices[i]);
             contexts.push_back(context);
 

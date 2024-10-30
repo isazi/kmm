@@ -1,5 +1,6 @@
 #pragma once
-#include "kmm/internals/cuda_stream_manager.hpp"
+
+#include "kmm/internals/device_stream_manager.hpp"
 #include "kmm/utils/macros.hpp"
 
 namespace kmm {
@@ -37,25 +38,39 @@ class AsyncAllocator {
     virtual void trim(size_t nbytes_remaining = 0) {}
 };
 
+/**
+ * Abstract base class for all synchronous memory allocators.
+ */
 class SyncAllocator: public AsyncAllocator {
   public:
     SyncAllocator(
-        std::shared_ptr<CudaStreamManager> streams,
+        std::shared_ptr<DeviceStreamManager> streams,
         size_t max_bytes = std::numeric_limits<size_t>::max()
     );
     ~SyncAllocator();
+
+    /**
+     * Allocate `nbytes` bytes of memory and sets the pointer in `addr_out`.
+     *
+     *  Returns `true` if the operation was successful, and `false` otherwise.
+     */
+    virtual bool allocate(size_t nbytes, void** addr_out) = 0;
+
+    /**
+     * Deallocates the give address. This address MUST be previously allocated using
+     * `allocate` with the exact same size.
+     */
+    virtual void deallocate(void* addr, size_t nbytes) = 0;
+
     bool allocate_async(size_t nbytes, void** addr_out, DeviceEventSet* deps_out) final;
     void deallocate_async(void* addr, size_t nbytes, DeviceEventSet deps) final;
     void make_progress() final;
     void trim(size_t nbytes_remaining = 0) final;
 
-    virtual bool allocate(size_t nbytes, void** addr_out) = 0;
-    virtual void deallocate(void* addr, size_t nbytes) = 0;
-
   private:
     struct DeferredDealloc;
 
-    std::shared_ptr<CudaStreamManager> m_streams;
+    std::shared_ptr<DeviceStreamManager> m_streams;
     std::deque<DeferredDealloc> m_pending_deallocs;
     size_t m_bytes_in_use = 0;
     size_t m_bytes_limit;

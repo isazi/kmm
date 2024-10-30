@@ -4,7 +4,7 @@ namespace kmm {
 
 PinnedMemoryAllocator::PinnedMemoryAllocator(
     CudaContextHandle context,
-    std::shared_ptr<CudaStreamManager> streams,
+    std::shared_ptr<DeviceStreamManager> streams,
     size_t max_bytes
 ) :
     SyncAllocator(streams, max_bytes),
@@ -31,7 +31,7 @@ void PinnedMemoryAllocator::deallocate(void* addr, size_t nbytes) {
 
 DeviceMemoryAllocator::DeviceMemoryAllocator(
     CudaContextHandle context,
-    std::shared_ptr<CudaStreamManager> streams,
+    std::shared_ptr<DeviceStreamManager> streams,
     size_t max_bytes
 ) :
     SyncAllocator(streams, max_bytes),
@@ -65,7 +65,7 @@ struct DevicePoolAllocator::Allocation {
 
 DevicePoolAllocator::DevicePoolAllocator(
     CudaContextHandle context,
-    std::shared_ptr<CudaStreamManager> streams,
+    std::shared_ptr<DeviceStreamManager> streams,
     DevicePoolKind kind,
     size_t max_bytes
 ) :

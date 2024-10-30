@@ -32,7 +32,7 @@ struct Axis {
         return m_axis;
     }
 
-    operator size_t() const {
+    explicit operator size_t() const {
         return get();
     }
 
@@ -168,7 +168,6 @@ struct MultiIndexMap {
 
         for (size_t i = 0; i < N; i++) {
             Rect<1> range = (this->axes[i])(chunk, Rect<1> {bounds.offset[i], bounds.sizes[i]});
-
             result.offset[i] = range.offset[0];
             result.sizes[i] = range.sizes[0];
         }
@@ -204,6 +203,11 @@ inline IndexMap into_index_map(All m) {
 
 template<typename... Is>
 MultiIndexMap<sizeof...(Is)> slice(const Is&... slices) {
+    return {into_index_map(slices)...};
+}
+
+template<typename... Is>
+MultiIndexMap<sizeof...(Is)> access(const Is&... slices) {
     return {into_index_map(slices)...};
 }
 

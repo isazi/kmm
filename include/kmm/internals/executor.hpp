@@ -3,7 +3,7 @@
 #include <future>
 
 #include "buffer_manager.hpp"
-#include "cuda_stream_manager.hpp"
+#include "device_stream_manager.hpp"
 #include "memory_manager.hpp"
 #include "scheduler.hpp"
 
@@ -18,7 +18,7 @@ struct DeviceState {
     DeviceEvent last_event;
     DeviceContext device;
 
-    DeviceState(DeviceId id, CudaContextHandle context, CudaStreamManager& stream_manager) :
+    DeviceState(DeviceId id, CudaContextHandle context, DeviceStreamManager& stream_manager) :
         context(context),
         stream(stream_manager.create_stream(context)),
         device(DeviceInfo(id, context), context, stream_manager.get(stream)) {}
@@ -42,7 +42,7 @@ class Executor {
 
     Executor(
         std::vector<CudaContextHandle> contexts,
-        std::shared_ptr<CudaStreamManager> stream_manager,
+        std::shared_ptr<DeviceStreamManager> stream_manager,
         std::shared_ptr<MemorySystem> memory_system
     );
 
@@ -55,7 +55,7 @@ class Executor {
 
     DeviceState& device_state(DeviceId id, const DeviceEventSet& hint_deps = {});
 
-    CudaStreamManager& stream_manager() {
+    DeviceStreamManager& stream_manager() {
         return *m_stream_manager;
     }
 
@@ -81,7 +81,7 @@ class Executor {
     std::unique_ptr<BufferManager> m_buffer_manager;
     std::unique_ptr<MemoryManager> m_memory_manager;
     std::unique_ptr<Scheduler> m_scheduler;
-    std::shared_ptr<CudaStreamManager> m_stream_manager;
+    std::shared_ptr<DeviceStreamManager> m_stream_manager;
     std::vector<std::unique_ptr<DeviceState>> m_devices;
 };
 

@@ -4,12 +4,13 @@
 #include <unordered_map>
 
 #include "commands.hpp"
-#include "cuda_stream_manager.hpp"
+#include "device_stream_manager.hpp"
 
 namespace kmm {
 
 class Scheduler {
     KMM_NOT_COPYABLE_OR_MOVABLE(Scheduler)
+
   public:
     struct Queue;
     struct Node {
@@ -35,7 +36,7 @@ class Scheduler {
         Command command;
         size_t queue_id;
         std::optional<DeviceEvent> device_event;
-        small_vector<std::shared_ptr<Node>> successors;
+        small_vector<std::shared_ptr<Node>, 4> successors;
         DeviceEventSet dependencies_events;
         size_t dependencies_pending = 0;
     };

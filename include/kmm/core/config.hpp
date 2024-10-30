@@ -5,9 +5,9 @@
 namespace kmm {
 
 enum struct DeviceMemoryKind {
-    NoPool,
     DefaultPool,
     PrivatePool,
+    NoPool,
 };
 
 struct WorkerConfig {

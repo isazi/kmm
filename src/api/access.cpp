@@ -1,17 +1,10 @@
 #include <cstdint>
+#include <numeric>
 
 #include "kmm/api/mapper.hpp"
 #include "kmm/utils/checked_math.hpp"
 
 namespace kmm {
-
-int64_t gcd(int64_t a, int64_t b) {
-    if (a == 0) {
-        return b;
-    } else {
-        return gcd(b % a, a);
-    }
-}
 
 IndexMap::IndexMap(Axis variable, int64_t scale, int64_t offset, int64_t length, int64_t divisor) :
     m_variable(variable),
@@ -30,7 +23,7 @@ IndexMap::IndexMap(Axis variable, int64_t scale, int64_t offset, int64_t length,
     }
 
     if (m_scale != 1 && m_divisor != 1) {
-        auto common = gcd(gcd(abs(m_scale), abs(m_offset)), gcd(m_length, m_divisor));
+        auto common = std::gcd(std::gcd(m_scale, m_offset), std::gcd(m_length, m_divisor));
 
         if (common != 1) {
             m_scale /= common;
@@ -44,15 +37,15 @@ IndexMap::IndexMap(Axis variable, int64_t scale, int64_t offset, int64_t length,
 IndexMap IndexMap::range(IndexMap begin, IndexMap end) {
     if (begin.m_scale != end.m_scale || begin.m_divisor != end.m_divisor) {
         throw std::runtime_error(fmt::format(
-            "`range` requires two expressions to have the same scaling factor: `{}` and `{}`",
+            "`range` requires two expressions having the same scaling factor, given: `{}` and `{}`",
             begin,
             end
         ));
     }
 
-    if (begin.m_variable != end.m_variable && begin.m_scale != 0) {
+    if (begin.m_variable.get() != end.m_variable.get() && begin.m_scale != 0) {
         throw std::runtime_error(fmt::format(
-            "`range` requires two expression to operate on the same axis: `{}` and `{}`",
+            "`range` requires two expression operating on the same axis, given: `{}` and `{}`",
             begin,
             end
         ));
@@ -97,22 +90,24 @@ IndexMap IndexMap::negate() const {
 }
 
 Rect<1> IndexMap::apply(TaskChunk chunk) const {
-    int64_t a0 = chunk.offset.get(m_variable);
-    int64_t a1 = a0 + chunk.size.get(m_variable) - 1;
+    int64_t a0 = chunk.offset.get(m_variable.get());
+    int64_t an = chunk.size.get(m_variable.get());
 
-    int64_t b0 = m_scale * a0 + m_offset;
-    int64_t b1 = m_scale * a1 + m_offset;
-
-    if (m_scale < 0) {
-        std::swap(b0, b1);
-    }
-
+    int64_t b0;
     int64_t bn;
 
-    if (b0 <= b1 && m_length > 0) {
-        bn = (b1 - b0) + m_length;
-    } else {
+    if (m_scale == 0) {
+        b0 = m_offset;
+        bn = m_length;
+    } else if (m_length <= 0 || an <= 0) {
+        b0 = 0;
         bn = 0;
+    } else if (m_scale > 0) {
+        b0 = m_scale * a0 + m_offset;
+        bn = m_scale * (an - 1) + m_length;
+    } else {
+        b0 = m_scale * (a0 + an - 1) + m_offset;
+        bn = -m_scale * (an - 1) + m_length;
     }
 
     if (m_divisor > 1) {
@@ -126,7 +121,7 @@ Rect<1> IndexMap::apply(TaskChunk chunk) const {
 
 static void write_mapping(std::ostream& f, Axis v, int64_t scale, int64_t offset, int64_t divisor) {
     static constexpr const char* variables[] = {"x", "y", "z", "w"};
-    const char* var = v < 4 ? variables[v] : "?";
+    const char* var = v.get() < 4 ? variables[v.get()] : "?";
 
     if (scale != 1) {
         if (offset != 0) {

@@ -67,7 +67,7 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::CudaKernel(initialize_matrix_kernel, {16, 16}),
-        write(matrix, slice(_y, _x))
+        write(matrix, access(_y, _x))
     );
 
     rt.synchronize();
@@ -80,7 +80,7 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::CudaKernel(sum_total_kernel, {16, 16}),
-        read(matrix, slice(_y, _x)),
+        read(matrix, access(_y, _x)),
         reduce(total_sum, kmm::ReductionOp::Sum, privatize(_y, _x))
     );
 
@@ -90,8 +90,8 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::CudaKernel(sum_rows_kernel, {16, 16}),
-        read(matrix, slice(_y, _x)),
-        reduce(rows_sum, kmm::ReductionOp::Sum, privatize(_y), slice(_x))
+        read(matrix, access(_y, _x)),
+        reduce(rows_sum, kmm::ReductionOp::Sum, privatize(_y), access(_x))
     );
 
     rt.synchronize();
@@ -100,8 +100,8 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::CudaKernel(sum_cols_kernel, {16, 16}),
-        read(matrix, slice(_y, _x)),
-        reduce(cols_sum, kmm::ReductionOp::Sum, privatize(_x), slice(_y))
+        read(matrix, access(_y, _x)),
+        reduce(cols_sum, kmm::ReductionOp::Sum, privatize(_x), access(_y))
     );
 
     rt.synchronize();

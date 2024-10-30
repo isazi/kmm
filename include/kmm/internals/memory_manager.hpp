@@ -5,7 +5,7 @@
 #include <unordered_set>
 
 #include "kmm/core/buffer.hpp"
-#include "kmm/internals/cuda_stream_manager.hpp"
+#include "kmm/internals/device_stream_manager.hpp"
 #include "kmm/internals/memory_system.hpp"
 #include "kmm/utils/poll.hpp"
 
@@ -26,7 +26,7 @@ class MemoryManager {
     ~MemoryManager();
 
     void make_progress();
-    bool is_idle(CudaStreamManager& streams) const;
+    bool is_idle(DeviceStreamManager& streams) const;
 
     std::shared_ptr<Transaction> create_transaction(std::shared_ptr<Transaction> parent = nullptr);
 

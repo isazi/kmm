@@ -130,11 +130,11 @@ EventId parallel_submit_impl(
     Launcher launcher,
     Args&&... args
 ) {
+    std::tuple<ArgumentHandler<std::decay_t<Args>>...> handlers = {
+        ArgumentHandler<std::decay_t<Args>> {std::forward<Args>(args)}...};
+
     return worker->with_task_graph([&](TaskGraph& graph) {
         EventList events;
-
-        std::tuple<ArgumentHandler<std::decay_t<Args>>...> handlers = {
-            ArgumentHandler<std::decay_t<Args>> {std::forward<Args>(args)}...};
 
         for (const TaskChunk& chunk : partition.chunks) {
             ProcessorId processor_id = launcher.find_processor(system_info, chunk);

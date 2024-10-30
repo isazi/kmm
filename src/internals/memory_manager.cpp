@@ -124,7 +124,7 @@ void MemoryManager::make_progress() {
     m_memory->make_progress();
 }
 
-bool MemoryManager::is_idle(CudaStreamManager& streams) const {
+bool MemoryManager::is_idle(DeviceStreamManager& streams) const {
     bool result = true;
 
     for (const auto& buffer : m_buffers) {

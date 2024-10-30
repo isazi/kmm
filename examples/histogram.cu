@@ -34,15 +34,15 @@ __global__ void calculate_histogram(
     int width,
     int height,
     kmm::cuda_subview<uint8_t, 3> images,
-    kmm::cuda_view_mut<int> histogram
+    kmm::cuda_subview_mut<int, 2> histogram
 ) {
-    int index = blockIdx.z * blockDim.z + threadIdx.z + subrange.begin.z;
+    int image_id = blockIdx.z * blockDim.z + threadIdx.z + subrange.begin.z;
     int i = blockIdx.y * blockDim.y + threadIdx.y;
     int j = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (index < subrange.end.z && i < height && j < width) {
-        uint8_t value = images[index][i][j];
-        atomicAdd(&histogram[value], 1);
+    if (image_id < int(subrange.end.z) && i < height && j < width) {
+        uint8_t value = images[image_id][i][j];
+        atomicAdd(&histogram[image_id][value], 1);
     }
 }
 
@@ -66,7 +66,7 @@ int main() {
         kmm::Host(initialize_images),
         width,
         height,
-        write(images, slice(_x, _, _))
+        write(images, access(_x, _, _))
     );
 
     rt.synchronize();
@@ -77,8 +77,8 @@ int main() {
         kmm::CudaKernel(calculate_histogram, block_size),
         width,
         height,
-        read(images, slice(_z, _y, _x)),
-        reduce(histogram, kmm::ReductionOp::Sum)
+        read(images, access(_z, _y, _x)),
+        reduce(histogram, kmm::ReductionOp::Sum, privatize(_z), access(_))
     );
 
     rt.synchronize();

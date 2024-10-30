@@ -1,6 +1,12 @@
+#include "../memops/host_reducers.hpp"
+
 #include "kmm/core/reduction.hpp"
 
 namespace kmm {
+
+[[noreturn]] void throw_invalid_reduction_exception(DataType dtype, ReductionOp op) {
+    throw std::runtime_error(fmt::format("invalid reduction {} for type {}", op, dtype));
+}
 
 template<typename T>
 std::vector<uint8_t> into_vector(const T& value) {
@@ -9,21 +15,32 @@ std::vector<uint8_t> into_vector(const T& value) {
     return {buffer, buffer + sizeof(T)};
 }
 
+template<typename T, ReductionOp Op>
+std::vector<uint8_t> identity_value_for_type_and_op() {
+    if constexpr (ReductionFunctorSupported<T, Op>()) {
+        return into_vector(ReductionFunctor<T, Op>::identity());
+    } else {
+        throw_invalid_reduction_exception(DataType::of<T>(), Op);
+    }
+}
+
 template<typename T>
 std::vector<uint8_t> identity_value_for_type(ReductionOp op) {
     switch (op) {
         case ReductionOp::Sum:
-        case ReductionOp::BitOr:
-            return into_vector(T {0});
+            return identity_value_for_type_and_op<T, ReductionOp::Sum>();
         case ReductionOp::Product:
-        case ReductionOp::BitAnd:
-            return into_vector(T {1});
+            return identity_value_for_type_and_op<T, ReductionOp::Product>();
         case ReductionOp::Min:
-            return into_vector(std::numeric_limits<T>::max());
+            return identity_value_for_type_and_op<T, ReductionOp::Min>();
         case ReductionOp::Max:
-            return into_vector(std::numeric_limits<T>::min());
+            return identity_value_for_type_and_op<T, ReductionOp::Max>();
+        case ReductionOp::BitAnd:
+            return identity_value_for_type_and_op<T, ReductionOp::BitAnd>();
+        case ReductionOp::BitOr:
+            return identity_value_for_type_and_op<T, ReductionOp::BitOr>();
         default:
-            throw std::runtime_error("invalid reduction operation");
+            throw_invalid_reduction_exception(DataType::of<T>(), op);
     }
 }
 
@@ -58,7 +75,7 @@ std::vector<uint8_t> reduction_identity_value(DataType dtype, ReductionOp op) {
         case ScalarKind::KeyAndFloat64:
             return identity_value_for_type<KeyValue<double>>(op);
         default:
-            throw std::runtime_error(fmt::format("invalid reduction {} for type {}", op, dtype));
+            throw_invalid_reduction_exception(dtype, op);
     }
 }
 

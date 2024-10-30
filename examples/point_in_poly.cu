@@ -84,15 +84,15 @@ int main() {
         {npoints},
         {npoints_per_chunk},
         kmm::CudaKernel(init_points, block_size),
-        write(points, slice(_x))
+        write(points, access(_x))
     );
 
     rt.parallel_submit(
         {npoints},
         {npoints_per_chunk},
         kmm::CudaKernel(cn_pnpoly, block_size),
-        write(bitmap, slice(_x)),
-        read(points, slice(_x)),
+        write(bitmap, access(_x)),
+        read(points, access(_x)),
         nvertices,
         read(vertices)
     );

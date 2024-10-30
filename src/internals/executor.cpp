@@ -359,7 +359,7 @@ class PrefetchJob: public Executor::Job {
 
 Executor::Executor(
     std::vector<CudaContextHandle> contexts,
-    std::shared_ptr<CudaStreamManager> stream_manager,
+    std::shared_ptr<DeviceStreamManager> stream_manager,
     std::shared_ptr<MemorySystem> memory_system
 ) :
     m_buffer_manager(std::make_unique<BufferManager>()),

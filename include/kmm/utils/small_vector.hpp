@@ -5,7 +5,7 @@
 
 namespace kmm {
 
-template<typename T, size_t InlineSize = (sizeof(T) < 48 ? 1 : 48 / sizeof(T))>
+template<typename T, size_t InlineSize>
 struct small_vector {
     small_vector() = default;
 

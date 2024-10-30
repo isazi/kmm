@@ -99,8 +99,7 @@ using Scalar = Array<T, 0>;
 
 template<typename T, size_t N, typename A>
 struct ArgumentHandler<Read<Array<T, N>, A>> {
-    using type =
-        ArrayArgument<const T, views::layouts::right_to_left<views::domains::subbounds<N>>>;
+    using type = ArrayArgument<const T, views::domains::subbounds<N>>;
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,
@@ -136,7 +135,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
 
 template<typename T, size_t N, typename A>
 struct ArgumentHandler<Write<Array<T, N>, A>> {
-    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::subbounds<N>>>;
+    using type = ArrayArgument<T, views::domains::subbounds<N>>;
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,
@@ -171,7 +170,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
 
 template<typename T, size_t N>
 struct ArgumentHandler<Read<Array<T, N>>> {
-    using type = ArrayArgument<const T, views::layouts::right_to_left<views::domains::bounds<N>>>;
+    using type = ArrayArgument<const T, views::domains::bounds<N>>;
 
     ArgumentHandler(Read<Array<T, N>> arg) : m_backend(arg.argument.inner().shared_from_this()) {}
 
@@ -198,7 +197,7 @@ struct ArgumentHandler<Read<Array<T, N>>> {
 
 template<typename T, size_t N>
 struct ArgumentHandler<Write<Array<T, N>>> {
-    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
+    using type = ArrayArgument<T, views::domains::bounds<N>>;
 
     ArgumentHandler(Write<Array<T, N>> arg) :
         m_array(arg.argument),
@@ -232,7 +231,7 @@ struct ArgumentHandler<Array<T, N>>: public ArgumentHandler<Read<Array<T, N>>> {
 
 template<typename T, size_t N>
 struct ArgumentHandler<Reduce<Array<T, N>>> {
-    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::bounds<N>>>;
+    using type = ArrayArgument<T, views::domains::bounds<N>>;
 
     ArgumentHandler(Reduce<Array<T, N>> arg) :
         m_array(arg.argument),
@@ -266,7 +265,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
         "private mapper of 'reduce' must return N-dimensional region"
     );
 
-    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::subbounds<K + N>>>;
+    using type = ArrayArgument<T, views::domains::subbounds<K + N>>;
 
     ArgumentHandler(Reduce<Array<T, N>, All, P> arg) :
         m_array(arg.argument),
@@ -303,7 +302,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
 template<typename T, size_t N, typename A, typename P>
 struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
     static constexpr size_t K = mapper_dimensionality<P>;
-    using type = ArrayArgument<T, views::layouts::right_to_left<views::domains::subbounds<K + N>>>;
+    using type = ArrayArgument<T, views::domains::subbounds<K + N>>;
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,

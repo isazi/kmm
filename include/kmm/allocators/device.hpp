@@ -8,7 +8,7 @@ class PinnedMemoryAllocator: public SyncAllocator {
   public:
     PinnedMemoryAllocator(
         CudaContextHandle context,
-        std::shared_ptr<CudaStreamManager> streams,
+        std::shared_ptr<DeviceStreamManager> streams,
         size_t max_bytes = std::numeric_limits<size_t>::max()
     );
 
@@ -23,7 +23,7 @@ class DeviceMemoryAllocator: public SyncAllocator {
   public:
     DeviceMemoryAllocator(
         CudaContextHandle context,
-        std::shared_ptr<CudaStreamManager> streams,
+        std::shared_ptr<DeviceStreamManager> streams,
         size_t max_bytes = std::numeric_limits<size_t>::max()
     );
 
@@ -40,7 +40,7 @@ class DevicePoolAllocator: public AsyncAllocator {
   public:
     DevicePoolAllocator(
         CudaContextHandle context,
-        std::shared_ptr<CudaStreamManager> streams,
+        std::shared_ptr<DeviceStreamManager> streams,
         DevicePoolKind kind = DevicePoolKind::Create,
         size_t max_bytes = std::numeric_limits<size_t>::max()
     );
@@ -55,7 +55,7 @@ class DevicePoolAllocator: public AsyncAllocator {
 
     CudaContextHandle m_context;
     CUmemoryPool m_pool;
-    std::shared_ptr<CudaStreamManager> m_streams;
+    std::shared_ptr<DeviceStreamManager> m_streams;
     DeviceStream m_alloc_stream;
     DeviceStream m_dealloc_stream;
     std::deque<Allocation> m_pending_deallocs;

@@ -6,57 +6,50 @@
 
 namespace kmm {
 
-template<typename T, typename L>
+template<typename T, typename D>
 struct ArrayArgument {
     size_t buffer_index;
-    L layout;
+    D domain;
 };
 
-template<typename T, typename L>
-struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<T, L>> {
-    static basic_view<T, L, views::accessors::host> unpack(
-        const TaskContext& context,
-        ArrayArgument<T, L> array
-    ) {
+template<typename T, typename D>
+struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<T, D>> {
+    using type = basic_view<T, views::layouts::right_to_left<D>, views::accessors::host>;
+
+    static type unpack(const TaskContext& context, ArrayArgument<T, D> array) {
         T* data = static_cast<T*>(context.accessors.at(array.buffer_index).address);
-
-        return {data, array.layout};
+        return {data, array.domain};
     }
 };
 
-template<typename T, typename L>
-struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<const T, L>> {
-    static basic_view<const T, L, views::accessors::host> unpack(
-        const TaskContext& context,
-        ArrayArgument<const T, L> array
-    ) {
+template<typename T, typename D>
+struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<const T, D>> {
+    using type = basic_view<const T, views::layouts::right_to_left<D>, views::accessors::host>;
+
+    static type unpack(const TaskContext& context, ArrayArgument<const T, D> array) {
         const T* data = static_cast<const T*>(context.accessors.at(array.buffer_index).address);
-
-        return {data, array.layout};
+        return {data, array.domain};
     }
 };
 
-template<typename T, typename L>
-struct ArgumentDeserialize<ExecutionSpace::Cuda, ArrayArgument<T, L>> {
-    static basic_view<T, L, views::accessors::cuda_device> unpack(
-        const TaskContext& context,
-        ArrayArgument<T, L> array
-    ) {
+template<typename T, typename D>
+struct ArgumentDeserialize<ExecutionSpace::Cuda, ArrayArgument<T, D>> {
+    using type = basic_view<T, views::layouts::right_to_left<D>, views::accessors::cuda_device>;
+
+    static type unpack(const TaskContext& context, ArrayArgument<T, D> array) {
         T* data = static_cast<T*>(context.accessors.at(array.buffer_index).address);
-
-        return {data, array.layout};
+        return {data, array.domain};
     }
 };
 
-template<typename T, typename L>
-struct ArgumentDeserialize<ExecutionSpace::Cuda, ArrayArgument<const T, L>> {
-    static basic_view<const T, L, views::accessors::cuda_device> unpack(
-        const TaskContext& context,
-        ArrayArgument<const T, L> array
-    ) {
-        const T* data = static_cast<const T*>(context.accessors.at(array.buffer_index).address);
+template<typename T, typename D>
+struct ArgumentDeserialize<ExecutionSpace::Cuda, ArrayArgument<const T, D>> {
+    using type =
+        basic_view<const T, views::layouts::right_to_left<D>, views::accessors::cuda_device>;
 
-        return {data, array.layout};
+    static type unpack(const TaskContext& context, ArrayArgument<const T, D> array) {
+        const T* data = static_cast<const T*>(context.accessors.at(array.buffer_index).address);
+        return {data, array.domain};
     }
 };
 

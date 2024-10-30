@@ -10,17 +10,17 @@
 
 namespace kmm {
 
-class CudaStreamManager;
+class DeviceStreamManager;
 class DeviceStream;
 class DeviceEvent;
 class DeviceEventSet;
 
-class CudaStreamManager {
-    KMM_NOT_COPYABLE_OR_MOVABLE(CudaStreamManager)
+class DeviceStreamManager {
+    KMM_NOT_COPYABLE_OR_MOVABLE(DeviceStreamManager)
 
   public:
-    CudaStreamManager();
-    ~CudaStreamManager();
+    DeviceStreamManager();
+    ~DeviceStreamManager();
 
     bool make_progress();
 
@@ -45,7 +45,8 @@ class CudaStreamManager {
 
     void wait_for_event(DeviceStream stream, DeviceEvent event) const;
     void wait_for_events(DeviceStream stream, const DeviceEventSet& events);
-    void wait_for_events(DeviceStream stream, const DeviceEvent* begin, const DeviceEvent* end);
+    void wait_for_events(DeviceStream stream, const DeviceEvent* begin, const DeviceEvent* end)
+        const;
     void wait_for_events(DeviceStream stream, const std::vector<DeviceEvent>& events);
 
     /**
@@ -139,7 +140,7 @@ class DeviceEventSet {
     void insert(DeviceEvent e);
     void insert(const DeviceEventSet& e);
     void insert(DeviceEventSet&& e);
-    void remove_completed(const CudaStreamManager&);
+    void remove_completed(const DeviceStreamManager&);
     void clear();
 
     bool is_empty() const;
@@ -153,21 +154,24 @@ class DeviceEventSet {
 };
 
 template<typename F>
-DeviceEvent CudaStreamManager::with_stream(DeviceStream stream, const DeviceEventSet& deps, F fun) {
+DeviceEvent DeviceStreamManager::with_stream(
+    DeviceStream stream,
+    const DeviceEventSet& deps,
+    F fun
+) {
     wait_for_events(stream, deps);
 
     try {
         fun(get(stream));
+        return record_event(stream);
     } catch (...) {
         wait_until_ready(stream);
         throw;
     }
-
-    return record_event(stream);
 }
 
 template<typename F>
-DeviceEvent CudaStreamManager::with_stream(DeviceStream stream, F fun) {
+DeviceEvent DeviceStreamManager::with_stream(DeviceStream stream, F fun) {
     return with_stream(stream, {}, fun);
 }
 

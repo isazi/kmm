@@ -57,7 +57,7 @@ int main() {
         {n},
         {chunk_size},
         kmm::CudaKernel(initialize_range, block_size),
-        write(A, slice(_x))
+        write(A, access(_x))
     );
 
     rt.parallel_submit(
@@ -65,16 +65,16 @@ int main() {
         {chunk_size},
         kmm::CudaKernel(fill_range, block_size),
         float(M_PI),
-        write(B, slice(_x))
+        write(B, access(_x))
     );
 
     rt.parallel_submit(
         {n},
         {chunk_size},
         kmm::CudaKernel(vector_add, block_size),
-        write(C, slice(_x)),
-        read(A, slice(_x)),
-        read(B, slice(_x))
+        write(C, access(_x)),
+        read(A, access(_x)),
+        read(B, access(_x))
     );
 
     std::vector<float> result(n);
