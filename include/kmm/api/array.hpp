@@ -102,9 +102,8 @@ struct ArgumentHandler<Read<Array<T, N>>> {
     using type = ArrayArgument<const T, views::domains::bounds<N>>;
 
     ArgumentHandler(Read<Array<T, N>> arg) :
-        m_backend(arg.argument.inner().shared_from_this()) ,
-        m_chunk(m_backend->find_chunk(m_backend->array_size())) {
-    }
+        m_backend(arg.argument.inner().shared_from_this()),
+        m_chunk(m_backend->find_chunk(m_backend->array_size())) {}
 
     void initialize(const TaskInit& init) {}
 

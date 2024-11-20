@@ -7,6 +7,8 @@ namespace kmm {
 
 template<typename T, size_t InlineSize>
 struct small_vector {
+    using capacity_type = uint32_t;
+
     small_vector() = default;
 
     small_vector(const small_vector& that) {
@@ -97,9 +99,9 @@ struct small_vector {
     }
 
     void grow_capacity(size_t k = 1) {
-        uint32_t new_capacity = m_capacity;
+        capacity_type new_capacity = m_capacity;
         do {
-            if (new_capacity >= uint32_t(0x100000000LL / 2)) {
+            if (new_capacity > std::numeric_limits<capacity_type>::max() / 2 + 1) {
                 throw std::overflow_error("small_vector exceeds capacity");
             }
 
@@ -145,7 +147,8 @@ struct small_vector {
             m_data[m_size + i] = begin[i];
         }
 
-        m_size += n;
+        // This is safe since `n <= m_capacity - m_size`
+        m_size += static_cast<capacity_type>(n);
     }
 
     void insert_all(small_vector&& that) {
@@ -167,7 +170,8 @@ struct small_vector {
             grow_capacity(n - m_size);
         }
 
-        m_size = n;
+        // Safe since `n <= m_capacity`
+        m_size = static_cast<capacity_type>(n);
     }
 
     T& operator[](size_t i) {
@@ -244,8 +248,8 @@ struct small_vector {
     }
 
   private:
-    uint32_t m_size = 0;
-    uint32_t m_capacity = InlineSize;
+    capacity_type m_size = 0;
+    capacity_type m_capacity = InlineSize;
     T m_inline_data[InlineSize];
     T* m_data = m_inline_data;
 };

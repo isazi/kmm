@@ -102,6 +102,7 @@ std::shared_ptr<ArrayBackend<N>> ArrayReductionBuilder<N>::build(
     return std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(chunks));
 }
 
+// NOLINTBEGIN
 #define INSTANTIATE_ARRAY_IMPL(NAME) \
     template class NAME<0>;          \
     template class NAME<1>;          \
@@ -113,5 +114,6 @@ std::shared_ptr<ArrayBackend<N>> ArrayReductionBuilder<N>::build(
 
 INSTANTIATE_ARRAY_IMPL(ArrayBuilder)
 INSTANTIATE_ARRAY_IMPL(ArrayReductionBuilder)
+// NOLINTEND
 
 }  // namespace kmm

@@ -22,6 +22,8 @@ void matrix_multiply(
     kmm::cuda_subview<float, 2> A,
     kmm::cuda_subview<float, 2> B
 ) {
+    using kmm::checked_cast;
+
     float alpha = 1.0;
     float beta = 0.0;
 
@@ -33,20 +35,20 @@ void matrix_multiply(
         device.cublas(),
         CUBLAS_OP_T,
         CUBLAS_OP_T,
-        region.sizes().x,
-        region.sizes().y,
-        region.sizes().z,
+        checked_cast<int>(region.sizes().x),
+        checked_cast<int>(region.sizes().y),
+        checked_cast<int>(region.sizes().z),
         &alpha,
         A_ptr,
         CUDA_R_32F,
-        A.stride(),
+        checked_cast<int>(A.stride()),
         B_ptr,
         CUDA_R_32F,
-        B.stride(),
+        checked_cast<int>(B.stride()),
         &beta,
         C_ptr,
         CUDA_R_32F,
-        C.stride(),
+        checked_cast<int>(C.stride()),
         CUDA_R_32F,
         CUBLAS_GEMM_DEFAULT
     ));

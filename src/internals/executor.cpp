@@ -479,10 +479,10 @@ void Executor::execute_command(EventId id, const Command& command, DeviceEventSe
         m_memory_manager->delete_buffer(buffer);
         m_scheduler->set_complete(id);
 
-    } else if (const auto* e = std::get_if<CommandEmpty>(&command)) {
+    } else if (std::get_if<CommandEmpty>(&command) != nullptr) {
         insert_job(std::make_unique<MergeJob>(id, std::move(dependencies)));
 
-    } else if (const auto* e = std::get_if<CommandPrefetch>(&command)) {
+    } else if (std::get_if<CommandPrefetch>(&command) != nullptr) {
         execute_command(id, CommandEmpty {}, std::move(dependencies));
 
     } else if (const auto* e = std::get_if<CommandExecute>(&command)) {

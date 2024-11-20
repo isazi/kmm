@@ -92,11 +92,11 @@ class MemoryManager {
 
     void check_consistency() const;
 
-    uint64_t m_next_transaction_id = 1;
+    std::shared_ptr<MemorySystem> m_memory;
+    std::unique_ptr<Device[]> m_devices;
     std::unordered_set<std::shared_ptr<Buffer>> m_buffers;
     std::unordered_set<std::shared_ptr<Request>> m_active_requests;
-    std::unique_ptr<Device[]> m_devices;
-    std::shared_ptr<MemorySystem> m_memory;
+    uint64_t m_next_transaction_id = 1;
 };
 
 using MemoryRequest = std::shared_ptr<MemoryManager::Request>;

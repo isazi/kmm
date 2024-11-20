@@ -32,7 +32,7 @@ void submit_fill_kernel(
     ::memcpy(&fill_value, fill_pattern, sizeof(T));
 
     uint32_t grid_size = nelements < max_grid_size * size_t(block_size)
-        ? div_ceil(nelements, size_t(block_size))
+        ? static_cast<uint32_t>(div_ceil(nelements, size_t(block_size)))
         : max_grid_size;
 
     fill_kernel<T, block_size>

@@ -24,7 +24,7 @@ void initialize_images(
     int height,
     kmm::subview_mut<uint8_t, 3> images
 ) {
-    for (int i = subrange.begin(); i < subrange.end(); i++) {
+    for (auto i = int(subrange.begin()); i < subrange.end(); i++) {
         initialize_image(i, width, height, images.drop_axis<0>(i));
     }
 }

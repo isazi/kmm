@@ -24,11 +24,11 @@ struct BufferLayout {
 
     template<typename T>
     static BufferLayout for_type() {
-        return BufferLayout {sizeof(T), alignof(T)};
+        return BufferLayout {sizeof(T), alignof(T), {}};
     }
 
     static BufferLayout for_type(DataType dtype) {
-        return BufferLayout {dtype.size_in_bytes(), dtype.alignment()};
+        return BufferLayout {dtype.size_in_bytes(), dtype.alignment(), {}};
     }
 };
 

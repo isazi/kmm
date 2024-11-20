@@ -80,8 +80,8 @@ class Executor {
 
     std::unique_ptr<BufferManager> m_buffer_manager;
     std::unique_ptr<MemoryManager> m_memory_manager;
-    std::unique_ptr<Scheduler> m_scheduler;
     std::shared_ptr<DeviceStreamManager> m_stream_manager;
+    std::unique_ptr<Scheduler> m_scheduler;
     std::vector<std::unique_ptr<DeviceState>> m_devices;
 };
 

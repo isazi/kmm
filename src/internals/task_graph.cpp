@@ -129,7 +129,6 @@ EventId TaskGraph::insert_multilevel_reduction(
     Reduction reduction,
     std::vector<ReductionInput> inputs
 ) {
-    auto op = reduction.operation;
     auto dtype = reduction.data_type;
     auto num_elements = reduction.num_outputs;
 

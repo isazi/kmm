@@ -76,7 +76,7 @@ DeviceStream DeviceStreamManager::create_stream(CudaContextHandle context, bool 
     KMM_CUDA_CHECK(cuStreamCreateWithPriority(&cuda_stream, CU_STREAM_NON_BLOCKING, priority));
     m_streams.emplace_back(pool_index, context, cuda_stream);
 
-    return DeviceStream(index);
+    return DeviceStream(static_cast<uint8_t>(index));
 }
 
 DeviceStreamManager::~DeviceStreamManager() {
@@ -286,7 +286,7 @@ bool DeviceStreamManager::make_progress() {
 
                 spdlog::trace(
                     "CUDA event {} completed",
-                    DeviceEvent(i, stream.first_pending_index)
+                    DeviceEvent(static_cast<uint8_t>(i), stream.first_pending_index)
                 );
 
                 stream.first_pending_index += 1;

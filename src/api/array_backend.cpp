@@ -17,7 +17,7 @@ Rect<N> index2region(
     Point<N> offset;
     Dim<N> sizes;
 
-    for (size_t j = 0; j < N; j++) {
+    for (size_t j = 0; compare_less(j, N); j++) {
         size_t i = N - 1 - j;
         auto k = index % num_chunks[i];
         index /= num_chunks[i];
@@ -47,7 +47,7 @@ ArrayBackend<N>::ArrayBackend(
         throw std::runtime_error("chunk size cannot be empty");
     }
 
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; compare_less(i, N); i++) {
         m_num_chunks[i] = checked_cast<size_t>(div_ceil(array_size[i], m_chunk_size[i]));
     }
 
@@ -58,11 +58,10 @@ ArrayBackend<N>::ArrayBackend(
 
     for (const auto& chunk : chunks) {
         size_t buffer_index = 0;
-        bool is_valid = true;
         Point<N> expected_offset;
         Dim<N> expected_size;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; compare_less(i, N); i++) {
             auto k = div_floor(chunk.offset[i], m_chunk_size[i]);
 
             expected_offset[i] = k * m_chunk_size[i];
@@ -118,7 +117,7 @@ ArrayChunk<N> ArrayBackend<N>::find_chunk(Rect<N> region) const {
     Point<N> offset;
     Dim<N> sizes;
 
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; compare_less(i, N); i++) {
         auto k = div_floor(region.offset[i], m_chunk_size[i]);
         auto w = region.offset[i] % m_chunk_size[i] + region.sizes[i];
 
@@ -182,9 +181,9 @@ void ArrayBackend<N>::synchronize() const {
 
     // Access each buffer once to check for errors.
     for (size_t i = 0; i < m_buffers.size(); i++) {
-        auto memory_id = this->chunk(i).owner_id;
-        //        KMM_TODO();
+        //        auto memory_id = this->chunk(i).owner_id;
         //        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
+        //        KMM_TODO();
     }
 }
 
@@ -205,7 +204,7 @@ class CopyOutTask: public Task {
 
         CopyDef copy(m_element_size);
 
-        for (size_t j = 0; j < N; j++) {
+        for (size_t j = 0; compare_less(j, N); j++) {
             size_t i = N - j - 1;
 
             copy.add_dimension(

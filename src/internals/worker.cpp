@@ -113,8 +113,9 @@ SystemInfo make_system_info(const std::vector<CudaContextHandle>& contexts) {
 
     for (size_t i = 0; i < contexts.size(); i++) {
         auto info = DeviceInfo(DeviceId(i), contexts[i]);
+        auto memory_gb = static_cast<double>(info.total_memory_size()) / 1e9;
 
-        spdlog::info(" - {} ({:.2} GB)", info.name(), info.total_memory_size() / 1e9);
+        spdlog::info(" - {} ({:.2} GB)", info.name(), memory_gb);
         device_infos.push_back(info);
     }
 

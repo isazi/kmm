@@ -38,9 +38,8 @@ struct MemoryManager::Buffer {
     KMM_NOT_COPYABLE_OR_MOVABLE(Buffer);
 
   public:
-    Buffer(BufferLayout layout) : id(id), layout(layout) {}
+    Buffer(BufferLayout layout) : layout(layout) {}
 
-    BufferId id;
     BufferLayout layout;
     HostEntry host_entry;
     DeviceEntry device_entry[MAX_DEVICES];
@@ -457,7 +456,6 @@ bool MemoryManager::try_free_device_memory(DeviceId device_id) {
 }
 
 bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer) {
-    auto& device = m_devices[device_id];
     auto& device_entry = buffer.device_entry[device_id];
 
     if (device_entry.is_allocated) {
@@ -491,7 +489,6 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
 }
 
 void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) {
-    auto& device = m_devices[device_id];
     auto& device_entry = buffer.device_entry[device_id];
 
     if (!device_entry.is_allocated) {
@@ -896,7 +893,6 @@ DeviceEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
         (void*)&buffer
     );
 
-    auto& device = m_devices[device_id];
     auto& host_entry = buffer.host_entry;
     auto& device_entry = buffer.device_entry[device_id];
 
@@ -932,7 +928,6 @@ DeviceEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
         (void*)&buffer
     );
 
-    auto& device = m_devices[device_id];
     auto& host_entry = buffer.host_entry;
     auto& device_entry = buffer.device_entry[device_id];
 

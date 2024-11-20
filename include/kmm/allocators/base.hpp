@@ -72,8 +72,8 @@ class SyncAllocator: public AsyncAllocator {
 
     std::shared_ptr<DeviceStreamManager> m_streams;
     std::deque<DeferredDealloc> m_pending_deallocs;
-    size_t m_bytes_in_use = 0;
     size_t m_bytes_limit;
+    size_t m_bytes_in_use = 0;
 };
 
 }  // namespace kmm
