@@ -8,6 +8,12 @@ namespace kmm {
 class TaskGraph;
 class Worker;
 
+struct TaskInit {
+    std::shared_ptr<Worker>& worker;
+    TaskGraph& graph;
+    const TaskPartition& partition;
+};
+
 struct TaskBuilder {
     std::shared_ptr<Worker>& worker;
     TaskGraph& graph;

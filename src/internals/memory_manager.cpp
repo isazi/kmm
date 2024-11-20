@@ -317,7 +317,7 @@ void MemoryManager::remove_from_allocation_queue(DeviceId device_id, Request& re
     }
 }
 
-void MemoryManager::add_to_buffer_access_queue(Buffer& buffer, Request& req) const {
+void MemoryManager::add_to_buffer_access_queue(Buffer& buffer, Request& req) {
     auto* old_tail = buffer.access_tail;
 
     if (old_tail == nullptr) {
@@ -334,7 +334,7 @@ void MemoryManager::add_to_buffer_access_queue(Buffer& buffer, Request& req) con
     }
 }
 
-void MemoryManager::remove_from_buffer_access_queue(Buffer& buffer, Request& req) const {
+void MemoryManager::remove_from_buffer_access_queue(Buffer& buffer, Request& req) {
     auto* prev = std::exchange(req.access_prev, nullptr);
     auto* next = std::exchange(req.access_next, nullptr);
 
@@ -375,7 +375,6 @@ BufferAccessor MemoryManager::get_accessor(Request& req) {
     }
 
     return BufferAccessor {
-        .buffer_id = buffer.id,
         .memory_id = req.memory_id,
         .layout = buffer.layout,
         .is_writable = req.mode != AccessMode::Read,
@@ -687,7 +686,7 @@ void MemoryManager::unlock_allocation_device(DeviceId device_id, Buffer& buffer,
     }
 }
 
-std::optional<DeviceId> MemoryManager::find_valid_device_entry(const Buffer& buffer) const {
+std::optional<DeviceId> MemoryManager::find_valid_device_entry(const Buffer& buffer) {
     for (size_t device_id = 0; device_id < MAX_DEVICES; device_id++) {
         if (buffer.device_entry[device_id].is_valid) {
             return DeviceId(device_id);
@@ -697,8 +696,9 @@ std::optional<DeviceId> MemoryManager::find_valid_device_entry(const Buffer& buf
     return std::nullopt;
 }
 
-bool MemoryManager::is_access_allowed(const Buffer& buffer, MemoryId memory_id, AccessMode mode)
-    const {
+bool MemoryManager::is_access_allowed(const Buffer& buffer, const Request& req) {
+    auto mode = req.mode;
+
     for (auto* it = buffer.access_head; it != buffer.access_current; it = it->access_next) {
         // Two exclusive requests can never be granted access simultaneously
         if (mode == AccessMode::Exclusive || it->mode == AccessMode::Exclusive) {
@@ -707,7 +707,7 @@ bool MemoryManager::is_access_allowed(const Buffer& buffer, MemoryId memory_id, 
 
         // Two non-read requests can only be granted simultaneously if operating on the same memory.
         if (mode != AccessMode::Read || it->mode != AccessMode::Read) {
-            if (memory_id != it->memory_id) {
+            if (req.memory_id != it->memory_id) {
                 return false;
             }
         }
@@ -716,11 +716,11 @@ bool MemoryManager::is_access_allowed(const Buffer& buffer, MemoryId memory_id, 
     return true;
 }
 
-void MemoryManager::poll_access_queue(Buffer& buffer) const {
+void MemoryManager::poll_access_queue(Buffer& buffer) {
     while (buffer.access_current != nullptr) {
         auto* req = buffer.access_current;
 
-        if (!is_access_allowed(buffer, req->memory_id, req->mode)) {
+        if (!is_access_allowed(buffer, *req)) {
             return;
         }
 

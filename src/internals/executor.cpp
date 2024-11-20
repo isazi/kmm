@@ -456,15 +456,15 @@ DeviceState& Executor::device_state(DeviceId id, const DeviceEventSet& hint_deps
     return *m_devices.at(id);
 }
 
-void Executor::insert_job(std::unique_ptr<Job> op) {
-    if (op->poll(*this) == Poll::Ready) {
+void Executor::insert_job(std::unique_ptr<Job> job) {
+    if (job->poll(*this) == Poll::Ready) {
         return;
     }
 
-    if (auto* old_tail = std::exchange(m_jobs_tail, op.get())) {
-        old_tail->next = std::move(op);
+    if (auto* old_tail = std::exchange(m_jobs_tail, job.get())) {
+        old_tail->next = std::move(job);
     } else {
-        m_jobs_head = std::move(op);
+        m_jobs_head = std::move(job);
     }
 }
 

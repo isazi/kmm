@@ -238,14 +238,14 @@ void DeviceStreamManager::wait_for_events(
     }
 }
 
-void DeviceStreamManager::wait_for_events(DeviceStream stream, const DeviceEventSet& events) {
+void DeviceStreamManager::wait_for_events(DeviceStream stream, const DeviceEventSet& events) const {
     wait_for_events(stream, events.begin(), events.end());
 }
 
 void DeviceStreamManager::wait_for_events(
     DeviceStream stream,
     const std::vector<DeviceEvent>& events
-) {
+) const {
     wait_for_events(stream, &*events.begin(), &*events.end());
 }
 

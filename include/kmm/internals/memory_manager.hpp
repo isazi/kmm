@@ -42,7 +42,7 @@ class MemoryManager {
     Poll poll_request(Request& req, DeviceEventSet* deps_out);
     void release_request(std::shared_ptr<Request> req, DeviceEvent event = {});
 
-    BufferAccessor get_accessor(Request& req);
+    static BufferAccessor get_accessor(Request& req);
 
   private:
     void insert_into_lru(DeviceId device_id, Buffer& buffer);
@@ -58,13 +58,13 @@ class MemoryManager {
     void lock_allocation_host(Buffer& buffer, Request& req);
     bool lock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req);
 
-    void unlock_allocation_host(Buffer& buffer, Request& req);
+    static void unlock_allocation_host(Buffer& buffer, Request& req);
     void unlock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req);
 
-    std::optional<DeviceId> find_valid_device_entry(const Buffer& buffer) const;
-    bool is_access_allowed(const Buffer& buffer, MemoryId memory_id, AccessMode mode) const;
-    void poll_access_queue(Buffer& buffer) const;
-    void unlock_access(MemoryId memory_id, Buffer& buffer, Request& req, DeviceEvent event);
+    static std::optional<DeviceId> find_valid_device_entry(const Buffer& buffer);
+    static bool is_access_allowed(const Buffer& buffer, const Request& req);
+    static void poll_access_queue(Buffer& buffer);
+    static void unlock_access(MemoryId memory_id, Buffer& buffer, Request& req, DeviceEvent event);
 
     void make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceEventSet* deps_out);
     bool try_lock_access(
@@ -85,8 +85,8 @@ class MemoryManager {
     void add_to_allocation_queue(DeviceId device_id, Request& req) const;
     void remove_from_allocation_queue(DeviceId device_id, Request& req) const;
 
-    void add_to_buffer_access_queue(Buffer& buffer, Request& req) const;
-    void remove_from_buffer_access_queue(Buffer& buffer, Request& req) const;
+    static void add_to_buffer_access_queue(Buffer& buffer, Request& req);
+    static void remove_from_buffer_access_queue(Buffer& buffer, Request& req);
 
     bool is_out_of_memory(DeviceId device_id, Request& req);
 

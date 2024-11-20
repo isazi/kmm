@@ -97,102 +97,33 @@ class Array: ArrayBase {
 template<typename T>
 using Scalar = Array<T, 0>;
 
-template<typename T, size_t N, typename A>
-struct ArgumentHandler<Read<Array<T, N>, A>> {
-    using type = ArrayArgument<const T, views::domains::subbounds<N>>;
-
-    static_assert(
-        is_dimensionality_accepted_by_mapper<A, N>,
-        "mapper of 'read' must return N-dimensional region"
-    );
-
-    ArgumentHandler(Read<Array<T, N>, A> arg) :
-        m_backend(arg.argument.inner().shared_from_this()),
-        m_access_map(arg.access_map) {}
-
-    type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_access_map(builder.chunk, m_backend->array_size());
-        auto data_chunk = m_backend->find_chunk(access_region);
-
-        size_t buffer_index = builder.buffers.size();
-        builder.buffers.emplace_back(BufferRequirement {
-            .buffer_id = data_chunk.buffer_id,
-            .memory_id = builder.memory_id,
-            .access_mode = AccessMode::Read});
-
-        auto domain = views::domains::subbounds<N> {data_chunk.offset, data_chunk.size};
-        return {buffer_index, domain};
-    }
-
-    void finalize(const TaskResult& result) {
-        // Nothing to do
-    }
-
-  private:
-    std::shared_ptr<const ArrayBackend<N>> m_backend;
-    A m_access_map;
-};
-
-template<typename T, size_t N, typename A>
-struct ArgumentHandler<Write<Array<T, N>, A>> {
-    using type = ArrayArgument<T, views::domains::subbounds<N>>;
-
-    static_assert(
-        is_dimensionality_accepted_by_mapper<A, N>,
-        "mapper of 'write' must return N-dimensional region"
-    );
-
-    ArgumentHandler(Write<Array<T, N>, A> arg) :
-        m_array(arg.argument),
-        m_access_map(arg.access_map),
-        m_builder(arg.argument.shape(), BufferLayout::for_type<T>()) {
-        if (m_array.is_valid()) {
-            throw std::runtime_error("array has already been written to, cannot overwrite array");
-        }
-    }
-
-    type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_access_map(builder.chunk, m_builder.m_sizes);
-        size_t buffer_index = m_builder.add_chunk(builder, access_region);
-        views::domains::subbounds<N> domain = {access_region.offset, access_region.sizes};
-        return {buffer_index, domain};
-    }
-
-    void finalize(const TaskResult& result) {
-        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
-    }
-
-  private:
-    Array<T, N>& m_array;
-    A m_access_map;
-    ArrayBuilder<N> m_builder;
-};
-
 template<typename T, size_t N>
 struct ArgumentHandler<Read<Array<T, N>>> {
     using type = ArrayArgument<const T, views::domains::bounds<N>>;
 
-    ArgumentHandler(Read<Array<T, N>> arg) : m_backend(arg.argument.inner().shared_from_this()) {}
+    ArgumentHandler(Read<Array<T, N>> arg) :
+        m_backend(arg.argument.inner().shared_from_this()) ,
+        m_chunk(m_backend->find_chunk(m_backend->array_size())) {
+    }
+
+    void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto data_chunk = m_backend->find_chunk(m_backend->array_size());
-
         size_t buffer_index = builder.buffers.size();
         builder.buffers.emplace_back(BufferRequirement {
-            .buffer_id = data_chunk.buffer_id,
+            .buffer_id = m_chunk.buffer_id,
             .memory_id = builder.memory_id,
             .access_mode = AccessMode::Read});
 
-        auto domain = views::domains::bounds<N> {data_chunk.size};
+        auto domain = views::domains::bounds<N> {m_chunk.size};
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {
-        // Nothing to do
-    }
+    void finalize(const TaskResult& result) {}
 
   private:
     std::shared_ptr<const ArrayBackend<N>> m_backend;
+    ArrayChunk<N> m_chunk;
 };
 
 template<typename T, size_t N>
@@ -206,6 +137,8 @@ struct ArgumentHandler<Write<Array<T, N>>> {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
+
+    void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_builder.m_sizes;
@@ -229,6 +162,79 @@ struct ArgumentHandler<Array<T, N>>: public ArgumentHandler<Read<Array<T, N>>> {
     ArgumentHandler(Array<T, N> arg) : ArgumentHandler<Read<Array<T, N>>>(read(arg)) {}
 };
 
+template<typename T, size_t N, typename A>
+struct ArgumentHandler<Read<Array<T, N>, A>> {
+    using type = ArrayArgument<const T, views::domains::subbounds<N>>;
+
+    static_assert(
+        is_dimensionality_accepted_by_mapper<A, N>,
+        "mapper of 'read' must return N-dimensional region"
+    );
+
+    ArgumentHandler(Read<Array<T, N>, A> arg) :
+        m_backend(arg.argument.inner().shared_from_this()),
+        m_access_mapper(arg.access_mapper) {}
+
+    void initialize(const TaskInit& init) {}
+
+    type process_chunk(TaskBuilder& builder) {
+        auto access_region = m_access_mapper(builder.chunk, m_backend->array_size());
+        auto data_chunk = m_backend->find_chunk(access_region);
+
+        size_t buffer_index = builder.buffers.size();
+        builder.buffers.emplace_back(BufferRequirement {
+            .buffer_id = data_chunk.buffer_id,
+            .memory_id = builder.memory_id,
+            .access_mode = AccessMode::Read});
+
+        auto domain = views::domains::subbounds<N> {data_chunk.offset, data_chunk.size};
+        return {buffer_index, domain};
+    }
+
+    void finalize(const TaskResult& result) {}
+
+  private:
+    std::shared_ptr<const ArrayBackend<N>> m_backend;
+    A m_access_mapper;
+};
+
+template<typename T, size_t N, typename A>
+struct ArgumentHandler<Write<Array<T, N>, A>> {
+    using type = ArrayArgument<T, views::domains::subbounds<N>>;
+
+    static_assert(
+        is_dimensionality_accepted_by_mapper<A, N>,
+        "mapper of 'write' must return N-dimensional region"
+    );
+
+    ArgumentHandler(Write<Array<T, N>, A> arg) :
+        m_array(arg.argument),
+        m_access_mapper(arg.access_mapper),
+        m_builder(arg.argument.shape(), BufferLayout::for_type<T>()) {
+        if (m_array.is_valid()) {
+            throw std::runtime_error("array has already been written to, cannot overwrite array");
+        }
+    }
+
+    void initialize(const TaskInit& init) {}
+
+    type process_chunk(TaskBuilder& builder) {
+        auto access_region = m_access_mapper(builder.chunk, m_builder.m_sizes);
+        size_t buffer_index = m_builder.add_chunk(builder, access_region);
+        views::domains::subbounds<N> domain = {access_region.offset, access_region.sizes};
+        return {buffer_index, domain};
+    }
+
+    void finalize(const TaskResult& result) {
+        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
+    }
+
+  private:
+    Array<T, N>& m_array;
+    A m_access_mapper;
+    ArrayBuilder<N> m_builder;
+};
+
 template<typename T, size_t N>
 struct ArgumentHandler<Reduce<Array<T, N>>> {
     using type = ArrayArgument<T, views::domains::bounds<N>>;
@@ -240,6 +246,8 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
+
+    void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_builder.m_sizes;
@@ -270,15 +278,17 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
     ArgumentHandler(Reduce<Array<T, N>, All, P> arg) :
         m_array(arg.argument),
         m_builder(arg.argument.shape(), DataType::of<T>(), arg.op),
-        m_private_map(arg.private_map) {
+        m_private_mapper(arg.private_mapper) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
 
+    void initialize(const TaskInit& init) {}
+
     type process_chunk(TaskBuilder& builder) {
         auto access_region = Rect<N>(m_builder.m_sizes);
-        auto private_region = m_private_map(builder.chunk);
+        auto private_region = m_private_mapper(builder.chunk);
         size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
         views::domains::subbounds<K + N> domain = {
@@ -296,7 +306,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
   private:
     Array<T, N>& m_array;
     ArrayReductionBuilder<N> m_builder;
-    P m_private_map;
+    P m_private_mapper;
 };
 
 template<typename T, size_t N, typename A, typename P>
@@ -317,16 +327,18 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
     ArgumentHandler(Reduce<Array<T, N>, A, P> arg) :
         m_array(arg.argument),
         m_builder(arg.argument.shape(), DataType::of<T>(), arg.op),
-        m_access_map(arg.access_map),
-        m_private_map(arg.private_map) {
+        m_access_mapper(arg.access_mapper),
+        m_private_mapper(arg.private_mapper) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
 
+    void initialize(const TaskInit& init) {}
+
     type process_chunk(TaskBuilder& builder) {
-        auto private_region = m_private_map(builder.chunk);
-        auto access_region = m_access_map(builder.chunk, m_builder.m_sizes);
+        auto private_region = m_private_mapper(builder.chunk);
+        auto access_region = m_access_mapper(builder.chunk, m_builder.m_sizes);
         size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
         views::domains::subbounds<K + N> domain = {
@@ -344,8 +356,8 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
   private:
     Array<T, N>& m_array;
     ArrayReductionBuilder<N> m_builder;
-    A m_access_map;
-    P m_private_map;
+    A m_access_mapper;
+    P m_private_mapper;
 };
 
 }  // namespace kmm

@@ -136,6 +136,9 @@ EventId parallel_submit_impl(
     return worker->with_task_graph([&](TaskGraph& graph) {
         EventList events;
 
+        TaskInit init {.worker = worker, .graph = graph, .partition = partition};
+        (std::get<Is>(handlers).initialize(init), ...);
+
         for (const TaskChunk& chunk : partition.chunks) {
             ProcessorId processor_id = launcher.find_processor(system_info, chunk);
 

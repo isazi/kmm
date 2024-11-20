@@ -54,7 +54,6 @@ struct BufferRequirement {
  * Provides access to a buffer with specific properties.
  */
 struct BufferAccessor {
-    BufferId buffer_id;
     MemoryId memory_id;
     BufferLayout layout;
     bool is_writable;

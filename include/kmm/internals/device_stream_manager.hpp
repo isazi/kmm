@@ -38,16 +38,16 @@ class DeviceStreamManager {
     bool is_ready(DeviceEventSet& events) const;
 
     void attach_callback(DeviceEvent event, NotifyHandle callback);
-    void attach_callback(DeviceStream event, NotifyHandle callback);
+    void attach_callback(DeviceStream stream, NotifyHandle callback);
 
     DeviceEvent record_event(DeviceStream stream);
     void wait_on_default_stream(DeviceStream stream);
 
     void wait_for_event(DeviceStream stream, DeviceEvent event) const;
-    void wait_for_events(DeviceStream stream, const DeviceEventSet& events);
+    void wait_for_events(DeviceStream stream, const DeviceEventSet& events) const;
     void wait_for_events(DeviceStream stream, const DeviceEvent* begin, const DeviceEvent* end)
         const;
-    void wait_for_events(DeviceStream stream, const std::vector<DeviceEvent>& events);
+    void wait_for_events(DeviceStream stream, const std::vector<DeviceEvent>& events) const;
 
     /**
      * Check if the given `source` event must occur before the given `target` event. In other words,
@@ -55,7 +55,7 @@ class DeviceStreamManager {
      */
     bool event_happens_before(DeviceEvent source, DeviceEvent target) const;
 
-    CudaContextHandle context(DeviceStream device_id) const;
+    CudaContextHandle context(DeviceStream stream) const;
     CUstream get(DeviceStream stream) const;
 
     template<typename F>

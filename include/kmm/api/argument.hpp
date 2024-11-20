@@ -37,6 +37,10 @@ struct ArgumentHandler {
 
     ArgumentHandler(T value) : m_value(value) {}
 
+    void initialize(const TaskInit& init) {
+        // Nothing to do
+    }
+
     type process_chunk(TaskBuilder& builder) {
         return Argument<T>::pack(builder, m_value);
     }

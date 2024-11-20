@@ -67,7 +67,7 @@ const DeviceInfo& SystemInfo::device(DeviceId id) const {
 }
 
 const DeviceInfo& SystemInfo::device_by_ordinal(CUdevice ordinal) const {
-    for (auto& device : m_devices) {
+    for (const auto& device : m_devices) {
         if (device.device_ordinal() == ordinal) {
             return device;
         }
