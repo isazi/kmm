@@ -6,11 +6,13 @@ namespace kmm {
 
 InvalidExecutionContext::InvalidExecutionContext(
     const std::type_info& expected,
-    const std::type_info& gotten) {
+    const std::type_info& gotten
+) {
     m_message = fmt::format(
         "task expected an execution context of type {}, but was executed with type {}",
         expected.name(),
-        gotten.name());
+        gotten.name()
+    );
 }
 
 const char* InvalidExecutionContext::what() const noexcept {

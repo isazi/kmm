@@ -76,6 +76,9 @@ struct subbounds {
     using index_type = I;
 
     KMM_HOST_DEVICE
+    subbounds() = default;
+
+    KMM_HOST_DEVICE
     subbounds(fixed_array<index_type, rank> offsets, fixed_array<index_type, rank> sizes) :
         m_offsets(offsets),
         m_sizes(sizes) {}

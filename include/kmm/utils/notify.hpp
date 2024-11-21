@@ -53,8 +53,8 @@ class NotifyHandle {
     template<typename F, typename std::enable_if<std::is_invocable<F>::value, int>::type = 0>
     NotifyHandle(F&& callback) :
         NotifyHandle(
-            std::make_shared<NotifyImpl<typename std::decay<F>>::type>(std::forward<F>(callback))) {
-    }
+            std::make_shared<NotifyImpl<typename std::decay<F>>::type>(std::forward<F>(callback))
+        ) {}
 
     ~NotifyHandle();
 

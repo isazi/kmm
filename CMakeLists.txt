@@ -16,7 +16,6 @@ option(KMM_ENABLE_LINTER "Enable clang-tidy linter" OFF)
 option(KMM_BUILD_TESTS "Build tests" OFF)
 option(KMM_BUILD_EXAMPLES "Build examples" OFF)
 
-
 # Enable C++17 support
 set(CXX_STANDARD 17)
 set(CXX_STANDARD_REQUIRED ON)
@@ -30,7 +29,7 @@ endif()
 
 file(GLOB_RECURSE sources
   "${PROJECT_SOURCE_DIR}/src/*.cpp"
-  "${PROJECT_SOURCE_DIR}/src/*/*.cpp")
+  "${PROJECT_SOURCE_DIR}/src/*.cu")
 
 if(KMM_STATIC)
   add_library(${PROJECT_NAME} STATIC ${sources})
@@ -40,7 +39,17 @@ endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
 
+# CXX flags
+set(CXXFLAGS
+        $<$<COMPILE_LANGUAGE:CUDA>:-forward-unknown-to-host-compiler>
+        -Wall -Wextra -Wconversion -Wno-unused-parameter
+        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Werror>)
+target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
+
+# Enable PIC
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 add_subdirectory(external/fmt)
 target_link_libraries(${PROJECT_NAME} PUBLIC fmt)
@@ -68,10 +77,6 @@ install(
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   FILES_MATCHING PATTERN "*.hpp"
 )
-
-# Enable PIC
-target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
-set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 if(KMM_ENABLE_LINTER)
   set(PROJECT_CLANG_TIDY clang-tidy)

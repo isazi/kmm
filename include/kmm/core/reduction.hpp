@@ -1,40 +1,54 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include "kmm/core/data_type.hpp"
+#include "kmm/core/identifiers.hpp"
 
 namespace kmm {
 
-enum struct ReductionOp { Sum, Product, Min, Max, BitAnd, BitOr };
+enum struct ReductionOp : uint8_t { Sum, Product, Min, Max, BitAnd, BitOr };
 
-enum struct DataType {
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-    Uint8,
-    Uint16,
-    Uint32,
-    Uint64,
-    Float16,
-    Float32,
-    Float64,
-    Complex16,
-    Complex32,
-    Complex64
-};
+std::vector<uint8_t> reduction_identity_value(DataType dtype, ReductionOp op);
 
-struct DataTypeInfo {
+struct ReductionDef {
+    ReductionOp operation;
     DataType data_type;
-    const char* type_name;
-    const char* c_name;
-    size_t size_in_bytes;
-    size_t align;
+    size_t num_outputs;
+    size_t num_inputs_per_output = 1;
+    size_t src_offset_elements = 0;
+    size_t dst_offset_elements = 0;
+
+    size_t minimum_source_bytes_needed() const;
+    size_t minimum_destination_bytes_needed() const;
 };
 
 struct Reduction {
-    ReductionOp op;
+    ReductionOp operation;
     DataType data_type;
+    size_t num_outputs;
 };
 
+struct ReductionInput {
+    BufferId buffer_id;
+    MemoryId memory_id;
+    EventList dependencies;
+    size_t num_inputs_per_output = 1;
+};
+
+std::ostream& operator<<(std::ostream& f, ReductionOp p);
+std::ostream& operator<<(std::ostream& f, Reduction p);
+std::ostream& operator<<(std::ostream& f, ReductionDef p);
+std::ostream& operator<<(std::ostream& f, ReductionInput p);
+
 }  // namespace kmm
+
+template<>
+struct fmt::formatter<kmm::ReductionOp>: fmt::ostream_formatter {};
+
+template<>
+struct fmt::formatter<kmm::Reduction>: fmt::ostream_formatter {};
+
+template<>
+struct fmt::formatter<kmm::ReductionDef>: fmt::ostream_formatter {};
+
+template<>
+struct fmt::formatter<kmm::ReductionInput>: fmt::ostream_formatter {};

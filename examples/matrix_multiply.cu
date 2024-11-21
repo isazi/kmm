@@ -1,7 +1,7 @@
 #include "kmm/kmm.hpp"
 
 void fill_array(
-    kmm::WorkChunk region,
+    kmm::WorkRange region,
     kmm::subview_mut<float, 2> array,
     float value
 ) {
@@ -13,36 +13,42 @@ void fill_array(
 }
 
 void matrix_multiply(
-    kmm::CudaDevice& device,
-    kmm::WorkChunk region,
-    int m,
+    kmm::DeviceContext& device,
+    kmm::WorkRange region,
     int n,
+    int m,
     int k,
     kmm::cuda_subview_mut<float, 2> C,
     kmm::cuda_subview<float, 2> A,
     kmm::cuda_subview<float, 2> B
 ) {
+    using kmm::checked_cast;
+
     float alpha = 1.0;
     float beta = 0.0;
+
+    const float* A_ptr = A.data_at({region.begin.x, region.begin.z});
+    const float* B_ptr = B.data_at({region.begin.z, region.begin.y});
+    float* C_ptr = C.data_at({region.begin.x, region.begin.y});
 
     KMM_CUDA_CHECK(cublasGemmEx(
         device.cublas(),
         CUBLAS_OP_T,
         CUBLAS_OP_T,
-        m,
-        n,
-        k,
+        checked_cast<int>(region.sizes().x),
+        checked_cast<int>(region.sizes().y),
+        checked_cast<int>(region.sizes().z),
         &alpha,
-        A.data(),
+        A_ptr,
         CUDA_R_32F,
-        A.stride(0),
-        B.data(),
+        checked_cast<int>(A.stride()),
+        B_ptr,
         CUDA_R_32F,
-        B.stride(0),
+        checked_cast<int>(B.stride()),
         &beta,
-        C.data(),
+        C_ptr,
         CUDA_R_32F,
-        C.stride(0),
+        checked_cast<int>(C.stride()),
         CUDA_R_32F,
         CUBLAS_GEMM_DEFAULT
     ));
@@ -50,12 +56,13 @@ void matrix_multiply(
 
 int main() {
     using namespace kmm::placeholders;
+    spdlog::set_level(spdlog::level::trace);
 
     auto rt = kmm::make_runtime();
-    int n = 500;
-    int m = 500;
-    int k = 500;
-    int chunk_size = 100;
+    int n = 5000;
+    int m = 5000;
+    int k = 5000;
+    int chunk_size = n / 2;
 
     auto A = kmm::Array<float, 2>{{n, k}};
     auto B = kmm::Array<float, 2>{{k, m}};
@@ -65,7 +72,7 @@ int main() {
         {n, k},
         {chunk_size, chunk_size},
         kmm::Host(fill_array),
-        write(A, slice(_0, _1)),
+        write(A, access(_x, _y)),
         1.0F
     );
 
@@ -73,17 +80,27 @@ int main() {
         {k, m},
         {chunk_size, chunk_size},
         kmm::Host(fill_array),
-        write(B, slice(_x, _y)),
+        write(B, access(_x, _y)),
         1.0F
     );
 
-    rt.parallel_submit(
-        {n, m, k},
-        {chunk_size, chunk_size, chunk_size},
-        kmm::Cuda(matrix_multiply),
-        n, m, k,
-        reduce(C, kmm::ReductionOp::Sum, slice(_x, _y)),
-        read(A, slice(_x, _y)),
-        read(B, slice(_z, _x))
-    );
+    for (size_t repeat = 0; repeat < 10; repeat++) {
+        C.reset();
+
+        rt.parallel_submit(
+            {n, m, k},
+            {chunk_size, chunk_size, chunk_size},
+            kmm::Cuda(matrix_multiply),
+            n,
+            m,
+            k,
+            reduce(C, kmm::ReductionOp::Sum, access(_x, _y)),
+            read(A, access(_x, _z)),
+            read(B, access(_z, _y))
+        );
+
+        rt.synchronize();
+    }
+
+    return EXIT_SUCCESS;
 }

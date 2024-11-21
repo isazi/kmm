@@ -1,4 +1,6 @@
 #include "kmm/api/runtime.hpp"
+#include "kmm/core/device_context.hpp"
+#include "kmm/internals/worker.hpp"
 
 namespace kmm {
 
@@ -12,9 +14,8 @@ class CopyInTask: public Task {
 
         void* dst_addr = context.accessors[0].address;
 
-        if (auto* device = proc.cast_if<GPUDevice>()) {
+        if (auto* device = proc.cast_if<DeviceContext>()) {
             device->copy_bytes(m_src_addr, dst_addr, m_nbytes);
-            device->synchronize();
         } else if (proc.is<HostContext>()) {
             ::memcpy(dst_addr, m_src_addr, m_nbytes);
         } else {
@@ -27,8 +28,14 @@ class CopyInTask: public Task {
     size_t m_nbytes;
 };
 
+Runtime::Runtime(std::shared_ptr<Worker> worker) : m_worker(std::move(worker)) {
+    KMM_ASSERT(m_worker != nullptr);
+}
+
+Runtime::Runtime(Worker& worker) : Runtime(worker.shared_from_this()) {}
+
 MemoryId Runtime::memory_affinity_for_address(const void* address) const {
-    if (auto device_opt = get_gpu_device_by_address(address)) {
+    if (auto device_opt = get_cuda_device_by_address(address)) {
         const auto& device = m_worker->system_info().device_by_ordinal(*device_opt);
         return device.memory_id();
     } else {
@@ -89,8 +96,8 @@ const Worker& Runtime::worker() const {
     return *m_worker;
 }
 
-Runtime make_runtime() {
-    return make_worker();
+Runtime make_runtime(const WorkerConfig& config) {
+    return make_worker(config);
 }
 
 }  // namespace kmm

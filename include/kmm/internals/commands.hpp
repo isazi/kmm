@@ -5,8 +5,9 @@
 #include "fmt/ostream.h"
 
 #include "kmm/core/buffer.hpp"
-#include "kmm/core/copy_description.hpp"
+#include "kmm/core/copy_def.hpp"
 #include "kmm/core/identifiers.hpp"
+#include "kmm/core/reduction.hpp"
 #include "kmm/core/task.hpp"
 
 namespace kmm {
@@ -30,13 +31,20 @@ struct CommandCopy {
     MemoryId src_memory;
     BufferId dst_buffer;
     MemoryId dst_memory;
-    CopyDescription spec;
+    CopyDef definition;
 };
 
 struct CommandExecute {
     ProcessorId processor_id;
     std::shared_ptr<Task> task;
     std::vector<BufferRequirement> buffers;
+};
+
+struct CommandReduction {
+    BufferId src_buffer;
+    BufferId dst_buffer;
+    MemoryId memory_id;
+    ReductionDef definition;
 };
 
 struct CommandEmpty {};
@@ -47,7 +55,8 @@ using Command = std::variant<
     CommandBufferDelete,
     CommandPrefetch,
     CommandCopy,
-    CommandExecute>;
+    CommandExecute,
+    CommandReduction>;
 
 inline const char* command_name(const Command& cmd) {
     static constexpr const char* names[] = {
@@ -56,7 +65,8 @@ inline const char* command_name(const Command& cmd) {
         "CommandBufferDelete",
         "CommandPrefetch",
         "CommandCopy",
-        "CommandExecute"};
+        "CommandExecute",
+        "CommandReduction"};
 
     return names[cmd.index()];
 }

@@ -13,7 +13,7 @@ T div_floor(T a, T b) {
     T quotient = a / b;
 
     // Adjust the quotient if a and b have different signs
-    if (a % b != 0 && ((a >= 0) ^ (b >= 0))) {
+    if (a % b != zero && ((a >= zero) ^ (b >= zero))) {
         quotient -= 1;
     }
 
@@ -34,7 +34,7 @@ T div_ceil(T a, T b) {
     T quotient = a / b;
 
     // Adjust the quotient if both a and b have the same sign
-    if (a % b != 0 && !((a >= 0) ^ (b >= 0))) {
+    if (a % b != zero && !((a >= zero) ^ (b >= zero))) {
         quotient += 1;
     }
 
@@ -71,7 +71,7 @@ T round_up_to_multiple(T input, T multiple) {
 
 /**
  * Return the smallest number that is a power of two and is not less than `input`. This function
- * returns `0` if not such number exists.
+ * returns `numeric_limits<T>::max()` if not such number exists.
  */
 template<typename T>
 static T round_up_to_power_of_two(T input) {
@@ -86,7 +86,7 @@ static T round_up_to_power_of_two(T input) {
 
     // What to do with overflows?
     if (input == std::numeric_limits<T>::max()) {
-        return 0;
+        return std::numeric_limits<T>::max();
     }
 
     input += static_cast<T>(1);

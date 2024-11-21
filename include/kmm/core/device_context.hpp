@@ -9,12 +9,21 @@
 
 namespace kmm {
 
+<<<<<<<< HEAD:include/kmm/core/gpu_device.hpp
 class GPUDevice: public DeviceInfo, public ExecutionContext {
     KMM_NOT_COPYABLE_OR_MOVABLE(GPUDevice);
 
   public:
     GPUDevice(DeviceInfo info, GPUContextHandle context, stream_t stream);
     ~GPUDevice();
+========
+class DeviceContext: public DeviceInfo, public ExecutionContext {
+    KMM_NOT_COPYABLE_OR_MOVABLE(DeviceContext);
+
+  public:
+    DeviceContext(DeviceInfo info, CudaContextHandle context, CUstream stream);
+    ~DeviceContext();
+>>>>>>>> dev:include/kmm/core/device_context.hpp
 
     /**
      * Returns a handle to the context associated with this device.
@@ -68,7 +77,8 @@ class GPUDevice: public DeviceInfo, public ExecutionContext {
         dim3 block_dim,
         unsigned int shared_mem,
         void (*const kernel_function)(Args...),
-        Args... args) const {
+        Args... args
+    ) const {
         // Get void pointer to the arguments.
         void* void_args[sizeof...(Args) + 1] = {static_cast<void*>(&args)..., nullptr};
 
@@ -81,7 +91,8 @@ class GPUDevice: public DeviceInfo, public ExecutionContext {
             block_dim,
             void_args,
             shared_mem,
-            m_stream));
+            m_stream
+        ));
     }
 
     /**
@@ -94,7 +105,8 @@ class GPUDevice: public DeviceInfo, public ExecutionContext {
             dest,
             checked_mul(checked_cast<size_t>(num_elements), sizeof(T)),
             &value,
-            sizeof(T));
+            sizeof(T)
+        );
     }
 
     /**
@@ -137,7 +149,8 @@ class GPUDevice: public DeviceInfo, public ExecutionContext {
         copy_bytes(
             source_ptr,
             dest_ptr,
-            checked_mul(checked_cast<size_t>(num_elements), sizeof(T)));
+            checked_mul(checked_cast<size_t>(num_elements), sizeof(T))
+        );
     }
 
     /**
@@ -149,7 +162,8 @@ class GPUDevice: public DeviceInfo, public ExecutionContext {
         void* dest_buffer,
         size_t nbytes,
         const void* fill_pattern,
-        size_t fill_pattern_size) const;
+        size_t fill_pattern_size
+    ) const;
 
     /**
      * Copy `nbytes` bytes from the buffer starting at `source_buffer` to the buffer starting at

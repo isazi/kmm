@@ -1,23 +1,27 @@
-#include "kmm/internals/allocator/caching.hpp"
+#include "kmm/allocators/caching.hpp"
 #include "kmm/utils/integer_fun.hpp"
 
 namespace kmm {
 
-
-CachingMemoryAllocator::CachingMemoryAllocator(std::unique_ptr<MemoryAllocator> allocator):m_allocator(std::move(allocator)) {
+CachingAllocator::CachingAllocator(
+    std::unique_ptr<AsyncAllocator> allocator,
+    size_t initial_watermark
+) :
+    m_allocator(std::move(allocator)),
+    m_bytes_watermark(initial_watermark) {
     KMM_ASSERT(m_allocator != nullptr);
 }
 
-CachingMemoryAllocator::~CachingMemoryAllocator() {
+CachingAllocator::~CachingAllocator() {
     while (free_some_memory() > 0) {
         //
     }
 }
 
-struct CachingMemoryAllocator::AllocationSlot {
+struct CachingAllocator::AllocationSlot {
     void* addr = nullptr;
     size_t nbytes = 0;
-    GPUEventSet dependencies;
+    DeviceEventSet dependencies;
     std::unique_ptr<AllocationSlot> next = nullptr;
     AllocationSlot* lru_older = nullptr;
     AllocationSlot* lru_newer = nullptr;
@@ -31,14 +35,15 @@ size_t round_up_allocation_size(size_t nbytes) {
     }
 }
 
-bool CachingMemoryAllocator::allocate(size_t nbytes, void*& addr_out, GPUEventSet& deps_out) {
+bool CachingAllocator::allocate_async(size_t nbytes, void** addr_out, DeviceEventSet* deps_out) {
     nbytes = round_up_allocation_size(nbytes);
     auto& [head, _] = m_allocations[nbytes];
 
     if (head == nullptr) {
         while (true) {
-            if (nbytes < m_bytes_watermark - m_bytes_allocated || m_bytes_in_use == m_bytes_allocated) {
-                if (m_allocator->allocate(nbytes, addr_out, deps_out)) {
+            if (nbytes < m_bytes_watermark - m_bytes_allocated
+                || m_bytes_in_use == m_bytes_allocated) {
+                if (m_allocator->allocate_async(nbytes, addr_out, deps_out)) {
                     m_bytes_allocated += nbytes;
                     m_bytes_in_use += nbytes;
                     m_bytes_watermark = std::max(m_bytes_watermark, m_bytes_in_use);
@@ -68,20 +73,18 @@ bool CachingMemoryAllocator::allocate(size_t nbytes, void*& addr_out, GPUEventSe
     }
 
     m_bytes_in_use += nbytes;
-    addr_out = slot->addr;
-    deps_out.insert(std::move(slot->dependencies));
+    *addr_out = slot->addr;
+    deps_out->insert(std::move(slot->dependencies));
     return true;
 }
 
-void CachingMemoryAllocator::deallocate(void* addr, size_t nbytes, GPUEventSet deps) {
+void CachingAllocator::deallocate_async(void* addr, size_t nbytes, DeviceEventSet deps) {
     nbytes = round_up_allocation_size(nbytes);
     m_bytes_in_use -= nbytes;
 
-    auto slot = std::make_unique<AllocationSlot>(AllocationSlot {
-        .addr = addr,
-        .nbytes = nbytes,
-        .dependencies = std::move(deps)
-    });
+    auto slot = std::make_unique<AllocationSlot>(
+        AllocationSlot {.addr = addr, .nbytes = nbytes, .dependencies = std::move(deps)}
+    );
 
     auto* slot_addr = slot.get();
 
@@ -104,7 +107,21 @@ void CachingMemoryAllocator::deallocate(void* addr, size_t nbytes, GPUEventSet d
     }
 }
 
-size_t CachingMemoryAllocator::free_some_memory() {
+void CachingAllocator::make_progress() {
+    m_allocator->make_progress();
+}
+
+void CachingAllocator::trim(size_t nbytes_remaining) {
+    while (m_bytes_allocated > nbytes_remaining) {
+        if (free_some_memory() == 0) {
+            break;
+        }
+    }
+
+    m_allocator->trim(nbytes_remaining);
+}
+
+size_t CachingAllocator::free_some_memory() {
     if (m_lru_oldest == nullptr) {
         return 0;
     }
@@ -132,8 +149,8 @@ size_t CachingMemoryAllocator::free_some_memory() {
     }
 
     m_bytes_allocated -= slot->nbytes;
-    m_allocator->deallocate(slot->addr, slot->nbytes, std::move(slot->dependencies));
+    m_allocator->deallocate_async(slot->addr, slot->nbytes, std::move(slot->dependencies));
     return slot->nbytes;
 }
 
-}
+}  // namespace kmm

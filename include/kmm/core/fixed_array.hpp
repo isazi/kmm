@@ -4,6 +4,10 @@
 
 namespace kmm {
 
+KMM_HOST_DEVICE bool is_less(size_t a, size_t b) {
+    return a < b;
+}
+
 template<typename T, size_t N>
 struct fixed_array {
     KMM_HOST_DEVICE
@@ -172,14 +176,14 @@ struct fixed_array<T, 4> {
 };
 
 template<typename T, size_t N, typename U, size_t M>
-bool operator==(const fixed_array<T, N>& lhs, const fixed_array<U, M>& rhs) {
+KMM_HOST_DEVICE bool operator==(const fixed_array<T, N>& lhs, const fixed_array<U, M>& rhs) {
     if (N != M) {
         return false;
     }
 
     bool result = true;
 
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; is_less(i, N); i++) {
         result &= lhs[i] == rhs[i];
     }
 
@@ -187,7 +191,7 @@ bool operator==(const fixed_array<T, N>& lhs, const fixed_array<U, M>& rhs) {
 }
 
 template<typename T, size_t N, typename U, size_t M>
-bool operator!=(const fixed_array<T, N>& lhs, const fixed_array<U, M>& rhs) {
+KMM_HOST_DEVICE bool operator!=(const fixed_array<T, N>& lhs, const fixed_array<U, M>& rhs) {
     return !(lhs == rhs);
 }
 
@@ -202,7 +206,7 @@ namespace kmm {
 template<typename T, size_t N>
 std::ostream& operator<<(std::ostream& stream, const fixed_array<T, N>& p) {
     stream << "{";
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; is_less(i, N); i++) {
         if (i != 0) {
             stream << ", ";
         }
@@ -216,3 +220,23 @@ std::ostream& operator<<(std::ostream& stream, const fixed_array<T, N>& p) {
 
 template<typename T, size_t N>
 struct fmt::formatter<kmm::fixed_array<T, N>>: fmt::ostream_formatter {};
+
+#include "kmm/utils/hash_utils.hpp"
+
+template<size_t N, typename T>
+struct std::hash<kmm::fixed_array<T, N>> {
+    size_t operator()(const kmm::fixed_array<T, N>& p) const {
+        size_t result = 0;
+        for (size_t i = 0; kmm::is_less(i, N); i++) {
+            kmm::hash_combine(result, p[i]);
+        }
+        return result;
+    }
+};
+
+template<typename T>
+struct std::hash<kmm::fixed_array<T, 0>> {
+    size_t operator()(const kmm::fixed_array<T, 0>& p) const {
+        return 0;
+    }
+};

@@ -1,10 +1,10 @@
 #include <curand_kernel.h>
 
-#include "kmm/api/access.hpp"
+#include "kmm/api/mapper.hpp"
 #include "kmm/api/runtime.hpp"
 
 __global__ void cn_pnpoly(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     kmm::cuda_subview_mut<int> bitmap,
     kmm::cuda_subview<float2> points,
     int nvertices,
@@ -12,7 +12,7 @@ __global__ void cn_pnpoly(
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
 
-    if (chunk.contains(i)) {
+    if (i < chunk.end(0)) {
         int c = 0;
         float2 p = points[i];
 
@@ -35,12 +35,12 @@ __global__ void cn_pnpoly(
 }
 
 __global__ void init_points(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     kmm::cuda_subview_mut<float2> points
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
 
-    if (chunk.contains(i)) {
+    if (i < chunk.end(0)) {
         curandStatePhilox4_32_10_t state;
         curand_init(1234, i, 0, &state);
         points[i] = {curand_normal(&state), curand_normal(&state)};
@@ -48,7 +48,7 @@ __global__ void init_points(
 }
 
 void init_polygon(
-    kmm::WorkChunk chunk,
+    kmm::WorkRange chunk,
     int nvertices,
     kmm::view_mut<float2> vertices
 ) {
@@ -84,18 +84,20 @@ int main() {
         {npoints},
         {npoints_per_chunk},
         kmm::CudaKernel(init_points, block_size),
-        write(points, slice(_x))
+        write(points, access(_x))
     );
 
     rt.parallel_submit(
         {npoints},
         {npoints_per_chunk},
         kmm::CudaKernel(cn_pnpoly, block_size),
-        write(bitmap, slice(_x)),
-        read(points, slice(_x)),
+        write(bitmap, access(_x)),
+        read(points, access(_x)),
         nvertices,
         read(vertices)
     );
 
     rt.synchronize();
+
+    return EXIT_SUCCESS;
 }

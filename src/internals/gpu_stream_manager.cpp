@@ -4,7 +4,7 @@
 
 #include "spdlog/spdlog.h"
 
-#include "kmm/internals/gpu_stream_manager.hpp"
+#include "kmm/internals/device_stream_manager.hpp"
 
 namespace kmm {
 
@@ -16,39 +16,39 @@ struct CompareCallback {
     }
 };
 
-struct GPUStreamManager::StreamState {
+struct DeviceStreamManager::StreamState {
     KMM_NOT_COPYABLE(StreamState)
 
   public:
-    StreamState(size_t pool_index, GPUContextHandle c, stream_t s) :
+    StreamState(size_t pool_index, CudaContextHandle c, CUstream s) :
         pool_index(pool_index),
         context(c),
-        gpu_stream(s) {}
+        cuda_stream(s) {}
     StreamState(StreamState&&) = default;
 
     size_t pool_index;
-    GPUContextHandle context;
-    stream_t gpu_stream;
-    std::deque<event_t> pending_events;
+    CudaContextHandle context;
+    CUstream cuda_stream;
+    std::deque<CUevent> pending_events;
     uint64_t first_pending_index = 1;
     std::priority_queue<Callback, std::vector<Callback>, CompareCallback> callbacks_heap;
 };
 
-struct GPUStreamManager::EventPool {
-    EventPool(GPUContextHandle context) : m_context(context) {}
+struct DeviceStreamManager::EventPool {
+    EventPool(CudaContextHandle context) : m_context(context) {}
     EventPool(EventPool&&) noexcept = default;
-    EventPool(const EventPool&) = default;
+    EventPool(const EventPool&) = delete;
     ~EventPool();
-    event_t pop();
-    void push(event_t event);
+    CUevent pop();
+    void push(CUevent event);
 
-    GPUContextHandle m_context;
-    std::vector<event_t > m_events;
+    CudaContextHandle m_context;
+    std::vector<CUevent> m_events;
 };
 
-GPUStreamManager::GPUStreamManager() {}
+DeviceStreamManager::DeviceStreamManager() {}
 
-GPUStream GPUStreamManager::create_stream(GPUContextHandle context, bool high_priority) {
+DeviceStream DeviceStreamManager::create_stream(CudaContextHandle context, bool high_priority) {
     size_t pool_index;
     bool found_pool = false;
 
@@ -64,50 +64,51 @@ GPUStream GPUStreamManager::create_stream(GPUContextHandle context, bool high_pr
         m_event_pools.push_back(EventPool(context));
     }
 
-    GPUContextGuard guard {context};
+    CudaContextGuard guard {context};
 
     int least_priority;
     int greatest_priority;
-    KMM_GPU_CHECK(gpuCtxGetStreamPriorityRange(&least_priority, &greatest_priority));
+    KMM_CUDA_CHECK(cuCtxGetStreamPriorityRange(&least_priority, &greatest_priority));
     int priority = high_priority ? greatest_priority : least_priority;
 
     size_t index = m_streams.size();
-    stream_t gpu_stream;
-    KMM_GPU_CHECK(gpuStreamCreateWithPriority(&gpu_stream, GPU_STREAM_NON_BLOCKING, priority));
-    m_streams.emplace_back(pool_index, context, gpu_stream);
+    CUstream cuda_stream;
+    KMM_CUDA_CHECK(cuStreamCreateWithPriority(&cuda_stream, CU_STREAM_NON_BLOCKING, priority));
+    m_streams.emplace_back(pool_index, context, cuda_stream);
 
-    return GPUStream(index);
+    return DeviceStream(static_cast<uint8_t>(index));
 }
 
-GPUStreamManager::~GPUStreamManager() {
+DeviceStreamManager::~DeviceStreamManager() {
     for (auto& stream : m_streams) {
-        GPUContextGuard guard {stream.context};
+        CudaContextGuard guard {stream.context};
 
-        KMM_GPU_CHECK(gpuStreamSynchronize(stream.gpu_stream));
-        KMM_ASSERT(gpuStreamQuery(stream.gpu_stream) == GPU_SUCCESS);
-        KMM_GPU_CHECK(cuStreamDestroy(stream.gpu_stream));
+        KMM_CUDA_CHECK(cuStreamSynchronize(stream.cuda_stream));
+        KMM_ASSERT(cuStreamQuery(stream.cuda_stream) == CUDA_SUCCESS);
+        KMM_CUDA_CHECK(cuStreamDestroy(stream.cuda_stream));
 
-        for (const auto& gpu_event : stream.pending_events) {
-            KMM_GPU_CHECK(gpuEventSynchronize(gpu_event));
-            KMM_ASSERT(gpuEventSynchronize(gpu_event) == GPU_SUCCESS);
+        for (const auto& cuda_event : stream.pending_events) {
+            KMM_CUDA_CHECK(cuEventSynchronize(cuda_event));
+            KMM_ASSERT(cuEventSynchronize(cuda_event) == CUDA_SUCCESS);
 
             stream.first_pending_index += 1;
-            m_event_pools[stream.pool_index].push(gpu_event);
+            m_event_pools[stream.pool_index].push(cuda_event);
         }
     }
 }
 
-void GPUStreamManager::wait_until_idle() const {
+void DeviceStreamManager::wait_until_idle() const {
     for (const auto& stream : m_streams) {
-        KMM_GPU_CHECK(gpuStreamSynchronize(stream.gpu_stream));
+        KMM_CUDA_CHECK(cuStreamSynchronize(stream.cuda_stream));
     }
 }
 
-void GPUStreamManager::wait_until_ready(GPUStream stream) const {
-    KMM_GPU_CHECK(gpuStreamSynchronize(get(stream)));
+void DeviceStreamManager::wait_until_ready(DeviceStream stream) const {
+    KMM_CUDA_CHECK(cuStreamSynchronize(get(stream)));
 }
 
-void GPUStreamManager::wait_until_ready(GPUEvent event) const {
+void DeviceStreamManager::wait_until_ready(DeviceEvent event) const {
+    KMM_ASSERT(event.stream() < m_streams.size());
     const auto& src_stream = m_streams[event.stream()];
 
     if (event.index() < src_stream.first_pending_index) {
@@ -115,28 +116,44 @@ void GPUStreamManager::wait_until_ready(GPUEvent event) const {
     }
 
     auto offset = event.index() - src_stream.first_pending_index;
-    event_t gpu_event = src_stream.pending_events.at(offset);
+    CUevent cuda_event = src_stream.pending_events.at(offset);
 
-    GPUContextGuard guard {src_stream.context};
-    KMM_GPU_CHECK(gpuEventSynchronize(gpu_event));
+    CudaContextGuard guard {src_stream.context};
+    KMM_CUDA_CHECK(cuEventSynchronize(cuda_event));
 }
 
-void GPUStreamManager::wait_until_ready(const GPUEventSet& events) const {
-    for (GPUEvent e : events) {
+void DeviceStreamManager::wait_until_ready(const DeviceEventSet& events) const {
+    for (DeviceEvent e : events) {
         wait_until_ready(e);
     }
 }
 
-bool GPUStreamManager::is_ready(GPUStream stream) const {
-    return m_streams.at(stream).pending_events.empty();
+bool DeviceStreamManager::is_idle() const {
+    for (const auto& stream : m_streams) {
+        if (!stream.pending_events.empty() || !stream.callbacks_heap.empty()) {
+            return false;
+        }
+
+        CudaContextGuard guard {stream.context};
+        KMM_CUDA_CHECK(cuStreamSynchronize(stream.cuda_stream));
+        KMM_CUDA_CHECK(cuStreamSynchronize(nullptr));
+    }
+
+    return true;
 }
 
-bool GPUStreamManager::is_ready(GPUEvent event) const {
-    return m_streams.at(event.stream()).first_pending_index > event.index();
+bool DeviceStreamManager::is_ready(DeviceStream stream) const {
+    KMM_ASSERT(stream < m_streams.size());
+    return m_streams[stream].pending_events.empty();
 }
 
-bool GPUStreamManager::is_ready(const GPUEventSet& events) const {
-    for (GPUEvent e : events) {
+bool DeviceStreamManager::is_ready(DeviceEvent event) const {
+    KMM_ASSERT(event.stream() < m_streams.size());
+    return m_streams[event.stream()].first_pending_index > event.index();
+}
+
+bool DeviceStreamManager::is_ready(const DeviceEventSet& events) const {
+    for (DeviceEvent e : events) {
         if (!is_ready(e)) {
             return false;
         }
@@ -145,44 +162,52 @@ bool GPUStreamManager::is_ready(const GPUEventSet& events) const {
     return true;
 }
 
-bool GPUStreamManager::is_ready(GPUEventSet& events) const {
+bool DeviceStreamManager::is_ready(DeviceEventSet& events) const {
     events.remove_completed(*this);
     return events.begin() == events.end();
 }
 
-void GPUStreamManager::attach_callback(GPUEvent event, NotifyHandle callback) {
+void DeviceStreamManager::attach_callback(DeviceEvent event, NotifyHandle callback) {
+    KMM_ASSERT(event.stream() < m_streams.size());
     auto& stream = m_streams[event.stream()];
     stream.callbacks_heap.emplace(event.index(), std::move(callback));
 }
 
-void GPUStreamManager::attach_callback(GPUStream stream, NotifyHandle callback) {
+void DeviceStreamManager::attach_callback(DeviceStream stream, NotifyHandle callback) {
     attach_callback(record_event(stream), std::move(callback));
 }
 
-GPUEvent GPUStreamManager::record_event(GPUStream stream_id) {
-    auto& stream = m_streams.at(stream_id);
-    event_t event = m_event_pools[stream.pool_index].pop();
+DeviceEvent DeviceStreamManager::record_event(DeviceStream stream_id) {
+    KMM_ASSERT(stream_id < m_streams.size());
+    auto& stream = m_streams[stream_id];
 
     uint64_t event_index = stream.first_pending_index + stream.pending_events.size();
-    stream.pending_events.push_back(event);
+    auto event = DeviceEvent {stream_id, event_index};
 
-    KMM_GPU_CHECK(gpuEventRecord(event, stream.gpu_stream));
+    CUevent cuda_event = m_event_pools[stream.pool_index].pop();
+    stream.pending_events.push_back(cuda_event);
 
-    spdlog::trace("GPU stream {} records new GPU event {}", stream_id, event_index);
-    return GPUEvent {stream_id, event_index};
+    KMM_CUDA_CHECK(cuEventRecord(cuda_event, stream.cuda_stream));
+
+    spdlog::trace("CUDA stream {} records new CUDA event {}", stream_id, event);
+    return event;
 }
 
-void GPUStreamManager::wait_on_default_stream(GPUStream stream_id) {
-    auto& stream = m_streams.at(stream_id);
+void DeviceStreamManager::wait_on_default_stream(DeviceStream stream_id) {
+    KMM_ASSERT(stream_id < m_streams.size());
+    auto& stream = m_streams[stream_id];
 
-    event_t gpu_event = m_event_pools[stream.pool_index].pop();
-    m_event_pools[stream.pool_index].push(gpu_event);
+    CUevent cuda_event = m_event_pools[stream.pool_index].pop();
+    m_event_pools[stream.pool_index].push(cuda_event);
 
-    KMM_GPU_CHECK(gpuEventRecord(gpu_event, 0));
-    KMM_GPU_CHECK(gpuStreamWaitEvent(stream.gpu_stream, gpu_event, GPU_EVENT_WAIT_DEFAULT));
+    KMM_CUDA_CHECK(cuEventRecord(cuda_event, 0));
+    KMM_CUDA_CHECK(cuStreamWaitEvent(stream.cuda_stream, cuda_event, CU_EVENT_WAIT_DEFAULT));
 }
 
-void GPUStreamManager::wait_for_event(GPUStream stream, GPUEvent event) const {
+void DeviceStreamManager::wait_for_event(DeviceStream stream, DeviceEvent event) const {
+    KMM_ASSERT(event.stream() < m_streams.size());
+    KMM_ASSERT(stream < m_streams.size());
+
     // Stream never needs to wait on events from itself
     if (event.stream() == stream) {
         return;
@@ -197,69 +222,76 @@ void GPUStreamManager::wait_for_event(GPUStream stream, GPUEvent event) const {
     }
 
     auto offset = event.index() - src_stream.first_pending_index;
-    event_t gpu_event = src_stream.pending_events.at(offset);
-    KMM_GPU_CHECK(gpuStreamWaitEvent(dst_stream.gpu_stream, gpu_event, GPU_EVENT_WAIT_DEFAULT));
+    CUevent cuda_event = src_stream.pending_events.at(offset);
+    KMM_CUDA_CHECK(cuStreamWaitEvent(dst_stream.cuda_stream, cuda_event, CU_EVENT_WAIT_DEFAULT));
 
-    spdlog::trace("GPU stream {} must wait on GPU event {}", stream, event);
+    spdlog::trace("CUDA stream {} must wait on CUDA event {}", stream, event);
 }
 
-void GPUStreamManager::wait_for_events(
-    GPUStream stream,
-    const GPUEvent* begin,
-    const GPUEvent* end) {
+void DeviceStreamManager::wait_for_events(
+    DeviceStream stream,
+    const DeviceEvent* begin,
+    const DeviceEvent* end
+) const {
     for (const auto* it = begin; it != end; it++) {
         wait_for_event(stream, *it);
     }
 }
 
-void GPUStreamManager::wait_for_events(GPUStream stream, const GPUEventSet& events) {
+void DeviceStreamManager::wait_for_events(DeviceStream stream, const DeviceEventSet& events) const {
     wait_for_events(stream, events.begin(), events.end());
 }
 
-void GPUStreamManager::wait_for_events(GPUStream stream, const std::vector<GPUEvent>& events) {
+void DeviceStreamManager::wait_for_events(
+    DeviceStream stream,
+    const std::vector<DeviceEvent>& events
+) const {
     wait_for_events(stream, &*events.begin(), &*events.end());
 }
 
-bool GPUStreamManager::event_happens_before(GPUEvent source, GPUEvent target) const {
+bool DeviceStreamManager::event_happens_before(DeviceEvent source, DeviceEvent target) const {
     return source.stream() == target.stream() && source.index() < target.index();
 }
 
-GPUContextHandle GPUStreamManager::context(GPUStream stream) const {
+CudaContextHandle DeviceStreamManager::context(DeviceStream stream) const {
     KMM_ASSERT(stream.get() < m_streams.size());
     return m_streams[stream.get()].context;
 }
 
-stream_t GPUStreamManager::get(GPUStream stream) const {
+CUstream DeviceStreamManager::get(DeviceStream stream) const {
     KMM_ASSERT(stream < m_streams.size());
-    return m_streams[stream].gpu_stream;
+    return m_streams[stream].cuda_stream;
 }
 
-bool GPUStreamManager::make_progress() {
+bool DeviceStreamManager::make_progress() {
     bool update_happened = false;
 
     for (size_t i = 0; i < m_streams.size(); i++) {
         auto& stream = m_streams[i];
 
         if (!stream.pending_events.empty()) {
-            GPUContextGuard guard {stream.context};
+            CudaContextGuard guard {stream.context};
 
             do {
-                event_t gpu_event = stream.pending_events[0];
-                GPUresult result = gpuEventQuery(gpu_event);
+                CUevent cuda_event = stream.pending_events[0];
+                CUresult result = cuEventQuery(cuda_event);
 
-                if (result == GPU_ERROR_NOT_READY) {
+                if (result == CUDA_ERROR_NOT_READY) {
                     break;
                 }
 
-                if (result != GPU_SUCCESS) {
-                    throw GPUDriverException("`gpuEventQuery` failed", result);
+                if (result != CUDA_SUCCESS) {
+                    throw CudaDriverException("`cuEventQuery` failed", result);
                 }
 
-                spdlog::trace("GPU event {} completed", GPUEvent(i, stream.first_pending_index));
+                spdlog::trace(
+                    "CUDA event {} completed",
+                    DeviceEvent(static_cast<uint8_t>(i), stream.first_pending_index)
+                );
 
                 stream.first_pending_index += 1;
                 stream.pending_events.pop_front();
-                m_event_pools[stream.pool_index].push(gpu_event);
+                m_event_pools[stream.pool_index].push(cuda_event);
                 update_happened = true;
             } while (!stream.pending_events.empty());
         }
@@ -281,55 +313,47 @@ bool GPUStreamManager::make_progress() {
     return update_happened;
 }
 
-GPUStreamManager::EventPool::~EventPool() {
-    GPUContextGuard guard {m_context};
+DeviceStreamManager::EventPool::~EventPool() {
+    CudaContextGuard guard {m_context};
 
-    for (const auto& gpu_event : m_events) {
-        KMM_GPU_CHECK(gpuEventDestroy(gpu_event));
+    for (const auto& cuda_event : m_events) {
+        KMM_CUDA_CHECK(cuEventDestroy(cuda_event));
     }
 }
 
-event_t GPUStreamManager::EventPool::pop() {
-    event_t gpu_event;
+CUevent DeviceStreamManager::EventPool::pop() {
+    CUevent cuda_event;
 
     if (m_events.empty()) {
-        GPUContextGuard guard {m_context};
-        KMM_GPU_CHECK(gpuEventCreate(&gpu_event, GPU_EVENT_DISABLE_TIMING));
+        CudaContextGuard guard {m_context};
+        KMM_CUDA_CHECK(cuEventCreate(&cuda_event, CU_EVENT_DISABLE_TIMING));
     } else {
-        gpu_event = m_events.back();
+        cuda_event = m_events.back();
         m_events.pop_back();
     }
 
-    return gpu_event;
+    return cuda_event;
 }
 
-void GPUStreamManager::EventPool::push(event_t event) {
+void DeviceStreamManager::EventPool::push(CUevent event) {
     m_events.push_back(event);
 }
 
-std::ostream& operator<<(std::ostream& f, const GPUStream& e) {
-    return f << uint32_t(e.get());
-}
-
-std::ostream& operator<<(std::ostream& f, const GPUEvent& e) {
-    return f << e.stream() << ":" << e.index();
-}
-
-GPUEventSet::GPUEventSet(GPUEvent e) {
+DeviceEventSet::DeviceEventSet(DeviceEvent e) {
     m_events.push_back(e);
 }
 
-GPUEventSet::GPUEventSet(std::initializer_list<GPUEvent> e) {
+DeviceEventSet::DeviceEventSet(std::initializer_list<DeviceEvent> e) {
     m_events.insert_all(e.begin(), e.end());
 }
 
-GPUEventSet& GPUEventSet::operator=(std::initializer_list<GPUEvent> e) {
+DeviceEventSet& DeviceEventSet::operator=(std::initializer_list<DeviceEvent> e) {
     clear();
     m_events.insert_all(e.begin(), e.end());
     return *this;
 }
 
-void GPUEventSet::insert(GPUEvent e) {
+void DeviceEventSet::insert(DeviceEvent e) {
     bool found = false;
     size_t found_index;
 
@@ -347,13 +371,29 @@ void GPUEventSet::insert(GPUEvent e) {
     }
 }
 
-void GPUEventSet::insert(const GPUEventSet& events) {
-    for (GPUEvent e : events) {
-        insert(e);
+void DeviceEventSet::insert(const DeviceEventSet& events) {
+    size_t n = m_events.size();
+
+    for (DeviceEvent e : events) {
+        bool found = false;
+        size_t found_index;
+
+        for (size_t i = 0; i < n; i++) {
+            if (m_events[i].stream() == e.stream()) {
+                found = true;
+                found_index = i;
+            }
+        }
+
+        if (found) {
+            m_events[found_index] = std::max(m_events[found_index], e);
+        } else {
+            m_events.push_back(e);
+        }
     }
 }
 
-void GPUEventSet::insert(GPUEventSet&& events) {
+void DeviceEventSet::insert(DeviceEventSet&& events) {
     if (m_events.is_empty()) {
         m_events = std::move(events.m_events);
     } else {
@@ -361,7 +401,7 @@ void GPUEventSet::insert(GPUEventSet&& events) {
     }
 }
 
-void GPUEventSet::remove_completed(const GPUStreamManager& m) {
+void DeviceEventSet::remove_completed(const DeviceStreamManager& m) {
     size_t index = 0;
     size_t new_size = m_events.size();
 
@@ -377,21 +417,33 @@ void GPUEventSet::remove_completed(const GPUStreamManager& m) {
     m_events.resize(new_size);
 }
 
-void GPUEventSet::clear() {
+void DeviceEventSet::clear() {
     m_events.clear();
 }
 
-const GPUEvent* GPUEventSet::begin() const {
+bool DeviceEventSet::is_empty() const {
+    return m_events.is_empty();
+}
+
+const DeviceEvent* DeviceEventSet::begin() const {
     return m_events.begin();
 }
 
-const GPUEvent* GPUEventSet::end() const {
+const DeviceEvent* DeviceEventSet::end() const {
     return m_events.end();
 }
 
-std::ostream& operator<<(std::ostream& f, const GPUEventSet& events) {
+std::ostream& operator<<(std::ostream& f, const DeviceStream& e) {
+    return f << uint32_t(e.get());
+}
+
+std::ostream& operator<<(std::ostream& f, const DeviceEvent& e) {
+    return f << e.stream() << ":" << e.index();
+}
+
+std::ostream& operator<<(std::ostream& f, const DeviceEventSet& events) {
     // Sort events
-    auto sorted_events = std::vector<GPUEvent> {events.begin(), events.end()};
+    auto sorted_events = std::vector<DeviceEvent> {events.begin(), events.end()};
     std::sort(sorted_events.begin(), sorted_events.end());
 
     // Remove duplicates

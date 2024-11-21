@@ -8,8 +8,7 @@
 
 #include "kmm/core/system_info.hpp"
 #include "kmm/core/view.hpp"
-#include "kmm/core/work_chunk.hpp"
-#include "kmm/internals/worker.hpp"
+#include "kmm/core/work_range.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
 
@@ -19,11 +18,8 @@ class Worker;
 
 class Runtime {
   public:
-    Runtime(std::shared_ptr<Worker> worker) : m_worker(std::move(worker)) {
-        KMM_ASSERT(m_worker != nullptr);
-    }
-
-    Runtime(Worker& worker) : Runtime(worker.shared_from_this()) {}
+    Runtime(std::shared_ptr<Worker> worker);
+    Runtime(Worker& worker);
 
     /**
      * Submit a single task to the runtime system.
@@ -36,12 +32,18 @@ class Runtime {
      */
     template<typename L, typename... Args>
     EventId submit(WorkDim index_space, ProcessorId target, L launcher, Args&&... args) {
-        Partition partition = {{Chunk {
+        TaskPartition partition = {{TaskChunk {
             .owner_id = target,  //
             .offset = {},
             .size = index_space}}};
 
-        return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
+        return kmm::parallel_submit(
+            m_worker,
+            info(),
+            partition,
+            launcher,
+            std::forward<Args>(args)...
+        );
     }
 
     /**
@@ -53,8 +55,14 @@ class Runtime {
      * @return The event identifier for the submitted task.
      */
     template<typename L, typename... Args>
-    EventId submit(Partition partition, L launcher, Args&&... args) {
-        return kmm::parallel_submit(*m_worker, partition, launcher, std::forward<Args>(args)...);
+    EventId parallel_submit(TaskPartition partition, L launcher, Args&&... args) {
+        return kmm::parallel_submit(
+            m_worker,
+            info(),
+            partition,
+            launcher,
+            std::forward<Args>(args)...
+        );
     }
 
     /**
@@ -66,13 +74,15 @@ class Runtime {
      * @param args The arguments that are forwarded to the launcher.
      * @return The event identifier for the submitted task.
      */
-    template<typename P = ChunkPartitioner, typename L, typename... Args>
+    template<typename P = TaskPartitioner, typename L, typename... Args>
     EventId parallel_submit(WorkDim index_space, P partitioner, L launcher, Args&&... args) {
         return kmm::parallel_submit(
-            *m_worker,
+            m_worker,
+            info(),
             partitioner(index_space, info()),
             launcher,
-            std::forward<Args>(args)...);
+            std::forward<Args>(args)...
+        );
     }
 
     /**
@@ -87,11 +97,11 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, dim<N> shape, MemoryId memory_id) {
+    Array<T, N> allocate(const T* data, Dim<N> shape, MemoryId memory_id) {
         BufferLayout layout = BufferLayout::for_type<T>(checked_cast<size_t>(shape.volume()));
         BufferId buffer_id = allocate_bytes(data, layout, memory_id);
 
-        std::vector<ArrayChunk<N>> chunks = {{buffer_id, memory_id, point<N>::zero(), shape}};
+        std::vector<ArrayChunk<N>> chunks = {{buffer_id, memory_id, Point<N>::zero(), shape}};
         return std::make_shared<ArrayBackend<N>>(m_worker, shape, chunks);
     }
 
@@ -108,7 +118,7 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, dim<N> shape) {
+    Array<T, N> allocate(const T* data, Dim<N> shape) {
         return allocate(data, shape, memory_affinity_for_address(data));
     }
 
@@ -125,7 +135,7 @@ class Runtime {
      */
     template<typename T, typename... Sizes>
     Array<T> allocate(const T* data, Sizes... num_elements) {
-        return allocate(data, dim<sizeof...(Sizes)> {checked_cast<int64_t>(num_elements)...});
+        return allocate(data, Dim<sizeof...(Sizes)> {checked_cast<int64_t>(num_elements)...});
     }
 
     /**
@@ -205,6 +215,6 @@ class Runtime {
     std::shared_ptr<Worker> m_worker;
 };
 
-Runtime make_runtime();
+Runtime make_runtime(const WorkerConfig& config = default_config_from_environment());
 
 }  // namespace kmm

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
+#include "data_type.hpp"
 #include "identifiers.hpp"
 
 namespace kmm {
@@ -12,10 +14,21 @@ namespace kmm {
 struct BufferLayout {
     size_t size_in_bytes;
     size_t alignment;
+    std::vector<uint8_t> fill_pattern;
+
+    BufferLayout repeat(size_t n) {
+        size_t remainder = size_in_bytes % alignment;
+        size_t padding = remainder != 0 ? alignment - remainder : 0;
+        return {(size_in_bytes + padding) * n, alignment, fill_pattern};
+    }
 
     template<typename T>
-    static BufferLayout for_type(size_t n = 1) {
-        return {n * sizeof(T), alignof(T)};
+    static BufferLayout for_type() {
+        return BufferLayout {sizeof(T), alignof(T), {}};
+    }
+
+    static BufferLayout for_type(DataType dtype) {
+        return BufferLayout {dtype.size_in_bytes(), dtype.alignment(), {}};
     }
 };
 
@@ -41,7 +54,6 @@ struct BufferRequirement {
  * Provides access to a buffer with specific properties.
  */
 struct BufferAccessor {
-    BufferId buffer_id;
     MemoryId memory_id;
     BufferLayout layout;
     bool is_writable;

@@ -1,5 +1,5 @@
-#include "kmm/internals/allocator/base.hpp"
-#include "kmm/internals/gpu_stream_manager.hpp"
+#include "kmm/allocators/base.hpp"
+#include "kmm/internals/device_stream_manager.hpp"
 #include "kmm/utils/macros.hpp"
 
 namespace kmm {
@@ -9,38 +9,72 @@ class MemorySystem {
 
   public:
     MemorySystem(
-        std::shared_ptr<GPUStreamManager> streams,
-        std::vector<GPUContextHandle> device_contexts,
-        std::unique_ptr<MemoryAllocator> host_mem,
-        std::vector<std::unique_ptr<MemoryAllocator>> device_mem);
+        std::shared_ptr<DeviceStreamManager> stream_manager,
+        std::vector<CudaContextHandle> device_contexts,
+        std::unique_ptr<AsyncAllocator> host_mem,
+        std::vector<std::unique_ptr<AsyncAllocator>> device_mem
+    );
 
     ~MemorySystem();
 
     void make_progress();
 
-    bool allocate(MemoryId memory_id, size_t nbytes, void*& ptr_out, GPUEventSet& deps_out);
+    void trim_host(size_t bytes_remaining = 0);
+    void trim_device(size_t bytes_remaining = 0);
 
-    void deallocate(MemoryId memory_id, void* ptr, size_t nbytes, GPUEventSet deps = {});
+    bool allocate_host(size_t nbytes, void** ptr_out, DeviceEventSet* deps_out);
+    void deallocate_host(void* ptr, size_t nbytes, DeviceEventSet deps = {});
 
-    GPUEvent copy_host_to_device(
+    bool allocate_device(
         DeviceId device_id,
-        const void* src_addr,
-        GPUdeviceptr dst_addr,
         size_t nbytes,
-        GPUEventSet deps);
+        CUdeviceptr* ptr_out,
+        DeviceEventSet* deps_out
+    );
 
-    GPUEvent copy_device_to_host(
+    void deallocate_device(
         DeviceId device_id,
-        GPUdeviceptr src_addr,
+        CUdeviceptr ptr,
+        size_t nbytes,
+        DeviceEventSet deps = {}
+    );
+
+    DeviceEvent fill_host(
         void* dst_addr,
         size_t nbytes,
-        GPUEventSet deps);
+        const std::vector<uint8_t>& fill_pattern,
+        DeviceEventSet deps = {}
+    );
+
+    DeviceEvent fill_device(
+        DeviceId device_id,
+        CUdeviceptr dst_addr,
+        size_t nbytes,
+        const std::vector<uint8_t>& fill_pattern,
+        DeviceEventSet deps = {}
+    );
+
+    DeviceEvent copy_host_to_device(
+        DeviceId device_id,
+        const void* src_addr,
+        CUdeviceptr dst_addr,
+        size_t nbytes,
+        DeviceEventSet deps
+    );
+
+    DeviceEvent copy_device_to_host(
+        DeviceId device_id,
+        CUdeviceptr src_addr,
+        void* dst_addr,
+        size_t nbytes,
+        DeviceEventSet deps
+    );
 
   private:
     struct Device;
 
-    std::shared_ptr<GPUStreamManager> m_streams;
-    std::unique_ptr<MemoryAllocator> m_host;
-    std::vector<std::unique_ptr<Device>> m_devices;
+    std::shared_ptr<DeviceStreamManager> m_streams;
+    std::unique_ptr<AsyncAllocator> m_host;
+    std::unique_ptr<Device> m_devices[MAX_DEVICES];
 };
 }  // namespace kmm

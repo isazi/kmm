@@ -8,15 +8,16 @@
 namespace kmm {
 
 template<size_t N>
-rect<N> index2region(
+Rect<N> index2region(
     size_t index,
     std::array<size_t, N> num_chunks,
-    dim<N> chunk_size,
-    dim<N> array_size) {
-    point<N> offset;
-    dim<N> sizes;
+    Dim<N> chunk_size,
+    Dim<N> array_size
+) {
+    Point<N> offset;
+    Dim<N> sizes;
 
-    for (size_t j = 0; j < N; j++) {
+    for (size_t j = 0; compare_less(j, N); j++) {
         size_t i = N - 1 - j;
         auto k = index % num_chunks[i];
         index /= num_chunks[i];
@@ -31,12 +32,13 @@ rect<N> index2region(
 template<size_t N>
 ArrayBackend<N>::ArrayBackend(
     std::shared_ptr<Worker> worker,
-    dim<N> array_size,
-    std::vector<ArrayChunk<N>> chunks) :
+    Dim<N> array_size,
+    std::vector<ArrayChunk<N>> chunks
+) :
     m_worker(worker),
     m_array_size(array_size) {
     for (const auto& chunk : chunks) {
-        if (chunk.offset == point<N>::zero()) {
+        if (chunk.offset == Point<N>::zero()) {
             m_chunk_size = chunk.size;
         }
     }
@@ -45,23 +47,21 @@ ArrayBackend<N>::ArrayBackend(
         throw std::runtime_error("chunk size cannot be empty");
     }
 
-    size_t num_total_chunks = 1;
-
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; compare_less(i, N); i++) {
         m_num_chunks[i] = checked_cast<size_t>(div_ceil(array_size[i], m_chunk_size[i]));
-        num_total_chunks *= m_num_chunks[i];
     }
+
+    size_t num_total_chunks = checked_product(m_num_chunks.begin(), m_num_chunks.end());
 
     static constexpr size_t INVALID_INDEX = static_cast<size_t>(-1);
     std::vector<size_t> buffer_locs(num_total_chunks, INVALID_INDEX);
 
     for (const auto& chunk : chunks) {
         size_t buffer_index = 0;
-        bool is_valid = true;
-        point<N> expected_offset;
-        dim<N> expected_size;
+        Point<N> expected_offset;
+        Dim<N> expected_size;
 
-        for (size_t i = 0; i < N; i++) {
+        for (size_t i = 0; compare_less(i, N); i++) {
             auto k = div_floor(chunk.offset[i], m_chunk_size[i]);
 
             expected_offset[i] = k * m_chunk_size[i];
@@ -73,14 +73,16 @@ ArrayBackend<N>::ArrayBackend(
         if (chunk.offset != expected_offset || chunk.size != expected_size) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is not aligned to the chunk size of {}",
-                rect<N>(chunk.offset, chunk.size),
-                m_chunk_size));
+                Rect<N>(chunk.offset, chunk.size),
+                m_chunk_size
+            ));
         }
 
         if (buffer_locs[buffer_index] != INVALID_INDEX) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is written to by more one task",
-                rect<N>(expected_offset, expected_size)));
+                Rect<N>(expected_offset, expected_size)
+            ));
         }
 
         buffer_locs[buffer_index] = buffer_index;
@@ -90,7 +92,8 @@ ArrayBackend<N>::ArrayBackend(
         if (index == INVALID_INDEX) {
             auto region = index2region(index, m_num_chunks, m_chunk_size, m_array_size);
             throw std::runtime_error(
-                fmt::format("invalid write access pattern, no task writes to region {}", region));
+                fmt::format("invalid write access pattern, no task writes to region {}", region)
+            );
         }
     }
 
@@ -109,12 +112,12 @@ ArrayBackend<N>::~ArrayBackend() {
 }
 
 template<size_t N>
-ArrayChunk<N> ArrayBackend<N>::find_chunk(rect<N> region) const {
+ArrayChunk<N> ArrayBackend<N>::find_chunk(Rect<N> region) const {
     size_t buffer_index = 0;
-    point<N> offset;
-    dim<N> sizes;
+    Point<N> offset;
+    Dim<N> sizes;
 
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; compare_less(i, N); i++) {
         auto k = div_floor(region.offset[i], m_chunk_size[i]);
         auto w = region.offset[i] % m_chunk_size[i] + region.sizes[i];
 
@@ -122,14 +125,16 @@ ArrayChunk<N> ArrayBackend<N>::find_chunk(rect<N> region) const {
             throw std::out_of_range(fmt::format(
                 "invalid read pattern, the region {} exceeds the array dimensions {}",
                 region,
-                m_array_size));
+                m_array_size
+            ));
         }
 
         if (w > m_chunk_size[i]) {
             throw std::out_of_range(fmt::format(
                 "invalid read pattern, the region {} does not align to the chunk size of {}",
                 region,
-                m_chunk_size));
+                m_chunk_size
+            ));
         }
 
         buffer_index = buffer_index * m_num_chunks[i] + static_cast<size_t>(k);
@@ -149,7 +154,8 @@ ArrayChunk<N> ArrayBackend<N>::chunk(size_t index) const {
         throw std::runtime_error(fmt::format(
             "chunk {} is out of range, there are only {} chunks",
             index,
-            m_buffers.size()));
+            m_buffers.size()
+        ));
     }
 
     // TODO?
@@ -165,7 +171,7 @@ void ArrayBackend<N>::synchronize() const {
         auto deps = EventList {};
 
         for (const auto& buffer_id : m_buffers) {
-            graph.access_buffer(buffer_id, AccessMode::ReadWrite, deps);
+            deps.insert_all(graph.extract_buffer_dependencies(buffer_id));
         }
 
         return graph.join_events(deps);
@@ -175,15 +181,16 @@ void ArrayBackend<N>::synchronize() const {
 
     // Access each buffer once to check for errors.
     for (size_t i = 0; i < m_buffers.size(); i++) {
-        auto memory_id = this->chunk(i).owner_id;
-        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
+        //        auto memory_id = this->chunk(i).owner_id;
+        //        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
+        //        KMM_TODO();
     }
 }
 
 template<size_t N>
 class CopyOutTask: public Task {
   public:
-    CopyOutTask(void* data, size_t element_size, dim<N> array_size, rect<N> region) :
+    CopyOutTask(void* data, size_t element_size, Dim<N> array_size, Rect<N> region) :
         m_dst_addr(data),
         m_element_size(element_size),
         m_array_size(array_size),
@@ -195,9 +202,9 @@ class CopyOutTask: public Task {
         size_t src_stride = 1;
         size_t dst_stride = 1;
 
-        CopyDescription copy(m_element_size);
+        CopyDef copy(m_element_size);
 
-        for (size_t j = 0; j < N; j++) {
+        for (size_t j = 0; compare_less(j, N); j++) {
             size_t i = N - j - 1;
 
             copy.add_dimension(
@@ -205,7 +212,8 @@ class CopyOutTask: public Task {
                 checked_cast<size_t>(0),
                 checked_cast<size_t>(m_region.begin(i)),
                 src_stride,
-                dst_stride);
+                dst_stride
+            );
 
             src_stride *= checked_cast<size_t>(m_region.size(i));
             dst_stride *= checked_cast<size_t>(m_array_size.get(i));
@@ -217,8 +225,8 @@ class CopyOutTask: public Task {
   private:
     void* m_dst_addr;
     size_t m_element_size;
-    dim<N> m_array_size;
-    rect<N> m_region;
+    Dim<N> m_array_size;
+    Rect<N> m_region;
 };
 
 template<size_t N>

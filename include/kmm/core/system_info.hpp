@@ -2,19 +2,18 @@
 
 #include "identifiers.hpp"
 
-#include "kmm/internals/backends.hpp"
-#include "kmm/utils/gpu.hpp"
+#include "kmm/utils/cuda.hpp"
 
 namespace kmm {
 
 class DeviceInfo {
   public:
-    static constexpr size_t NUM_ATTRIBUTES = GPU_DEVICE_ATTRIBUTE_MAX;
+    static constexpr size_t NUM_ATTRIBUTES = CU_DEVICE_ATTRIBUTE_MAX;
 
-    DeviceInfo(DeviceId id, GPUContextHandle context);
+    DeviceInfo(DeviceId id, CudaContextHandle context);
 
     /**
-     * Returns the name of the device.
+     * Returns the name of the CUDA device as provided by `cuDeviceGetName`.
      */
     std::string name() const {
         return m_name;
@@ -35,9 +34,9 @@ class DeviceInfo {
     }
 
     /**
-     * Return this device as a `GPUdevice`.
+     * Return this device as a `CUdevice`.
      */
-    GPUdevice device_ordinal() const {
+    CUdevice device_ordinal() const {
         return m_device_id;
     }
 
@@ -59,7 +58,8 @@ class DeviceInfo {
     dim3 max_grid_dim() const;
 
     /**
-     * Returns the compute capability of this device as integer.
+     * Returns the compute capability of this device as integer `MAJOR * 10 + MINOR` (For example,
+     * `86` means capability 8.6)
      */
     int compute_capability() const;
 
@@ -71,12 +71,12 @@ class DeviceInfo {
     /**
      * Returns the value of the provided attribute.
      */
-    int attribute(GPUdevice_attribute attrib) const;
+    int attribute(CUdevice_attribute attrib) const;
 
   private:
     DeviceId m_id;
     std::string m_name;
-    GPUdevice m_device_id;
+    CUdevice m_device_id;
     size_t m_memory_capacity;
     std::array<int, NUM_ATTRIBUTES> m_attributes;
 };
@@ -86,19 +86,19 @@ class SystemInfo {
     SystemInfo(std::vector<DeviceInfo> devices = {});
 
     /**
-     * Returns the number of GPU devices in the system.
+     * Returns the number of CUDA devices in the system.
      */
     size_t num_devices() const;
 
     /**
-     * Return information on the device with the given identifier.
+     * Return information on the devicve with the given identifier.
      */
     const DeviceInfo& device(DeviceId id) const;
 
     /**
-     * Find the device that has the given ordinal.
+     * Find the device that has the given CUDA ordinal.
      */
-    const DeviceInfo& device_by_ordinal(GPUdevice ordinal) const;
+    const DeviceInfo& device_by_ordinal(CUdevice ordinal) const;
 
     /**
      * Return a list of the available processors in the system.
