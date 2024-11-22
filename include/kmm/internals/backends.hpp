@@ -8,9 +8,13 @@ namespace kmm {
 
 #ifdef KMM_USE_CUDA
 
+#define KMM_USE_DEVICE 1
+
 // CUDA backend
 #include <cuda.h>
 #include <cuda_runtime_api.h>
+#include <cuda_bf16.h>
+#include <cuda_fp16.h>
 
 #define GPU_DEVICE_ATTRIBUTE_MAX CU_DEVICE_ATTRIBUTE_MAX
 #define GPU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
@@ -62,6 +66,7 @@ namespace kmm {
 #define gpuCtxGetStreamPriorityRange cuCtxGetStreamPriorityRange
 #define gpuStreamCreateWithPriority cuStreamCreateWithPriority
 #define gpuStreamQuery cuStreamQuery
+#define gpuStreamDestroy cuStreamDestroy
 #define gpuEventSynchronize cuEventSynchronize
 #define gpuEventRecord cuEventRecord
 #define gpuStreamWaitEvent cuStreamWaitEvent
@@ -78,6 +83,7 @@ namespace kmm {
 #define gpuGetErrorString cuGetErrorString
 #define GPUrtGetErrorName cudaGetErrorName
 #define GPUrtGetErrorString cudaGetErrorString
+#define gpuGetLastError cudaGetLastError
 #define gpuInit cuInit
 #define gpuDeviceGetCount cuDeviceGetCount
 #define gpuDeviceGet cuDeviceGet
@@ -88,11 +94,13 @@ namespace kmm {
 #define gpuCtxPushCurrent cuCtxPushCurrent
 #define gpuCtxPopCurrent cuCtxPopCurrent
 #define GPUrtLaunchKernel cudaLaunchKernel
+#define gpuMemPoolTrimTo cuMemPoolTrimTo
+#define gpuDeviceGetDefaultMemPool cuDeviceGetDefaultMemPool
 
 using GPUresult = CUresult;
 using gpuError_t = cudaError_t;
 using GPUdevice = CUdevice;
-using  GPUdevice_attribute = CUdevice_attribute;
+using GPUdevice_attribute = CUdevice_attribute;
 using GPUContextHandle = CudaContextHandle;
 using GPUcontext = CUcontext;
 using GPUmemorytype = CUmemorytype;
@@ -119,6 +127,8 @@ using blasStatus_t = cublasStatus_t;
 using blasHandle_t = cublasHandle_t;
 
 #elif KMM_USE_HIP
+
+#define KMM_USE_DEVICE 1
 
 // HIP backend
 // Experimental draft, not working
@@ -154,6 +164,8 @@ using blasStatus_t = rocblas_status;
 using GPUdevice = int;
 class dim3 {
 public:
+    dim3(int x);
+    dim3(int x, int y);
     dim3(int x, int y, int z);
     int x;
     int y;
@@ -177,12 +189,10 @@ struct GPUmemPoolProps {
 };
 using GPUcontext = int *;
 using stream_t = int *;
-using GPUdeviceptr = int *;
+using GPUdeviceptr = size_t;
 using GPUmemoryPool = int *;
 using event_t = void *;
-enum GPUmemorytype {};
-#define GPU_MEMORYTYPE_HOST GPUmemorytype(1)
-#define GPU_MEMORYTYPE_DEVICE GPUmemorytype(2)
+enum GPUmemorytype {GPU_MEMORYTYPE_HOST, GPU_MEMORYTYPE_DEVICE};
 struct GPU_MEMCPY2D {
     size_t  Height;
     size_t  WidthInBytes;
@@ -242,7 +252,7 @@ GPUresult gpuMemFreeAsync(GPUdeviceptr, stream_t);
 GPUresult gpuCtxGetStreamPriorityRange(int* , int*);
 GPUresult gpuStreamCreateWithPriority(stream_t*, unsigned int, int);
 GPUresult gpuStreamQuery(stream_t);
-GPUresult cuStreamDestroy(stream_t);
+GPUresult gpuStreamDestroy(stream_t);
 GPUresult gpuEventSynchronize(event_t);
 GPUresult gpuEventRecord(event_t , stream_t);
 GPUresult gpuStreamWaitEvent(stream_t , event_t , unsigned int);
@@ -259,6 +269,7 @@ GPUresult gpuGetErrorName(GPUresult, const char**);
 GPUresult gpuGetErrorString(GPUresult, const char**);
 const char* GPUrtGetErrorName(gpuError_t);
 const char* GPUrtGetErrorString(gpuError_t);
+gpuError_t gpuGetLastError(void);
 GPUresult gpuInit (unsigned int);
 GPUresult gpuDeviceGetCount(int*);
 GPUresult gpuDeviceGet(GPUdevice*, int);
@@ -270,6 +281,8 @@ GPUresult gpuDevicePrimaryCtxRelease(GPUdevice);
 GPUresult gpuCtxPushCurrent(GPUcontext);
 GPUresult gpuCtxPopCurrent(GPUcontext*);
 gpuError_t GPUrtLaunchKernel(const void*, dim3, dim3, void**, size_t, stream_t);
+GPUresult gpuMemPoolTrimTo(GPUmemoryPool, size_t);
+GPUresult gpuDeviceGetDefaultMemPool (GPUmemoryPool*, GPUdevice);
 
 // Dummy BLAS
 using blasHandle_t = void *;

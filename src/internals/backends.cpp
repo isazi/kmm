@@ -208,6 +208,10 @@ gpuError_t GPUrtLaunchKernel(const void*, dim3, dim3, void**, size_t, stream_t) 
     return gpuError_t(GPU_ERROR_UNKNOWN);
 }
 
+GPUresult gpuMemPoolTrimTo(GPUmemoryPool, size_t) {
+    return GPUresult(GPU_ERROR_UNKNOWN);
+}
+
 blasStatus_t blasCreate(blasHandle_t) {
     return blasStatus_t(1);
 }
