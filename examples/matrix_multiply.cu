@@ -1,7 +1,7 @@
 #include "kmm/kmm.hpp"
 
 void fill_array(
-    kmm::WorkRange region,
+    kmm::NDRange region,
     kmm::subview_mut<float, 2> array,
     float value
 ) {
@@ -14,7 +14,7 @@ void fill_array(
 
 void matrix_multiply(
     kmm::DeviceContext& device,
-    kmm::WorkRange region,
+    kmm::NDRange region,
     int n,
     int m,
     int k,

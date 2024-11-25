@@ -24,6 +24,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(KMM_USE_CUDA)
   enable_language(CUDA)
+  SET(CUDA_SEPARABLE_COMPILATION ON)
   set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
@@ -90,6 +91,7 @@ if(DEFINED CMAKE_CUDA_COMPILER)
   target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::cublas)
   target_link_libraries(${PROJECT_NAME} PUBLIC CUDA::nvrtc)
   set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES "80")
+  set_property(TARGET ${PROJECT_NAME} PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
   # we must expose the USE_CUDA flag since it is used in the header files
   target_compile_definitions(${PROJECT_NAME} PUBLIC -DKMM_USE_CUDA=1)

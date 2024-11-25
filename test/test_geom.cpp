@@ -159,8 +159,8 @@ TEST(Geometry, dim_intersection) {
     ASSERT_EQ(w.contains(c), false);
 }
 
-TEST(Geometry, rect_basics) {
-    Rect<3> a = {{0, 0, 0}, {42, 2, 1}};
+TEST(Geometry, range_basics) {
+    Range<3> a = {{0, 0, 0}, {42, 2, 1}};
     ASSERT_EQ(a.offset, Point(0, 0, 0));
     ASSERT_EQ(a.sizes, Dim(42, 2, 1));
     ASSERT_EQ(a.begin(), Point(0, 0, 0));
@@ -168,7 +168,7 @@ TEST(Geometry, rect_basics) {
     ASSERT_EQ(a.size(), 84);
     ASSERT_EQ(a.is_empty(), false);
 
-    Rect<3> b = {{1, 1, 1}, {3, 2, 1}};
+    Range<3> b = {{1, 1, 1}, {3, 2, 1}};
     ASSERT_EQ(b.offset, Point(1, 1, 1));
     ASSERT_EQ(b.sizes, Dim(3, 2, 1));
     ASSERT_EQ(b.begin(), Point(1, 1, 1));
@@ -176,7 +176,7 @@ TEST(Geometry, rect_basics) {
     ASSERT_EQ(b.size(), 6);
     ASSERT_EQ(b.is_empty(), false);
 
-    Rect<3> c = {{1, -5, 1}, {2, 2, 2}};
+    Range<3> c = {{1, -5, 1}, {2, 2, 2}};
     ASSERT_EQ(c.offset, Point(1, -5, 1));
     ASSERT_EQ(c.sizes, Dim(2, 2, 2));
     ASSERT_EQ(c.begin(), Point(1, -5, 1));
@@ -184,7 +184,7 @@ TEST(Geometry, rect_basics) {
     ASSERT_EQ(c.size(), 8);
     ASSERT_EQ(c.is_empty(), false);
 
-    Rect<3> d = {{5, 1, 2}, {-5, 3, 1}};
+    Range<3> d = {{5, 1, 2}, {-5, 3, 1}};
     ASSERT_EQ(d.offset, Point(5, 1, 2));
     ASSERT_EQ(d.sizes, Dim(-5, 3, 1));
     ASSERT_EQ(d.begin(), Point(5, 1, 2));
@@ -193,31 +193,31 @@ TEST(Geometry, rect_basics) {
     ASSERT_EQ(d.is_empty(), true);
 }
 
-TEST(Geometry, rect_intersection) {
-    Rect<3> a = {{0, 0, 0}, {42, 2, 5}};
-    Rect<3> b = {{1, 1, 1}, {3, 1, 1}};
-    Rect<3> c = {{1, -5, 1}, {2, 20, 2}};
-    Rect<3> d = {{5, 1, 2}, {-3, 3, 1}};
+TEST(Geometry, range_intersection) {
+    Range<3> a = {{0, 0, 0}, {42, 2, 5}};
+    Range<3> b = {{1, 1, 1}, {3, 1, 1}};
+    Range<3> c = {{1, -5, 1}, {2, 20, 2}};
+    Range<3> d = {{5, 1, 2}, {-3, 3, 1}};
 
     ASSERT_EQ(a.intersection(a), a);
-    ASSERT_EQ(a.intersection(b), (Rect<3>{{1, 1, 1}, {3, 1, 1}}));
-    ASSERT_EQ(a.intersection(c), (Rect<3>{{1, 0, 1}, {2, 2, 2}}));
-    ASSERT_EQ(a.intersection(d),  (Rect<3>{{5, 1, 2}, {-3, 1, 1}}));
+    ASSERT_EQ(a.intersection(b), (Range<3>{{1, 1, 1}, {3, 1, 1}}));
+    ASSERT_EQ(a.intersection(c), (Range<3>{{1, 0, 1}, {2, 2, 2}}));
+    ASSERT_EQ(a.intersection(d),  (Range<3>{{5, 1, 2}, {-3, 1, 1}}));
 
-    ASSERT_EQ(b.intersection(a), (Rect<3>{{1, 1, 1}, {3, 1, 1}}));
+    ASSERT_EQ(b.intersection(a), (Range<3>{{1, 1, 1}, {3, 1, 1}}));
     ASSERT_EQ(b.intersection(b), b);
-    ASSERT_EQ(b.intersection(c), (Rect<3>{{1, 1, 1}, {2, 1, 1}}));
-    ASSERT_EQ(b.intersection(d), Rect<3>());
+    ASSERT_EQ(b.intersection(c), (Range<3>{{1, 1, 1}, {2, 1, 1}}));
+    ASSERT_EQ(b.intersection(d), Range<3>());
 
-    ASSERT_EQ(c.intersection(a), (Rect<3>{{1, 0, 1}, {2, 2, 2}}));
-    ASSERT_EQ(c.intersection(b), (Rect<3>{{1, 1, 1}, {2, 1, 1}}));
+    ASSERT_EQ(c.intersection(a), (Range<3>{{1, 0, 1}, {2, 2, 2}}));
+    ASSERT_EQ(c.intersection(b), (Range<3>{{1, 1, 1}, {2, 1, 1}}));
     ASSERT_EQ(c.intersection(c), c);
-    ASSERT_EQ(c.intersection(d), Rect<3>());
+    ASSERT_EQ(c.intersection(d), Range<3>());
 
-    ASSERT_EQ(d.intersection(a), (Rect<3>{{5, 1, 2}, {-3, 1, 1}}));
-    ASSERT_EQ(d.intersection(b), Rect<3>());
-    ASSERT_EQ(d.intersection(c), Rect<3>());
-    ASSERT_EQ(d.intersection(d), Rect<3>());
+    ASSERT_EQ(d.intersection(a), (Range<3>{{5, 1, 2}, {-3, 1, 1}}));
+    ASSERT_EQ(d.intersection(b), Range<3>());
+    ASSERT_EQ(d.intersection(c), Range<3>());
+    ASSERT_EQ(d.intersection(d), Range<3>());
     
     
     ASSERT_EQ(a.overlaps(a), true);

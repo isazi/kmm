@@ -89,7 +89,7 @@ IndexMap IndexMap::negate() const {
     return {m_variable, -m_scale, -checked_add(m_offset, m_length - 1), m_length, m_divisor};
 }
 
-Rect<1> IndexMap::apply(TaskChunk chunk) const {
+Range<1> IndexMap::apply(TaskChunk chunk) const {
     int64_t a0 = chunk.offset.get(m_variable.get());
     int64_t an = chunk.size.get(m_variable.get());
 

@@ -8,39 +8,39 @@ namespace kmm {
 /**
  * Constant for the number of dimensions in the work space.
  */
-static constexpr size_t WORK_DIMS = 3;
-
-/**
- * Type alias for the size of the work space.
- */
-using WorkDim = Dim<WORK_DIMS>;
+static constexpr size_t ND_DIMS = 3;
 
 /**
  * Type alias for the index type used in the work space.
  */
-using WorkIndex = Point<WORK_DIMS>;
+using NDIndex = Point<ND_DIMS>;
 
-struct WorkRange {
-    WorkIndex begin;  ///< The starting index of the work chunk.
-    WorkIndex end;  ///< The ending index of the work chunk.
+/**
+ * Type alias for the size of the work space.
+ */
+using NDDim = Dim<ND_DIMS>;
+
+struct NDRange {
+    NDIndex begin;  ///< The starting index of the work chunk.
+    NDIndex end;  ///< The ending index of the work chunk.
 
     /**
      * Initializes an empty chunk.
      */
     KMM_HOST_DEVICE
-    constexpr WorkRange() {}
+    NDRange(int64_t x = 1, int64_t y = 1, int64_t z = 1) : begin(0, 0, 0), end(x, y, z) {}
 
     /**
      * Constructs a chunk with a given begin and end index.
      */
     KMM_HOST_DEVICE
-    WorkRange(WorkIndex begin, WorkIndex end) : begin(begin), end(end) {}
+    explicit NDRange(NDIndex begin, NDIndex end) : begin(begin), end(end) {}
 
     /**
      * Constructs a chunk with a given offset and size.
      */
     KMM_HOST_DEVICE
-    WorkRange(WorkIndex offset, WorkDim size) : begin(offset) {
+    explicit NDRange(NDIndex offset, NDDim size) : begin(offset) {
         // Doing this in the initializer causes a SEGFAULT in GCC
         this->end = offset + size.to_point();
     }
@@ -49,14 +49,14 @@ struct WorkRange {
      * Constructs a chunk with a given size and starting at the origin.
      */
     KMM_HOST_DEVICE
-    WorkRange(WorkDim size) : end(size) {}
+    NDRange(NDDim size) : end(size) {}
 
     /**
      * Gets the sizes of the work chunk in each dimension.
      */
     KMM_HOST_DEVICE
-    WorkDim sizes() const {
-        return WorkDim::from(end - begin);
+    NDDim sizes() const {
+        return NDDim::from(end - begin);
     }
 
     /**
@@ -64,7 +64,7 @@ struct WorkRange {
      */
     KMM_HOST_DEVICE
     int64_t size(size_t axis) const {
-        return axis < WORK_DIMS ? end[axis] - begin[axis] : 1;
+        return axis < ND_DIMS ? end[axis] - begin[axis] : 1;
     }
 
     /**
@@ -73,6 +73,14 @@ struct WorkRange {
     KMM_HOST_DEVICE
     int64_t size() const {
         return sizes().volume();
+    }
+
+    /**
+     * Gets the total size (volume) of the work chunk.
+     */
+    KMM_HOST_DEVICE
+    bool is_empty() const {
+        return sizes().is_empty();
     }
 
     /**
@@ -108,7 +116,7 @@ struct WorkRange {
     KMM_HOST_DEVICE bool contains(Point<N> p) const {
         bool result = true;
 
-        for (size_t i = 0; i < N && i < WORK_DIMS; i++) {
+        for (size_t i = 0; i < N && i < ND_DIMS; i++) {
             result &= p[i] >= begin[i] && p[i] < end[i];
         }
 

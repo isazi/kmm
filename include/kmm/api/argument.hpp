@@ -6,8 +6,6 @@
 
 namespace kmm {
 
-enum struct ExecutionSpace { Host, Device };
-
 template<typename T>
 struct ArgumentHandler;
 
@@ -55,9 +53,25 @@ struct ArgumentHandler {
 
 template<ExecutionSpace Space, typename T>
 struct ArgumentDeserialize<Space, Argument<T>> {
-    static T unpack(TaskContext& context, Argument<T>& data) {
+    static auto unpack(TaskContext& context, Argument<T>& data) {
         return data.template unpack<Space>(context);
     }
 };
+
+template<typename T>
+using packed_argument_t = typename ArgumentHandler<std::decay_t<T>>::type;
+
+template<typename T>
+packed_argument_t<T> pack_argument(TaskBuilder& builder, T&& arg) {
+    return ArgumentHandler<std::decay_t<T>>(std::forward<T>(arg)).process_chunk(builder);
+}
+
+template<ExecutionSpace execution_space, typename T>
+auto unpack_argument(TaskContext& builder, T&& arg) {
+    return ArgumentDeserialize<execution_space, std::decay_t<T>>::unpack(
+        builder,
+        std::forward<T>(arg)
+    );
+}
 
 }  // namespace kmm

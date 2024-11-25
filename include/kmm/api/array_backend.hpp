@@ -25,7 +25,7 @@ class ArrayBackend: public std::enable_shared_from_this<ArrayBackend<N>> {
     );
     ~ArrayBackend();
 
-    ArrayChunk<N> find_chunk(Rect<N> region) const;
+    ArrayChunk<N> find_chunk(Range<N> region) const;
     ArrayChunk<N> chunk(size_t index) const;
     void synchronize() const;
     void copy_bytes(void* dest_addr, size_t element_size) const;

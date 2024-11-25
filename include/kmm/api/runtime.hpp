@@ -6,9 +6,9 @@
 #include "array.hpp"
 #include "launcher.hpp"
 
+#include "kmm/core/domain.hpp"
 #include "kmm/core/system_info.hpp"
 #include "kmm/core/view.hpp"
-#include "kmm/core/work_range.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
 
@@ -31,17 +31,17 @@ class Runtime {
      * @return The event identifier for the submitted task.
      */
     template<typename L, typename... Args>
-    EventId submit(WorkDim index_space, ProcessorId target, L launcher, Args&&... args) {
-        TaskPartition partition = {{TaskChunk {
+    EventId submit(NDRange index_space, ProcessorId target, L&& launcher, Args&&... args) const {
+        TaskChunk chunk = {
             .owner_id = target,  //
-            .offset = {},
-            .size = index_space}}};
+            .offset = index_space.begin,
+            .size = index_space.sizes()};
 
         return kmm::parallel_submit(
             m_worker,
             info(),
-            partition,
-            launcher,
+            TaskPartition {{chunk}},
+            std::forward<L>(launcher),
             std::forward<Args>(args)...
         );
     }
@@ -55,12 +55,12 @@ class Runtime {
      * @return The event identifier for the submitted task.
      */
     template<typename L, typename... Args>
-    EventId parallel_submit(TaskPartition partition, L launcher, Args&&... args) {
+    EventId parallel_submit(TaskPartition partition, L&& launcher, Args&&... args) const {
         return kmm::parallel_submit(
             m_worker,
             info(),
-            partition,
-            launcher,
+            std::move(partition),
+            std::forward<L>(launcher),
             std::forward<Args>(args)...
         );
     }
@@ -75,12 +75,13 @@ class Runtime {
      * @return The event identifier for the submitted task.
      */
     template<typename P = TaskPartitioner, typename L, typename... Args>
-    EventId parallel_submit(WorkDim index_space, P partitioner, L launcher, Args&&... args) {
+    EventId parallel_submit(NDRange index_space, P&& partitioner, L&& launcher, Args&&... args)
+        const {
         return kmm::parallel_submit(
             m_worker,
             info(),
-            partitioner(index_space, info()),
-            launcher,
+            partitioner(index_space, info(), std::decay_t<L>::execution_space),
+            std::forward<L>(launcher),
             std::forward<Args>(args)...
         );
     }
@@ -97,12 +98,14 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, Dim<N> shape, MemoryId memory_id) {
-        BufferLayout layout = BufferLayout::for_type<T>(checked_cast<size_t>(shape.volume()));
-        BufferId buffer_id = allocate_bytes(data, layout, memory_id);
+    Array<T, N> allocate(const T* data, Dim<N> shape, MemoryId memory_id) const {
+        auto layout = BufferLayout::for_type<T>().repeat(checked_cast<size_t>(shape.volume()));
+        auto buffer_id = allocate_bytes(data, layout, memory_id);
 
-        std::vector<ArrayChunk<N>> chunks = {{buffer_id, memory_id, Point<N>::zero(), shape}};
-        return std::make_shared<ArrayBackend<N>>(m_worker, shape, chunks);
+        auto chunk = ArrayChunk<N> {buffer_id, memory_id, Point<N>::zero(), shape};
+        auto backend =
+            std::make_shared<ArrayBackend<N>>(m_worker, shape, std::vector<ArrayChunk<N>> {chunk});
+        return Array<T, N> {std::move(backend)};
     }
 
     /**
@@ -118,7 +121,7 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, Dim<N> shape) {
+    Array<T, N> allocate(const T* data, const Dim<N>& shape) const {
         return allocate(data, shape, memory_affinity_for_address(data));
     }
 
@@ -126,7 +129,7 @@ class Runtime {
      * Alias for `allocate(v.data(), v.sizes())`
      */
     template<typename T, size_t N = 1>
-    Array<T, N> allocate(view<T, N> v) {
+    Array<T, N> allocate(view<T, N> v) const {
         return allocate(v.data(), v.sizes());
     }
 
@@ -134,7 +137,7 @@ class Runtime {
      * Alias for `allocate(data, dim<N>{sizes...})`
      */
     template<typename T, typename... Sizes>
-    Array<T> allocate(const T* data, Sizes... num_elements) {
+    Array<T> allocate(const T* data, const Sizes&... num_elements) const {
         return allocate(data, Dim<sizeof...(Sizes)> {checked_cast<int64_t>(num_elements)...});
     }
 
@@ -142,7 +145,7 @@ class Runtime {
      * Alias for `allocate(v.data(), v.size())`
      */
     template<typename T>
-    Array<T> allocate(const std::vector<T>& v) {
+    Array<T> allocate(const std::vector<T>& v) const {
         return allocate(v.data(), v.size());
     }
 
@@ -150,7 +153,7 @@ class Runtime {
      * Alias for `allocate(v.begin(), v.size())`
      */
     template<typename T>
-    Array<T> allocate(std::initializer_list<T> v) {
+    Array<T> allocate(std::initializer_list<T> v) const {
         return allocate(v.begin(), v.size());
     }
 
@@ -159,7 +162,7 @@ class Runtime {
      */
     MemoryId memory_affinity_for_address(const void* address) const;
 
-    BufferId allocate_bytes(const void* data, BufferLayout layout, MemoryId memory_id);
+    BufferId allocate_bytes(const void* data, BufferLayout layout, MemoryId memory_id) const;
 
     /**
      * Returns `true` if the event with the provided identifier has finished, or `false` otherwise.

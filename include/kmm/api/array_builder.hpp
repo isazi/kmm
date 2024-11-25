@@ -14,7 +14,7 @@ struct ArrayBuilder {
         m_sizes(sizes),
         m_element_layout(element_layout) {}
 
-    size_t add_chunk(TaskBuilder& builder, Rect<N> access_region);
+    size_t add_chunk(TaskBuilder& builder, Range<N> access_region);
     std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
 
     Dim<N> m_sizes;
@@ -29,13 +29,13 @@ struct ArrayReductionBuilder {
         m_dtype(data_type),
         m_reduction(operation) {}
 
-    size_t add_chunk(TaskBuilder& builder, Rect<N> access_region, size_t replication_factor = 1);
+    size_t add_chunk(TaskBuilder& builder, Range<N> access_region, size_t replication_factor = 1);
     std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
 
     Dim<N> m_sizes;
     DataType m_dtype;
     ReductionOp m_reduction;
-    std::unordered_map<Rect<N>, std::vector<ReductionInput>> m_partial_inputs;
+    std::unordered_map<Range<N>, std::vector<ReductionInput>> m_partial_inputs;
 };
 
 }  // namespace kmm

@@ -191,7 +191,10 @@ struct right_to_left: private D {
     using index_type = typename domain_type::index_type;
 
     KMM_HOST_DEVICE
-    right_to_left(domain_type domain = {}) : domain_type(domain) {}
+    right_to_left() : domain_type() {}
+
+    KMM_HOST_DEVICE
+    explicit right_to_left(domain_type domain) : domain_type(domain) {}
 
     KMM_HOST_DEVICE
     const domain_type& domain() const {
@@ -241,7 +244,10 @@ struct left_to_right: private D {
     using index_type = typename domain_type::index_type;
 
     KMM_HOST_DEVICE
-    left_to_right(domain_type domain = {}) : domain_type(domain) {}
+    left_to_right() : domain_type() {}
+
+    KMM_HOST_DEVICE
+    explicit left_to_right(domain_type domain) : domain_type(domain) {}
 
     KMM_HOST_DEVICE
     const domain_type& domain() const {
@@ -293,7 +299,10 @@ struct strided: private D {
     using index_type = typename domain_type::index_type;
 
     KMM_HOST_DEVICE
-    strided(domain_type domain = {}, fixed_array<stride_type, rank> strides = {}) :
+    strided() : domain_type(), m_strides() {}
+
+    KMM_HOST_DEVICE
+    explicit strided(domain_type domain, fixed_array<stride_type, rank> strides = {}) :
         domain_type(domain),
         m_strides(strides) {}
 
@@ -343,7 +352,10 @@ struct contiguous_strided: private D {
     using index_type = typename domain_type::index_type;
 
     KMM_HOST_DEVICE
-    contiguous_strided(domain_type domain = {}, fixed_array<stride_type, rank> strides = {}) :
+    contiguous_strided() : domain_type({}), m_strides({}) {}
+
+    KMM_HOST_DEVICE
+    explicit contiguous_strided(domain_type domain, fixed_array<stride_type, rank> strides = {}) :
         domain_type(domain),
         m_strides(strides) {}
 
@@ -516,7 +528,7 @@ struct remove_axis_impl {
             new_strides[i] = from.stride(i + size_t(i >= Axis));
         }
 
-        return {new_domain, new_strides};
+        return type {new_domain, new_strides};
     }
 };
 
@@ -526,7 +538,7 @@ struct remove_axis_impl<right_to_left<D, S>, 0> {
 
     KMM_HOST_DEVICE
     static type call(const right_to_left<D, S>& from) {
-        return {domains::remove_axis_impl<D, 0>::call(from.domain())};
+        return type {domains::remove_axis_impl<D, 0>::call(from.domain())};
     }
 };
 
@@ -567,11 +579,6 @@ struct static_strided {
 
 namespace accessors {
 struct host {
-    template<typename T>
-    KMM_HOST_DEVICE T* offset(T* ptr, ptrdiff_t offset) const {
-        return ptr + offset;
-    }
-
     template<typename T>
     KMM_HOST_DEVICE T& access(T* ptr) const {
         return *ptr;
@@ -821,7 +828,7 @@ struct basic_view: private L, private A, public views::basic_view_base<basic_vie
 
     KMM_HOST_DEVICE
     value_type* data_at(ndindex_type point) const {
-        return accessor().offset(m_data, linearize_index(point));
+        return m_data + linearize_index(point);
     }
 
     KMM_HOST_DEVICE
@@ -833,9 +840,7 @@ struct basic_view: private L, private A, public views::basic_view_base<basic_vie
     KMM_HOST_DEVICE basic_view<value_type, views::layouts::remove_axis_type<L, Axis>, accessor_type>
     drop_axis(index_type index) {
         stride_type offset = stride_type(index - begin(Axis)) * stride(Axis);
-        return {
-            accessor().offset(data(), offset),
-            views::layouts::remove_axis_impl<L, Axis>::call(layout())};
+        return {data() + offset, views::layouts::remove_axis_impl<L, Axis>::call(layout())};
     }
 
     template<size_t Axis>

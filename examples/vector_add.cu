@@ -2,7 +2,7 @@
 #include "kmm/api/runtime.hpp"
 
 __global__ void initialize_range(
-    kmm::WorkRange chunk,
+    kmm::NDRange chunk,
     kmm::cuda_subview_mut<float> output
 ) {
     int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
@@ -14,7 +14,7 @@ __global__ void initialize_range(
 }
 
 __global__ void fill_range(
-    kmm::WorkRange chunk,
+    kmm::NDRange chunk,
     float value,
     kmm::cuda_subview_mut<float> output
 ) {
@@ -27,13 +27,13 @@ __global__ void fill_range(
 }
 
 __global__ void vector_add(
-    kmm::WorkRange chunk,
+    kmm::NDRange range,
     kmm::cuda_subview_mut<float> output,
     kmm::cuda_subview<float> left,
     kmm::cuda_subview<float> right
 ) {
-    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
-    if (i >= chunk.end()) {
+    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + range.begin();
+    if (i >= range.end()) {
         return;
     }
 

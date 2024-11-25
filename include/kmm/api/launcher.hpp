@@ -12,13 +12,9 @@ struct Host {
 
     Host(F fun) : m_fun(fun) {}
 
-    ProcessorId find_processor(const SystemInfo& info, TaskChunk chunk) {
-        return ProcessorId::host();
-    }
-
     template<typename... Args>
     void operator()(ExecutionContext& exec, TaskChunk chunk, Args... args) {
-        auto region = WorkRange(chunk.offset, chunk.size);
+        auto region = NDRange(chunk.offset, chunk.size);
         m_fun(region, args...);
     }
 
@@ -32,13 +28,9 @@ struct Cuda {
 
     Cuda(F fun) : m_fun(fun) {}
 
-    ProcessorId find_processor(const SystemInfo& info, TaskChunk chunk) {
-        return chunk.owner_id.is_device() ? chunk.owner_id : ProcessorId(DeviceId(0));
-    }
-
     template<typename... Args>
     void operator()(ExecutionContext& exec, TaskChunk chunk, Args... args) {
-        auto region = WorkRange(chunk.offset, chunk.size);
+        auto region = NDRange(chunk.offset, chunk.size);
         m_fun(exec.cast<DeviceContext>(), region, args...);
     }
 
@@ -50,10 +42,6 @@ template<typename F>
 struct CudaKernel {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Device;
 
-    dim3 block_size;
-    dim3 elements_per_block;
-    uint32_t shared_memory;
-
     CudaKernel(F kernel, dim3 block_size) : CudaKernel(kernel, block_size, block_size) {}
 
     CudaKernel(F kernel, dim3 block_size, dim3 elements_per_block, uint32_t shared_memory = 0) :
@@ -61,10 +49,6 @@ struct CudaKernel {
         block_size(block_size),
         elements_per_block(elements_per_block),
         shared_memory(shared_memory) {}
-
-    ProcessorId find_processor(const SystemInfo& info, TaskChunk chunk) {
-        return chunk.owner_id.is_device() ? chunk.owner_id : DeviceId(0);
-    }
 
     template<typename... Args>
     void operator()(ExecutionContext& exec, TaskChunk chunk, Args... args) {
@@ -76,7 +60,7 @@ struct CudaKernel {
             checked_cast<int>((g[2] / b[2]) + int64_t(g[2] % b[2] != 0)),
         };
 
-        auto region = WorkRange(chunk.offset, chunk.size);
+        auto region = NDRange(chunk.offset, chunk.size);
         exec.cast<DeviceContext>().launch(  //
             grid_dim,
             block_size,
@@ -89,6 +73,9 @@ struct CudaKernel {
 
   private:
     std::decay_t<F> kernel;
+    dim3 block_size;
+    dim3 elements_per_block;
+    uint32_t shared_memory;
 };
 
 template<typename Launcher, typename... Args>
@@ -140,7 +127,7 @@ EventId parallel_submit_impl(
         (std::get<Is>(handlers).initialize(init), ...);
 
         for (const TaskChunk& chunk : partition.chunks) {
-            ProcessorId processor_id = launcher.find_processor(system_info, chunk);
+            ProcessorId processor_id = chunk.owner_id;
 
             TaskBuilder builder {
                 .worker = worker,
