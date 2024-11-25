@@ -15,7 +15,7 @@ struct ReductionFunctor<T, ReductionOp::Sum, std::void_t<decltype(std::declval<T
     }
 
     static KMM_HOST_DEVICE T combine(T a, T b) {
-        return a + b;
+        return static_cast<T>(a + b);
     }
 };
 
@@ -26,7 +26,7 @@ struct ReductionFunctor<T, ReductionOp::Product, std::void_t<decltype(std::declv
     }
 
     static KMM_HOST_DEVICE T combine(T a, T b) {
-        return a * b;
+        return static_cast<T>(a * b);
     }
 };
 
@@ -64,7 +64,7 @@ struct ReductionFunctor<T, ReductionOp::BitOr, std::enable_if_t<std::is_integral
     }
 
     static KMM_HOST_DEVICE T combine(T a, T b) {
-        return a | b;
+        return static_cast<T>(a | b);
     }
 };
 
@@ -75,7 +75,7 @@ struct ReductionFunctor<T, ReductionOp::BitAnd, std::enable_if_t<std::is_integra
     }
 
     static KMM_HOST_DEVICE T combine(T a, T b) {
-        return a & b;
+        return static_cast<T>(a & b);
     }
 };
 

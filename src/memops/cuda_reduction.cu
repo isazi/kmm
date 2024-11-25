@@ -143,6 +143,12 @@ void execute_reduction_for_type_and_op(
         return;
     }
 
+    // silence unused warnings
+    (void)stream;
+    (void)src_buffer;
+    (void)dst_buffer;
+    (void)block_size;
+
     throw std::runtime_error(
         fmt::format("reduction {} for data type {} is not yet supported", Op, DataType::of<T>())
     );
