@@ -35,7 +35,7 @@ Runtime::Runtime(std::shared_ptr<Worker> worker) : m_worker(std::move(worker)) {
 Runtime::Runtime(Worker& worker) : Runtime(worker.shared_from_this()) {}
 
 MemoryId Runtime::memory_affinity_for_address(const void* address) const {
-    if (auto device_opt = get_cuda_device_by_address(address)) {
+    if (auto device_opt = get_gpu_device_by_address(address)) {
         const auto& device = m_worker->system_info().device_by_ordinal(*device_opt);
         return device.memory_id();
     } else {

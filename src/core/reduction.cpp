@@ -1,6 +1,5 @@
-#include "../memops/host_reducers.hpp"
-
 #include "kmm/core/reduction.hpp"
+#include "kmm/memops/host_reducers.hpp"
 
 namespace kmm {
 

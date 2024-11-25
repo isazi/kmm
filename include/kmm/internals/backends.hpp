@@ -9,12 +9,19 @@ namespace kmm {
 #ifdef KMM_USE_CUDA
 
 #define KMM_USE_DEVICE 1
+#define KMM_HOST_DEVICE __host__ __device__ __forceinline__
+#define KMM_DEVICE      __device__ __forceinline__
+#define KMM_HOST_DEVICE_NOINLINE __host__ __device__
+#define KMM_DEVICE_NOINLINE      __device__
 
 // CUDA backend
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
+
+using half_type = __half;
+using bfloat16_type = __nv_bfloat16;
 
 #define GPU_DEVICE_ATTRIBUTE_MAX CU_DEVICE_ATTRIBUTE_MAX
 #define GPU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
@@ -150,6 +157,11 @@ using blasStatus_t = rocblas_status;
 
 // Dummy backend
 // Only intended to enable compilation without CUDA or HIP
+#define KMM_HOST_DEVICE KMM_INLINE
+#define KMM_DEVICE      KMM_INLINE
+
+#define KMM_HOST_DEVICE_NOINLINE
+#define KMM_DEVICE_NOINLINE
 #define GPU_DEVICE_ATTRIBUTE_MAX 1
 #define GPU_MEMHOSTALLOC_PORTABLE 0
 #define GPU_MEMHOSTALLOC_DEVICEMAP 0
@@ -160,6 +172,9 @@ using blasStatus_t = rocblas_status;
 #define GPU_EVENT_DISABLE_TIMING 2
 #define GPU_ERROR_NO_DEVICE 100
 #define GPU_CTX_MAP_HOST 0x08
+
+using half_type = unsigned char;
+using bfloat16_type = char;
 
 using GPUdevice = int;
 class dim3 {
@@ -283,6 +298,23 @@ GPUresult gpuCtxPopCurrent(GPUcontext*);
 gpuError_t GPUrtLaunchKernel(const void*, dim3, dim3, void**, size_t, stream_t);
 GPUresult gpuMemPoolTrimTo(GPUmemoryPool, size_t);
 GPUresult gpuDeviceGetDefaultMemPool (GPUmemoryPool*, GPUdevice);
+
+// Atomics
+template<typename T> T atomicAnd(T* input, T output) {
+    return 0;
+};
+template<typename T> T atomicOr(T* input, T output) {
+    return 0;
+};
+template<typename T> T atomicAdd(T* input, T output) {
+    return 0;
+};
+template<typename T> T atomicMin(T* input, T output) {
+    return 0;
+};
+template<typename T> T atomicMax(T* input, T output) {
+    return 0;
+};
 
 // Dummy BLAS
 using blasHandle_t = void *;

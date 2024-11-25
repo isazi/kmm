@@ -124,7 +124,7 @@ struct MemoryId {
     }
 
     constexpr bool operator<(const MemoryId& that) const {
-        // We assume the order Host, Device(0), Device(1), Device(2), ...
+        // We assume the order Host, DeviceContext(0), DeviceContext(1), DeviceContext(2), ...
         if (is_host() || that.is_host()) {
             return that.is_device();
         } else {

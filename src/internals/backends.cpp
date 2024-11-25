@@ -3,6 +3,18 @@
 
 namespace kmm {
 
+dim3::dim3(int x) {
+    this->x = x;
+    this->y = 1;
+    this->z = 1;
+}
+
+dim3::dim3(int x, int y) {
+    this->x = x;
+    this->y = y;
+    this->z = 1;
+}
+
 dim3::dim3(int x, int y, int z) {
     this->x = x;
     this->y = y;
@@ -97,6 +109,10 @@ GPUresult gpuStreamQuery(stream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
+GPUresult gpuStreamDestroy(stream_t) {
+    return GPUresult(GPU_ERROR_UNKNOWN);
+}
+
 GPUresult cuStreamDestroy(stream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
@@ -165,6 +181,10 @@ const char* GPUrtGetErrorString(gpuError_t) {
     return "";
 }
 
+gpuError_t gpuGetLastError(void) {
+    return gpuError_t(GPU_ERROR_UNKNOWN);
+}
+
 GPUresult gpuInit (unsigned int) {
     return GPUresult(GPU_ERROR_NO_DEVICE);
 }
@@ -209,6 +229,10 @@ gpuError_t GPUrtLaunchKernel(const void*, dim3, dim3, void**, size_t, stream_t) 
 }
 
 GPUresult gpuMemPoolTrimTo(GPUmemoryPool, size_t) {
+    return GPUresult(GPU_ERROR_UNKNOWN);
+}
+
+GPUresult gpuDeviceGetDefaultMemPool (GPUmemoryPool*, GPUdevice) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 

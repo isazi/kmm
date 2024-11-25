@@ -5,6 +5,12 @@
 
 namespace kmm {
 
+struct DeferredDealloc {
+    void* addr;
+    size_t nbytes;
+    DeviceEventSet dependencies;
+};
+
 /**
  * Abstract base class for all asynchronous memory allocators.
  */
@@ -68,8 +74,6 @@ class SyncAllocator: public AsyncAllocator {
     void trim(size_t nbytes_remaining = 0) final;
 
   private:
-    struct DeferredDealloc;
-
     std::shared_ptr<DeviceStreamManager> m_streams;
     std::deque<DeferredDealloc> m_pending_deallocs;
     size_t m_bytes_limit;

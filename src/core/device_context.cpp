@@ -4,30 +4,30 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/core/device_context.hpp"
-#include "kmm/memops/cuda_fill.hpp"
+#include "kmm/memops/gpu_fill.hpp"
 #include "kmm/utils/checked_math.hpp"
 
 namespace kmm {
 
-DeviceContext::DeviceContext(DeviceInfo info, CudaContextHandle context, CUstream stream) :
+DeviceContext::DeviceContext(DeviceInfo info, GPUContextHandle context, stream_t stream) :
     DeviceInfo(info),
     m_context(context),
     m_stream(stream) {
-    CudaContextGuard guard {m_context};
+    GPUContextGuard guard {m_context};
 
-    KMM_CUDA_CHECK(cublasCreate(&m_cublas_handle));
-    KMM_CUDA_CHECK(cublasSetStream(m_cublas_handle, m_stream));
+    KMM_GPU_CHECK(blasCreate(&m_blas_handle));
+    KMM_GPU_CHECK(blasSetStream(m_blas_handle, m_stream));
 }
 
 DeviceContext::~DeviceContext() {
-    CudaContextGuard guard {m_context};
-    KMM_CUDA_CHECK(cublasDestroy(m_cublas_handle));
+    GPUContextGuard guard {m_context};
+    KMM_GPU_CHECK(blasDestroy(m_blas_handle));
 }
 
 void DeviceContext::synchronize() const {
-    CudaContextGuard guard {m_context};
-    KMM_CUDA_CHECK(cuStreamSynchronize(nullptr));
-    KMM_CUDA_CHECK(cuStreamSynchronize(m_stream));
+    GPUContextGuard guard {m_context};
+    KMM_GPU_CHECK(gpuStreamSynchronize(nullptr));
+    KMM_GPU_CHECK(gpuStreamSynchronize(m_stream));
 }
 
 void DeviceContext::fill_bytes(
@@ -36,10 +36,10 @@ void DeviceContext::fill_bytes(
     const void* fill_pattern,
     size_t fill_pattern_size
 ) const {
-    CudaContextGuard guard {m_context};
-    execute_cuda_fill_async(
+    GPUContextGuard guard {m_context};
+    execute_gpu_fill_async(
         m_stream,
-        (CUdeviceptr)dest_buffer,
+        (GPUdeviceptr)dest_buffer,
         nbytes,
         fill_pattern,
         fill_pattern_size
@@ -47,10 +47,10 @@ void DeviceContext::fill_bytes(
 }
 
 void DeviceContext::copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const {
-    CudaContextGuard guard {m_context};
-    KMM_CUDA_CHECK(cuMemcpyAsync(
-        reinterpret_cast<CUdeviceptr>(dest_buffer),
-        reinterpret_cast<CUdeviceptr>(source_buffer),
+    GPUContextGuard guard {m_context};
+    KMM_GPU_CHECK(gpuMemcpyAsync(
+        reinterpret_cast<GPUdeviceptr>(dest_buffer),
+        reinterpret_cast<GPUdeviceptr>(const_cast<void*>(source_buffer)),
         nbytes,
         m_stream
     ));

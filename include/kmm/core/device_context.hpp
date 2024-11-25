@@ -9,21 +9,12 @@
 
 namespace kmm {
 
-<<<<<<<< HEAD:include/kmm/core/gpu_device.hpp
-class GPUDevice: public DeviceInfo, public ExecutionContext {
-    KMM_NOT_COPYABLE_OR_MOVABLE(GPUDevice);
-
-  public:
-    GPUDevice(DeviceInfo info, GPUContextHandle context, stream_t stream);
-    ~GPUDevice();
-========
 class DeviceContext: public DeviceInfo, public ExecutionContext {
     KMM_NOT_COPYABLE_OR_MOVABLE(DeviceContext);
 
   public:
-    DeviceContext(DeviceInfo info, CudaContextHandle context, CUstream stream);
+    DeviceContext(DeviceInfo info, GPUContextHandle context, stream_t stream);
     ~DeviceContext();
->>>>>>>> dev:include/kmm/core/device_context.hpp
 
     /**
      * Returns a handle to the context associated with this device.

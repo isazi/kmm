@@ -1,5 +1,4 @@
-#include "host_reducers.hpp"
-
+#include "kmm/memops/host_reducers.hpp"
 #include "kmm/memops/host_reduction.hpp"
 #include "kmm/utils/macros.hpp"
 

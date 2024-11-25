@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kmm/utils/macros.hpp"
+#include "kmm/internals/backends.hpp"
 
 namespace kmm {
 

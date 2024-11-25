@@ -6,7 +6,7 @@ namespace kmm {
 
 class Worker;
 class TaskGraph;
-class ReductionInput;
+struct ReductionInput;
 
 template<size_t N>
 struct ArrayBuilder {

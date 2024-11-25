@@ -107,7 +107,7 @@ Worker::~Worker() {
     shutdown();
 }
 
-SystemInfo make_system_info(const std::vector<CudaContextHandle>& contexts) {
+SystemInfo make_system_info(const std::vector<GPUContextHandle>& contexts) {
     spdlog::info("detected {} CUDA device(s):", contexts.size());
     std::vector<DeviceInfo> device_infos;
 
@@ -123,7 +123,7 @@ SystemInfo make_system_info(const std::vector<CudaContextHandle>& contexts) {
 }
 
 Worker::Worker(
-    std::vector<CudaContextHandle> contexts,
+    std::vector<GPUContextHandle> contexts,
     std::shared_ptr<DeviceStreamManager> stream_manager,
     std::shared_ptr<MemorySystem> memory_system
 ) :
@@ -137,14 +137,14 @@ std::shared_ptr<Worker> make_worker(const WorkerConfig& config) {
     std::vector<std::unique_ptr<AsyncAllocator>> device_mems;
 
     auto stream_manager = std::make_shared<DeviceStreamManager>();
-    auto contexts = std::vector<CudaContextHandle>();
-    auto devices = get_cuda_devices();
+    auto contexts = std::vector<GPUContextHandle>();
+    auto devices = get_gpu_devices();
 
     if (!devices.empty()) {
         for (size_t i = 0; i < devices.size(); i++) {
             std::unique_ptr<AsyncAllocator> device_mem;
 
-            auto context = CudaContextHandle::retain_primary_context_for_device(devices[i]);
+            auto context = GPUContextHandle::retain_primary_context_for_device(devices[i]);
             contexts.push_back(context);
 
             switch (config.device_memory_kind) {

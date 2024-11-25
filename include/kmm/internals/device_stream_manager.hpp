@@ -4,7 +4,7 @@
 #include <map>
 
 #include "kmm/core/identifiers.hpp"
-#include "kmm/utils/cuda.hpp"
+#include "kmm/utils/gpu.hpp"
 #include "kmm/utils/notify.hpp"
 #include "kmm/utils/small_vector.hpp"
 
@@ -24,7 +24,7 @@ class DeviceStreamManager {
 
     bool make_progress();
 
-    DeviceStream create_stream(CudaContextHandle context, bool high_priority = false);
+    DeviceStream create_stream(GPUContextHandle context, bool high_priority = false);
 
     void wait_until_idle() const;
     void wait_until_ready(DeviceStream stream) const;
@@ -55,8 +55,8 @@ class DeviceStreamManager {
      */
     bool event_happens_before(DeviceEvent source, DeviceEvent target) const;
 
-    CudaContextHandle context(DeviceStream stream) const;
-    CUstream get(DeviceStream stream) const;
+    GPUContextHandle context(DeviceStream stream) const;
+    stream_t get(DeviceStream stream) const;
 
     template<typename F>
     DeviceEvent with_stream(DeviceStream stream, const DeviceEventSet& deps, F fun);

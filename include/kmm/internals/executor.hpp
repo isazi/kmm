@@ -13,12 +13,12 @@
 namespace kmm {
 
 struct DeviceState {
-    CudaContextHandle context;
+    GPUContextHandle context;
     DeviceStream stream;
     DeviceEvent last_event;
     DeviceContext device;
 
-    DeviceState(DeviceId id, CudaContextHandle context, DeviceStreamManager& stream_manager) :
+    DeviceState(DeviceId id, GPUContextHandle context, DeviceStreamManager& stream_manager) :
         context(context),
         stream(stream_manager.create_stream(context)),
         device(DeviceInfo(id, context), context, stream_manager.get(stream)) {}
@@ -41,7 +41,7 @@ class Executor {
     };
 
     Executor(
-        std::vector<CudaContextHandle> contexts,
+        std::vector<GPUContextHandle> contexts,
         std::shared_ptr<DeviceStreamManager> stream_manager,
         std::shared_ptr<MemorySystem> memory_system
     );

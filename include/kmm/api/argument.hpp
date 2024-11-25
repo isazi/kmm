@@ -6,7 +6,7 @@
 
 namespace kmm {
 
-enum struct ExecutionSpace { Host, Cuda };
+enum struct ExecutionSpace { Host, Device };
 
 template<typename T>
 struct ArgumentHandler;

@@ -22,21 +22,6 @@
 #define KMM_INLINE   __attribute__((always_inline)) inline
 #define KMM_NOINLINE __attribute__((noinline))
 
-// If we are use the NVIDIA compiler
-#ifdef __NVCC__
-    #define KMM_HOST_DEVICE __host__ __device__ __forceinline__
-    #define KMM_DEVICE      __device__ __forceinline__
-
-    #define KMM_HOST_DEVICE_NOINLINE __host__ __device__
-    #define KMM_DEVICE_NOINLINE      __device__
-#else
-    #define KMM_HOST_DEVICE KMM_INLINE
-    #define KMM_DEVICE      KMM_INLINE
-
-    #define KMM_HOST_DEVICE_NOINLINE
-    #define KMM_DEVICE_NOINLINE
-#endif
-
 #define KMM_ASSUME(expr)   __builtin_assume(expr)
 #define KMM_UNLIKELY(expr) (__builtin_expect(!(expr), false))
 #define KMM_LIKELY(expr)   KMM_UNLIKELY(!(expr))

@@ -2,12 +2,6 @@
 
 namespace kmm {
 
-struct SyncAllocator::DeferredDealloc {
-    void* addr;
-    size_t nbytes;
-    DeviceEventSet dependencies;
-};
-
 SyncAllocator::SyncAllocator(std::shared_ptr<DeviceStreamManager> streams, size_t max_bytes) :
     m_streams(streams),
     m_bytes_limit(max_bytes),

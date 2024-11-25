@@ -1,13 +1,14 @@
 
 #include "spdlog/spdlog.h"
 
-#include "kmm/memops/cuda_fill.hpp"
-#include "kmm/utils/cuda.hpp"
+#include "kmm/memops/gpu_fill.hpp"
+#include "kmm/utils/gpu.hpp"
 #include "kmm/utils/integer_fun.hpp"
 #include "kmm/utils/panic.hpp"
 
 namespace kmm {
 
+#ifdef KMM_USE_DEVICE
 template<typename T, uint32_t block_size>
 __global__ void fill_kernel(size_t nelements, T* dest_buffer, T fill_value) {
     size_t i = blockIdx.x * size_t(block_size) + threadIdx.x;
@@ -17,11 +18,12 @@ __global__ void fill_kernel(size_t nelements, T* dest_buffer, T fill_value) {
         i += size_t(block_size) * gridDim.x;
     }
 }
+#endif
 
 template<typename T>
 void submit_fill_kernel(
-    CUstream stream,
-    CUdeviceptr dest_buffer,
+    stream_t stream,
+    GPUdeviceptr dest_buffer,
     size_t nelements,
     const void* fill_pattern
 ) {
@@ -35,8 +37,10 @@ void submit_fill_kernel(
         ? static_cast<uint32_t>(div_ceil(nelements, size_t(block_size)))
         : max_grid_size;
 
+#ifdef KMM_USE_DEVICE
     fill_kernel<T, block_size>
         <<<grid_size, block_size, 0, stream>>>(nelements, (T*)dest_buffer, fill_value);
+#endif
 }
 
 template<size_t N>
@@ -57,9 +61,9 @@ bool is_fill_pattern_repetitive(const void* fill_pattern, size_t fill_pattern_si
     return true;
 }
 
-void execute_cuda_fill_async(
-    CUstream stream,
-    CUdeviceptr dest_buffer,
+void execute_gpu_fill_async(
+    stream_t stream,
+    GPUdeviceptr dest_buffer,
     size_t nbytes,
     const void* fill_pattern,
     size_t fill_pattern_size
@@ -70,7 +74,7 @@ void execute_cuda_fill_async(
 
     size_t remainder = nbytes % fill_pattern_size;
     if (remainder != 0) {
-        execute_cuda_fill_async(
+        execute_gpu_fill_async(
             stream,
             dest_buffer + (nbytes - remainder),
             remainder,
@@ -84,8 +88,8 @@ void execute_cuda_fill_async(
     if (is_fill_pattern_repetitive<1>(fill_pattern, fill_pattern_size)) {
         uint8_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint8_t));
-        KMM_CUDA_CHECK(cuMemsetD8Async(  //
-            CUdeviceptr(dest_buffer),
+        KMM_GPU_CHECK(gpuMemsetD8Async(  //
+            GPUdeviceptr(dest_buffer),
             pattern,
             nbytes,
             stream
@@ -94,8 +98,8 @@ void execute_cuda_fill_async(
     } else if (is_fill_pattern_repetitive<2>(fill_pattern, fill_pattern_size)) {
         uint16_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint16_t));
-        KMM_CUDA_CHECK(cuMemsetD16Async(  //
-            CUdeviceptr(dest_buffer),
+        KMM_GPU_CHECK(gpuMemsetD16Async(  //
+            GPUdeviceptr(dest_buffer),
             pattern,
             nbytes / sizeof(uint16_t),
             stream
@@ -104,8 +108,8 @@ void execute_cuda_fill_async(
     } else if (is_fill_pattern_repetitive<4>(fill_pattern, fill_pattern_size)) {
         uint32_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint32_t));
-        KMM_CUDA_CHECK(cuMemsetD32Async(  //
-            CUdeviceptr(dest_buffer),
+        KMM_GPU_CHECK(gpuMemsetD32Async(  //
+            GPUdeviceptr(dest_buffer),
             pattern,
             nbytes / sizeof(uint32_t),
             stream
@@ -115,7 +119,7 @@ void execute_cuda_fill_async(
         KMM_ASSERT(dest_buffer % 8 == 0);  // must be aligned?
         submit_fill_kernel<uint64_t>(stream, dest_buffer, nbytes / sizeof(uint64_t), fill_pattern);
     } else {
-        throw CudaException(fmt::format(
+        throw GPUException(fmt::format(
             "could not fill buffer, value is {} bits, but only 8, 16, 32 or 64 bit is supported",
             fill_pattern_size * 8
         ));

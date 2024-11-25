@@ -28,7 +28,7 @@ struct HostEntry: public BufferEntry {
 };
 
 struct DeviceEntry: public BufferEntry {
-    CUdeviceptr data = 0;
+    GPUdeviceptr data = 0;
 
     MemoryManager::Buffer* lru_older = nullptr;
     MemoryManager::Buffer* lru_newer = nullptr;
@@ -470,7 +470,7 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
         (void*)&buffer
     );
 
-    CUdeviceptr ptr_out;
+    GPUdeviceptr ptr_out;
     DeviceEventSet events;
     auto success =
         m_memory->allocate_device(device_id, buffer.layout.size_in_bytes, &ptr_out, &events);

@@ -2,15 +2,15 @@
 
 #include "identifiers.hpp"
 
-#include "kmm/utils/cuda.hpp"
+#include "kmm/utils/gpu.hpp"
 
 namespace kmm {
 
 class DeviceInfo {
   public:
-    static constexpr size_t NUM_ATTRIBUTES = CU_DEVICE_ATTRIBUTE_MAX;
+    static constexpr size_t NUM_ATTRIBUTES = GPU_DEVICE_ATTRIBUTE_MAX;
 
-    DeviceInfo(DeviceId id, CudaContextHandle context);
+    DeviceInfo(DeviceId id, GPUContextHandle context);
 
     /**
      * Returns the name of the CUDA device as provided by `cuDeviceGetName`.
@@ -34,9 +34,9 @@ class DeviceInfo {
     }
 
     /**
-     * Return this device as a `CUdevice`.
+     * Return this device as a `GPUdevice`.
      */
-    CUdevice device_ordinal() const {
+    GPUdevice device_ordinal() const {
         return m_device_id;
     }
 
@@ -71,12 +71,12 @@ class DeviceInfo {
     /**
      * Returns the value of the provided attribute.
      */
-    int attribute(CUdevice_attribute attrib) const;
+    int attribute(GPUdevice_attribute attrib) const;
 
   private:
     DeviceId m_id;
     std::string m_name;
-    CUdevice m_device_id;
+    GPUdevice m_device_id;
     size_t m_memory_capacity;
     std::array<int, NUM_ATTRIBUTES> m_attributes;
 };
@@ -98,7 +98,7 @@ class SystemInfo {
     /**
      * Find the device that has the given CUDA ordinal.
      */
-    const DeviceInfo& device_by_ordinal(CUdevice ordinal) const;
+    const DeviceInfo& device_by_ordinal(GPUdevice ordinal) const;
 
     /**
      * Return a list of the available processors in the system.

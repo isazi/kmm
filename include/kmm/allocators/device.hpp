@@ -4,10 +4,16 @@
 
 namespace kmm {
 
+struct Allocation {
+    void* addr;
+    size_t nbytes;
+    DeviceEvent event;
+};
+
 class PinnedMemoryAllocator: public SyncAllocator {
   public:
     PinnedMemoryAllocator(
-        CudaContextHandle context,
+        GPUContextHandle context,
         std::shared_ptr<DeviceStreamManager> streams,
         size_t max_bytes = std::numeric_limits<size_t>::max()
     );
@@ -16,13 +22,13 @@ class PinnedMemoryAllocator: public SyncAllocator {
     void deallocate(void* addr, size_t nbytes) final;
 
   private:
-    CudaContextHandle m_context;
+    GPUContextHandle m_context;
 };
 
 class DeviceMemoryAllocator: public SyncAllocator {
   public:
     DeviceMemoryAllocator(
-        CudaContextHandle context,
+        GPUContextHandle context,
         std::shared_ptr<DeviceStreamManager> streams,
         size_t max_bytes = std::numeric_limits<size_t>::max()
     );
@@ -31,7 +37,7 @@ class DeviceMemoryAllocator: public SyncAllocator {
     void deallocate(void* addr, size_t nbytes) final;
 
   private:
-    CudaContextHandle m_context;
+    GPUContextHandle m_context;
 };
 
 enum struct DevicePoolKind { Default, Create };
@@ -39,7 +45,7 @@ enum struct DevicePoolKind { Default, Create };
 class DevicePoolAllocator: public AsyncAllocator {
   public:
     DevicePoolAllocator(
-        CudaContextHandle context,
+        GPUContextHandle context,
         std::shared_ptr<DeviceStreamManager> streams,
         DevicePoolKind kind = DevicePoolKind::Create,
         size_t max_bytes = std::numeric_limits<size_t>::max()
@@ -51,10 +57,8 @@ class DevicePoolAllocator: public AsyncAllocator {
     void trim(size_t nbytes_remaining = 0) final;
 
   private:
-    struct Allocation;
-
-    CudaContextHandle m_context;
-    CUmemoryPool m_pool;
+    GPUContextHandle m_context;
+    GPUmemoryPool m_pool;
     std::shared_ptr<DeviceStreamManager> m_streams;
     DeviceStream m_alloc_stream;
     DeviceStream m_dealloc_stream;

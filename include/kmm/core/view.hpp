@@ -586,12 +586,7 @@ struct gpu_device {
 
     template<typename T>
     KMM_HOST_DEVICE T& access(T* ptr) const {
-#if __CUDA_ARCH__
         return *ptr;
-#else
-        printf("fatal error: cannot access CUDA data on host");
-        exit(1);
-#endif
     }
 };
 
