@@ -6,7 +6,7 @@
 
 namespace kmm {
 
-enum struct ExecutionSpace { Host, Cuda };
+enum struct ExecutionSpace { Host, Device };
 
 struct TaskContext {
     std::vector<BufferAccessor> accessors;
