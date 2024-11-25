@@ -36,14 +36,14 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
     /**
      * Returns a handle to the CUDA stream associated with this device.
      */
-    CUstream stream() {
+    CUstream stream() const {
         return m_stream;
     }
 
     /**
      * Shorthand for `stream()`.
      */
-    operator CUstream() {
+    operator CUstream() const {
         return m_stream;
     }
 
@@ -66,7 +66,7 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
      * should be a pointer to a `__global__` function.
      */
     template<typename... Args>
-    void launch(
+    void launch_impl(
         dim3 grid_dim,
         dim3 block_dim,
         unsigned int shared_mem,
@@ -87,6 +87,17 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
             shared_mem,
             m_stream
         ));
+    }
+
+    template<typename... Param, typename... Args>
+    void launch(
+        dim3 grid_dim,
+        dim3 block_dim,
+        unsigned int shared_mem,
+        void (*const kernel_function)(Param...),
+        Args... args
+    ) const {
+        launch_impl(grid_dim, block_dim, shared_mem, kernel_function, Param(args)...);
     }
 
     /**
