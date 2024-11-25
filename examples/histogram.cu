@@ -19,18 +19,18 @@ void initialize_image(
 }
 
 void initialize_images(
-    kmm::WorkRange subrange,
+    kmm::NDRange subrange,
     int width,
     int height,
     kmm::subview_mut<uint8_t, 3> images
 ) {
-    for (auto i = int(subrange.begin()); i < subrange.end(); i++) {
+    for (auto i = subrange.begin(); i < subrange.end(); i++) {
         initialize_image(i, width, height, images.drop_axis<0>(i));
     }
 }
 
 __global__ void calculate_histogram(
-    kmm::WorkRange subrange,
+    kmm::NDRange subrange,
     int width,
     int height,
     kmm::cuda_subview<uint8_t, 3> images,
@@ -57,8 +57,8 @@ int main() {
     int images_per_chunk = 500;
     dim3 block_size = 256;
 
+    auto histogram = kmm::Array<int> {{256}};
     auto images = kmm::Array<uint8_t, 3>{{num_images, height, width}};
-    auto histogram = kmm::Array<int> {256};
 
     rt.parallel_submit(
         {num_images},
@@ -66,10 +66,14 @@ int main() {
         kmm::Host(initialize_images),
         width,
         height,
-        write(images, access(_x, _, _))
+        write(images, access(_0, _, _))
     );
 
     rt.synchronize();
+
+    auto image_id = kmm::Axis(2);
+    auto i = kmm::Axis(1);
+    auto j = kmm::Axis(0);
 
     rt.parallel_submit(
         {width, height, num_images},
@@ -77,8 +81,8 @@ int main() {
         kmm::CudaKernel(calculate_histogram, block_size),
         width,
         height,
-        read(images, access(_z, _y, _x)),
-        reduce(histogram, kmm::ReductionOp::Sum, privatize(_z), access(_))
+        read(images, access(i, j, image_id)),
+        reduce(histogram, kmm::ReductionOp::Sum, privatize(image_id), access(_))
     );
 
     rt.synchronize();

@@ -4,7 +4,8 @@
 
 namespace kmm {
 
-KMM_HOST_DEVICE bool is_less(size_t a, size_t b) {
+template<typename I>
+KMM_HOST_DEVICE bool is_less(I a, I b) {
     return a < b;
 }
 

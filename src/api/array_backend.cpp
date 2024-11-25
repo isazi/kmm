@@ -8,7 +8,7 @@
 namespace kmm {
 
 template<size_t N>
-Rect<N> index2region(
+Range<N> index2region(
     size_t index,
     std::array<size_t, N> num_chunks,
     Dim<N> chunk_size,
@@ -73,7 +73,7 @@ ArrayBackend<N>::ArrayBackend(
         if (chunk.offset != expected_offset || chunk.size != expected_size) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is not aligned to the chunk size of {}",
-                Rect<N>(chunk.offset, chunk.size),
+                Range<N>(chunk.offset, chunk.size),
                 m_chunk_size
             ));
         }
@@ -81,7 +81,7 @@ ArrayBackend<N>::ArrayBackend(
         if (buffer_locs[buffer_index] != INVALID_INDEX) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is written to by more one task",
-                Rect<N>(expected_offset, expected_size)
+                Range<N>(expected_offset, expected_size)
             ));
         }
 
@@ -112,7 +112,7 @@ ArrayBackend<N>::~ArrayBackend() {
 }
 
 template<size_t N>
-ArrayChunk<N> ArrayBackend<N>::find_chunk(Rect<N> region) const {
+ArrayChunk<N> ArrayBackend<N>::find_chunk(Range<N> region) const {
     size_t buffer_index = 0;
     Point<N> offset;
     Dim<N> sizes;
@@ -190,7 +190,7 @@ void ArrayBackend<N>::synchronize() const {
 template<size_t N>
 class CopyOutTask: public Task {
   public:
-    CopyOutTask(void* data, size_t element_size, Dim<N> array_size, Rect<N> region) :
+    CopyOutTask(void* data, size_t element_size, Dim<N> array_size, Range<N> region) :
         m_dst_addr(data),
         m_element_size(element_size),
         m_array_size(array_size),
@@ -226,7 +226,7 @@ class CopyOutTask: public Task {
     void* m_dst_addr;
     size_t m_element_size;
     Dim<N> m_array_size;
-    Rect<N> m_region;
+    Range<N> m_region;
 };
 
 template<size_t N>

@@ -19,10 +19,11 @@ class ArrayBase {
     virtual const std::type_info& type_info() const = 0;
     virtual size_t rank() const = 0;
     virtual int64_t size(size_t axis) const = 0;
+    virtual void copy_bytes_to(void* output, size_t num_bytes) const = 0;
 };
 
 template<typename T, size_t N = 1>
-class Array: ArrayBase {
+class Array: public ArrayBase {
   public:
     Array(Dim<N> shape = {}) : m_shape(shape) {}
 
@@ -38,7 +39,7 @@ class Array: ArrayBase {
         return N;
     }
 
-    Dim<N> shape() const {
+    Dim<N> sizes() const {
         return m_shape;
     }
 
@@ -85,12 +86,35 @@ class Array: ArrayBase {
         m_backend = nullptr;
     }
 
+    void copy_bytes_to(void* output, size_t num_bytes) const {
+        KMM_ASSERT(num_bytes % sizeof(T) == 0 && compare_equal(num_bytes / sizeof(T), size()));
+        inner().copy_bytes(output, sizeof(T));
+    }
+
     void copy_to(T* output) const {
         inner().copy_bytes(output, sizeof(T));
     }
 
+    template<typename I>
+    void copy_to(T* output, I num_elements) const {
+        KMM_ASSERT(compare_equal(num_elements, size()));
+        inner().copy_bytes(output, sizeof(T));
+    }
+
+    void copy_to(std::vector<T>& output) const {
+        output.resize(checked_cast<size_t>(size()));
+        inner().copy_bytes(output, sizeof(T));
+    }
+
+    std::vector<T> copy() const {
+        std::vector<T> output;
+        copy_to(output);
+        return output;
+    }
+
   private:
     std::shared_ptr<ArrayBackend<N>> m_backend;
+    Point<N> m_offset;
     Dim<N> m_shape;
 };
 
@@ -131,7 +155,7 @@ struct ArgumentHandler<Write<Array<T, N>>> {
 
     ArgumentHandler(Write<Array<T, N>> arg) :
         m_array(arg.argument),
-        m_builder(arg.argument.shape(), BufferLayout::for_type<T>()) {
+        m_builder(arg.argument.sizes(), BufferLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -209,7 +233,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
     ArgumentHandler(Write<Array<T, N>, A> arg) :
         m_array(arg.argument),
         m_access_mapper(arg.access_mapper),
-        m_builder(arg.argument.shape(), BufferLayout::for_type<T>()) {
+        m_builder(arg.argument.sizes(), BufferLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -240,7 +264,7 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
 
     ArgumentHandler(Reduce<Array<T, N>> arg) :
         m_array(arg.argument),
-        m_builder(arg.argument.shape(), DataType::of<T>(), arg.op) {
+        m_builder(arg.argument.sizes(), DataType::of<T>(), arg.op) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -276,7 +300,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
 
     ArgumentHandler(Reduce<Array<T, N>, All, P> arg) :
         m_array(arg.argument),
-        m_builder(arg.argument.shape(), DataType::of<T>(), arg.op),
+        m_builder(arg.argument.sizes(), DataType::of<T>(), arg.op),
         m_private_mapper(arg.private_mapper) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
@@ -286,7 +310,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = Rect<N>(m_builder.m_sizes);
+        auto access_region = Range<N>(m_builder.m_sizes);
         auto private_region = m_private_mapper(builder.chunk);
         size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
@@ -325,7 +349,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
 
     ArgumentHandler(Reduce<Array<T, N>, A, P> arg) :
         m_array(arg.argument),
-        m_builder(arg.argument.shape(), DataType::of<T>(), arg.op),
+        m_builder(arg.argument.sizes(), DataType::of<T>(), arg.op),
         m_access_mapper(arg.access_mapper),
         m_private_mapper(arg.private_mapper) {
         if (m_array.is_valid()) {

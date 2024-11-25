@@ -1,7 +1,7 @@
 #include "kmm/kmm.hpp"
 
 __global__ void initialize_matrix_kernel(
-    kmm::WorkRange chunk,
+    kmm::NDRange chunk,
     kmm::cuda_subview_mut<float, 2> matrix
 ) {
     int i = blockIdx.y * blockDim.y + threadIdx.y + chunk.begin.y;
@@ -13,7 +13,7 @@ __global__ void initialize_matrix_kernel(
 }
 
 __global__ void sum_total_kernel(
-    kmm::WorkRange chunk,
+    kmm::NDRange chunk,
     kmm::cuda_subview<float, 2> matrix,
     kmm::cuda_subview_mut<float, 2> sum
 ) {
@@ -26,7 +26,7 @@ __global__ void sum_total_kernel(
 }
 
 __global__ void sum_rows_kernel(
-    kmm::WorkRange chunk,
+    kmm::NDRange chunk,
     kmm::cuda_subview<float, 2> matrix,
     kmm::cuda_subview_mut<float, 2> rows_sum
 ) {
@@ -39,7 +39,7 @@ __global__ void sum_rows_kernel(
 }
 
 __global__ void sum_cols_kernel(
-    kmm::WorkRange chunk,
+    kmm::NDRange chunk,
     kmm::cuda_subview<float, 2> matrix,
     kmm::cuda_subview_mut<float, 2> cols_sum
 ) {

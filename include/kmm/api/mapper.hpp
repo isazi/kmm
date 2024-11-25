@@ -11,7 +11,7 @@ namespace kmm {
 
 struct All {
     template<size_t N>
-    Rect<N> operator()(TaskChunk chunk, Rect<N> bounds) const {
+    Range<N> operator()(TaskChunk chunk, Range<N> bounds) const {
         return bounds;
     }
 };
@@ -20,11 +20,11 @@ struct Axis {
     constexpr Axis() : m_axis(0) {}
     explicit constexpr Axis(size_t axis) : m_axis(axis) {}
 
-    Rect<1> operator()(TaskChunk chunk) const {
-        return Rect<1> {chunk.offset.get(m_axis), chunk.size.get(m_axis)};
+    Range<1> operator()(TaskChunk chunk) const {
+        return Range<1> {chunk.offset.get(m_axis), chunk.size.get(m_axis)};
     }
 
-    Rect<1> operator()(TaskChunk chunk, Rect<1> bounds) const {
+    Range<1> operator()(TaskChunk chunk, Range<1> bounds) const {
         return (*this)(chunk).intersection(bounds);
     }
 
@@ -42,7 +42,7 @@ struct Axis {
 
 struct IdentityMap {
     template<size_t N>
-    Rect<N> operator()(TaskChunk chunk, Rect<N> bounds) const {
+    Range<N> operator()(TaskChunk chunk, Range<N> bounds) const {
         return {Point<N>::from(chunk.offset), Dim<N>::from(chunk.size)};
     }
 };
@@ -81,13 +81,13 @@ struct IndexMap {
     IndexMap scale_by(int64_t factor) const;
     IndexMap divide_by(int64_t divisor) const;
     IndexMap negate() const;
-    Rect<1> apply(TaskChunk chunk) const;
+    Range<1> apply(TaskChunk chunk) const;
 
-    Rect<1> operator()(TaskChunk chunk) const {
+    Range<1> operator()(TaskChunk chunk) const {
         return apply(chunk);
     }
 
-    Rect<1> operator()(TaskChunk chunk, Rect<1> bounds) const {
+    Range<1> operator()(TaskChunk chunk, Range<1> bounds) const {
         return apply(chunk).intersection(bounds);
     }
 
@@ -151,11 +151,11 @@ inline IndexMap operator/(IndexMap a, int64_t b) {
 
 template<size_t N>
 struct MultiIndexMap {
-    Rect<N> operator()(TaskChunk chunk) const {
-        Rect<N> result;
+    Range<N> operator()(TaskChunk chunk) const {
+        Range<N> result;
 
         for (size_t i = 0; i < N; i++) {
-            Rect<1> range = (this->axes[i])(chunk);
+            Range<1> range = (this->axes[i])(chunk);
             result.offset[i] = range.offset[0];
             result.sizes[i] = range.sizes[0];
         }
@@ -163,11 +163,11 @@ struct MultiIndexMap {
         return result;
     }
 
-    Rect<N> operator()(TaskChunk chunk, Rect<N> bounds) const {
-        Rect<N> result;
+    Range<N> operator()(TaskChunk chunk, Range<N> bounds) const {
+        Range<N> result;
 
         for (size_t i = 0; i < N; i++) {
-            Rect<1> range = (this->axes[i])(chunk, Rect<1> {bounds.offset[i], bounds.sizes[i]});
+            Range<1> range = (this->axes[i])(chunk, Range<1> {bounds.offset[i], bounds.sizes[i]});
             result.offset[i] = range.offset[0];
             result.sizes[i] = range.sizes[0];
         }
@@ -180,7 +180,7 @@ struct MultiIndexMap {
 
 template<>
 struct MultiIndexMap<0> {
-    Rect<0> operator()(TaskChunk chunk, Rect<0> bounds = {}) const {
+    Range<0> operator()(TaskChunk chunk, Range<0> bounds = {}) const {
         return {};
     }
 };
@@ -202,11 +202,6 @@ inline IndexMap into_index_map(All m) {
 }
 
 template<typename... Is>
-MultiIndexMap<sizeof...(Is)> slice(const Is&... slices) {
-    return {into_index_map(slices)...};
-}
-
-template<typename... Is>
 MultiIndexMap<sizeof...(Is)> access(const Is&... slices) {
     return {into_index_map(slices)...};
 }
@@ -224,19 +219,19 @@ MultiIndexMap<sizeof...(Is)> tile(const Is&... length) {
 
 namespace detail {
 template<typename T>
-struct MapperDimensionality: std::integral_constant<size_t, 0> {};
+struct RangeDim: std::integral_constant<size_t, ~size_t(0)> {};
 
 template<size_t N>
-struct MapperDimensionality<Rect<N>>: std::integral_constant<size_t, N> {};
+struct RangeDim<Range<N>>: std::integral_constant<size_t, N> {};
 }  // namespace detail
 
 template<typename F>
 static constexpr size_t mapper_dimensionality =
-    detail::MapperDimensionality<std::invoke_result_t<F, TaskChunk>>::value;
+    detail::RangeDim<std::invoke_result_t<F, TaskChunk>>::value;
 
 template<typename F, size_t N>
 static constexpr bool is_dimensionality_accepted_by_mapper =
-    detail::MapperDimensionality<std::invoke_result_t<F, TaskChunk, Rect<N>>>::value == N;
+    detail::RangeDim<std::invoke_result_t<F, TaskChunk, Range<N>>>::value == N;
 
 }  // namespace kmm
 
