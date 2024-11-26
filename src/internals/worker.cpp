@@ -108,7 +108,7 @@ Worker::~Worker() {
 }
 
 SystemInfo make_system_info(const std::vector<GPUContextHandle>& contexts) {
-    spdlog::info("detected {} CUDA device(s):", contexts.size());
+    spdlog::info("detected {} GPU device(s):", contexts.size());
     std::vector<DeviceInfo> device_infos;
 
     for (size_t i = 0; i < contexts.size(); i++) {

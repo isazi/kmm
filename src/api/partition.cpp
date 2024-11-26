@@ -20,7 +20,7 @@ TaskPartition TaskPartitioner::operator()(
         }
 
         if (devices.empty()) {
-            throw std::runtime_error("no CUDA devices found, cannot partition work");
+            throw std::runtime_error("no devices found, cannot partition work");
         }
     }
 

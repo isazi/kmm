@@ -189,7 +189,7 @@ DeviceEvent DeviceStreamManager::record_event(DeviceStream stream_id) {
 
     KMM_GPU_CHECK(gpuEventRecord(gpu_event, stream.gpu_stream));
 
-    spdlog::trace("CUDA stream {} records new CUDA event {}", stream_id, event);
+    spdlog::trace("GPU stream {} records new GPU event {}", stream_id, event);
     return event;
 }
 
@@ -225,7 +225,7 @@ void DeviceStreamManager::wait_for_event(DeviceStream stream, DeviceEvent event)
     event_t gpu_event = src_stream.pending_events.at(offset);
     KMM_GPU_CHECK(gpuStreamWaitEvent(dst_stream.gpu_stream, gpu_event, GPU_EVENT_WAIT_DEFAULT));
 
-    spdlog::trace("CUDA stream {} must wait on CUDA event {}", stream, event);
+    spdlog::trace("GPU stream {} must wait on GPU event {}", stream, event);
 }
 
 void DeviceStreamManager::wait_for_events(
@@ -285,7 +285,7 @@ bool DeviceStreamManager::make_progress() {
                 }
 
                 spdlog::trace(
-                    "CUDA event {} completed",
+                    "GPU event {} completed",
                     DeviceEvent(static_cast<uint8_t>(i), stream.first_pending_index)
                 );
 

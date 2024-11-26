@@ -741,7 +741,7 @@ void MemoryManager::unlock_access(
     DeviceEvent event
 ) {
     spdlog::trace(
-        "access to buffer {} was revoked from request {} (memory={}, mode={}, CUDA event={})",
+        "access to buffer {} was revoked from request {} (memory={}, mode={}, GPU event={})",
         (void*)&buffer,
         (void*)&req,
         req.memory_id,

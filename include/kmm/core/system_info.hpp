@@ -13,7 +13,7 @@ class DeviceInfo {
     DeviceInfo(DeviceId id, GPUContextHandle context);
 
     /**
-     * Returns the name of the CUDA device as provided by `cuDeviceGetName`.
+     * Returns the name of the device as provided by `gpuDeviceGetName`.
      */
     std::string name() const {
         return m_name;
@@ -86,7 +86,7 @@ class SystemInfo {
     SystemInfo(std::vector<DeviceInfo> devices = {});
 
     /**
-     * Returns the number of CUDA devices in the system.
+     * Returns the number of GPUs in the system.
      */
     size_t num_devices() const;
 
@@ -96,7 +96,7 @@ class SystemInfo {
     const DeviceInfo& device(DeviceId id) const;
 
     /**
-     * Find the device that has the given CUDA ordinal.
+     * Find the device that has the given device ordinal.
      */
     const DeviceInfo& device_by_ordinal(GPUdevice ordinal) const;
 

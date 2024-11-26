@@ -72,7 +72,7 @@ const DeviceInfo& SystemInfo::device_by_ordinal(GPUdevice ordinal) const {
         }
     }
 
-    throw std::runtime_error(fmt::format("cannot find CUDA device with ordinal {}", ordinal));
+    throw std::runtime_error(fmt::format("cannot find device with ordinal {}", ordinal));
 }
 
 std::vector<ProcessorId> SystemInfo::processors() const {

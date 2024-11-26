@@ -86,7 +86,7 @@ std::optional<std::shared_ptr<Scheduler::Node>> Scheduler::pop_ready(DeviceEvent
     for (auto& q : m_queues) {
         if (q.pop_job(result)) {
             spdlog::debug(
-                "scheduling event {} (command={}, CUDA deps={})",
+                "scheduling event {} (command={}, GPU deps={})",
                 result->id(),
                 result->command,
                 result->dependencies_events
@@ -110,7 +110,7 @@ void Scheduler::set_scheduled(EventId id, DeviceEvent event) {
     auto node = it->second;
 
     spdlog::debug(
-        "scheduled event {} (command={}, CUDA event={})",
+        "scheduled event {} (command={}, GPU event={})",
         node->id(),
         node->command,
         event
