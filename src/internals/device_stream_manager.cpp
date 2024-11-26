@@ -87,12 +87,12 @@ DeviceStreamManager::~DeviceStreamManager() {
         KMM_ASSERT(gpuStreamQuery(stream.gpu_stream) == GPU_SUCCESS);
         KMM_GPU_CHECK(gpuStreamDestroy(stream.gpu_stream));
 
-        for (const auto& cuda_event : stream.pending_events) {
-            KMM_GPU_CHECK(gpuEventSynchronize(cuda_event));
-            KMM_ASSERT(gpuEventSynchronize(cuda_event) == GPU_SUCCESS);
+        for (const auto& gpu_event : stream.pending_events) {
+            KMM_GPU_CHECK(gpuEventSynchronize(gpu_event));
+            KMM_ASSERT(gpuEventSynchronize(gpu_event) == GPU_SUCCESS);
 
             stream.first_pending_index += 1;
-            m_event_pools[stream.pool_index].push(cuda_event);
+            m_event_pools[stream.pool_index].push(gpu_event);
         }
     }
 }
@@ -316,8 +316,8 @@ bool DeviceStreamManager::make_progress() {
 DeviceStreamManager::EventPool::~EventPool() {
     GPUContextGuard guard {m_context};
 
-    for (const auto& cuda_event : m_events) {
-        KMM_GPU_CHECK(gpuEventDestroy(cuda_event));
+    for (const auto& gpu_event : m_events) {
+        KMM_GPU_CHECK(gpuEventDestroy(gpu_event));
     }
 }
 
