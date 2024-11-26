@@ -23,10 +23,10 @@ struct Host {
 };
 
 template<typename F>
-struct Cuda {
+struct GPU {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Device;
 
-    Cuda(F fun) : m_fun(fun) {}
+    GPU(F fun) : m_fun(fun) {}
 
     template<typename... Args>
     void operator()(ExecutionContext& exec, TaskChunk chunk, Args... args) {
@@ -39,12 +39,12 @@ struct Cuda {
 };
 
 template<typename F>
-struct CudaKernel {
+struct GPUKernel {
     static constexpr ExecutionSpace execution_space = ExecutionSpace::Device;
 
-    CudaKernel(F kernel, dim3 block_size) : CudaKernel(kernel, block_size, block_size) {}
+    GPUKernel(F kernel, dim3 block_size) : GPUKernel(kernel, block_size, block_size) {}
 
-    CudaKernel(F kernel, dim3 block_size, dim3 elements_per_block, uint32_t shared_memory = 0) :
+    GPUKernel(F kernel, dim3 block_size, dim3 elements_per_block, uint32_t shared_memory = 0) :
         kernel(kernel),
         block_size(block_size),
         elements_per_block(elements_per_block),
