@@ -3,7 +3,7 @@
 
 __global__ void initialize_range(
     kmm::NDRange chunk,
-    kmm::cuda_subview_mut<float> output
+    kmm::gpu_subview_mut<float> output
 ) {
     int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
     if (i >= chunk.end()) {
@@ -16,7 +16,7 @@ __global__ void initialize_range(
 __global__ void fill_range(
     kmm::NDRange chunk,
     float value,
-    kmm::cuda_subview_mut<float> output
+    kmm::gpu_subview_mut<float> output
 ) {
     int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
     if (i >= chunk.end()) {
@@ -28,9 +28,9 @@ __global__ void fill_range(
 
 __global__ void vector_add(
     kmm::NDRange range,
-    kmm::cuda_subview_mut<float> output,
-    kmm::cuda_subview<float> left,
-    kmm::cuda_subview<float> right
+    kmm::gpu_subview_mut<float> output,
+    kmm::gpu_subview<float> left,
+    kmm::gpu_subview<float> right
 ) {
     int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + range.begin();
     if (i >= range.end()) {

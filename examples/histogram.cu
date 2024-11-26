@@ -33,8 +33,8 @@ __global__ void calculate_histogram(
     kmm::NDRange subrange,
     int width,
     int height,
-    kmm::cuda_subview<uint8_t, 3> images,
-    kmm::cuda_subview_mut<int, 2> histogram
+    kmm::gpu_subview<uint8_t, 3> images,
+    kmm::gpu_subview_mut<int, 2> histogram
 ) {
     int image_id = blockIdx.z * blockDim.z + threadIdx.z + subrange.begin.z;
     int i = blockIdx.y * blockDim.y + threadIdx.y;

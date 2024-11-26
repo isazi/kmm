@@ -18,9 +18,9 @@ void matrix_multiply(
     int n,
     int m,
     int k,
-    kmm::cuda_subview_mut<float, 2> C,
-    kmm::cuda_subview<float, 2> A,
-    kmm::cuda_subview<float, 2> B
+    kmm::gpu_subview_mut<float, 2> C,
+    kmm::gpu_subview<float, 2> A,
+    kmm::gpu_subview<float, 2> B
 ) {
     using kmm::checked_cast;
 
@@ -31,7 +31,7 @@ void matrix_multiply(
     const float* B_ptr = B.data_at({region.begin.z, region.begin.y});
     float* C_ptr = C.data_at({region.begin.x, region.begin.y});
 
-    KMM_CUDA_CHECK(cublasGemmEx(
+    KMM_GPU_CHECK(cublasGemmEx(
         device.cublas(),
         CUBLAS_OP_T,
         CUBLAS_OP_T,
