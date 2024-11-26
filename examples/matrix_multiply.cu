@@ -32,7 +32,7 @@ void matrix_multiply(
     float* C_ptr = C.data_at({region.begin.x, region.begin.y});
 
     KMM_GPU_CHECK(cublasGemmEx(
-        device.cublas(),
+        device.blas(),
         CUBLAS_OP_T,
         CUBLAS_OP_T,
         checked_cast<int>(region.sizes().x),
