@@ -1,6 +1,7 @@
 #pragma once
 
 #include <limits>
+#include <stdexcept>
 
 namespace kmm {
 
@@ -86,7 +87,7 @@ static T round_up_to_power_of_two(T input) {
 
     // What to do with overflows?
     if (input == std::numeric_limits<T>::max()) {
-        return std::numeric_limits<T>::max();
+        throw std::overflow_error("overflow in 'round_up_to_power_of_two'");
     }
 
     input += static_cast<T>(1);

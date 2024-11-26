@@ -42,13 +42,13 @@ TEST(IntegerFuns, round_up_to_power_of_two) {
     ASSERT_EQ(round_up_to_power_of_two(uint32_t(5)), 8);
     ASSERT_EQ(round_up_to_power_of_two(uint32_t(1024)), 1024);
     ASSERT_EQ(round_up_to_power_of_two(uint32_t(10000)), 16384);
-    ASSERT_EQ(round_up_to_power_of_two(std::numeric_limits<uint32_t>::max()), 0);
+    ASSERT_ANY_THROW(round_up_to_power_of_two(std::numeric_limits<uint32_t>::max()));
 
     ASSERT_EQ(round_up_to_power_of_two(uint64_t(0)), 1);
     ASSERT_EQ(round_up_to_power_of_two(uint64_t(5)), 8);
     ASSERT_EQ(round_up_to_power_of_two(uint64_t(1024)), 1024);
     ASSERT_EQ(round_up_to_power_of_two(uint64_t(10000)), 16384);
-    ASSERT_EQ(round_up_to_power_of_two(std::numeric_limits<uint64_t>::max()), 0);
+    ASSERT_ANY_THROW(round_up_to_power_of_two(std::numeric_limits<uint64_t>::max()));
 
     ASSERT_EQ(round_up_to_power_of_two(int32_t(0)), 1);
     ASSERT_EQ(round_up_to_power_of_two(int32_t(5)), 8);
@@ -58,7 +58,7 @@ TEST(IntegerFuns, round_up_to_power_of_two) {
     ASSERT_EQ(round_up_to_power_of_two(int32_t(10000)), 16384);
     ASSERT_EQ(round_up_to_power_of_two(int32_t(-10000)), 1);
     ASSERT_EQ(round_up_to_power_of_two(std::numeric_limits<int32_t>::min()), 1);
-    ASSERT_EQ(round_up_to_power_of_two(std::numeric_limits<int32_t>::max()), 0);
+    ASSERT_ANY_THROW(round_up_to_power_of_two(std::numeric_limits<int32_t>::max()));
 
     ASSERT_EQ(round_up_to_power_of_two(int64_t(0)), 1);
     ASSERT_EQ(round_up_to_power_of_two(int64_t(5)), 8);
@@ -68,7 +68,7 @@ TEST(IntegerFuns, round_up_to_power_of_two) {
     ASSERT_EQ(round_up_to_power_of_two(int64_t(10000)), 16384);
     ASSERT_EQ(round_up_to_power_of_two(int64_t(-10000)), 1);
     ASSERT_EQ(round_up_to_power_of_two(std::numeric_limits<int64_t>::min()), 1);
-    ASSERT_EQ(round_up_to_power_of_two(std::numeric_limits<int64_t>::max()), 0);
+    ASSERT_ANY_THROW(round_up_to_power_of_two(std::numeric_limits<int64_t>::max()));
 }
 
 TEST(IntegerFuns, div_ceil_and_div_floor) {
