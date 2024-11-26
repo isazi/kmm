@@ -5,10 +5,10 @@
 
 __global__ void cn_pnpoly(
     kmm::NDRange chunk,
-    kmm::cuda_subview_mut<int> bitmap,
-    kmm::cuda_subview<float2> points,
+    kmm::gpu_subview_mut<int> bitmap,
+    kmm::gpu_subview<float2> points,
     int nvertices,
-    kmm::cuda_view<float2> vertices
+    kmm::gpu_view<float2> vertices
 ) {
     int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
 
