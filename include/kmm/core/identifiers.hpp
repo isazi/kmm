@@ -193,7 +193,7 @@ class ProcessorId {
 };
 
 struct BufferId {
-    explicit constexpr BufferId(uint64_t v = ~0) : m_value(v) {}
+    explicit constexpr BufferId(uint64_t v = ~uint64_t(0)) : m_value(v) {}
 
     constexpr uint64_t get() const {
         return m_value;

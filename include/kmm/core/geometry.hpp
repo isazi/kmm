@@ -40,7 +40,7 @@ class Point: public fixed_array<T, N> {
         Point result;
 
         for (size_t i = 0; i < N && is_less(i, M); i++) {
-            result[i] = that[i];
+            result[i] = static_cast<T>(that[i]);
         }
 
         return result;

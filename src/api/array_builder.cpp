@@ -5,7 +5,7 @@ namespace kmm {
 
 template<size_t N>
 size_t ArrayBuilder<N>::add_chunk(TaskBuilder& builder, Range<N> access_region) {
-    auto num_elements = access_region.size();
+    auto num_elements = checked_cast<size_t>(access_region.size());
     auto buffer_id = builder.graph.create_buffer(m_element_layout.repeat(num_elements));
 
     m_chunks.push_back(ArrayChunk<N> {

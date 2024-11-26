@@ -160,16 +160,16 @@ using blasStatus_t = rocblas_status;
 
     #define KMM_HOST_DEVICE_NOINLINE
     #define KMM_DEVICE_NOINLINE
-    #define GPU_DEVICE_ATTRIBUTE_MAX                      1
-    #define GPU_MEMHOSTALLOC_PORTABLE                     0
-    #define GPU_MEMHOSTALLOC_DEVICEMAP                    0
-    #define GPU_SUCCESS                                   0
-    #define GPU_ERROR_OUT_OF_MEMORY                       0
-    #define GPU_ERROR_UNKNOWN                             0
-    #define GPU_ERROR_NOT_READY                           0
-    #define GPU_EVENT_DISABLE_TIMING                      2
-    #define GPU_ERROR_NO_DEVICE                           100
-    #define GPU_CTX_MAP_HOST                              0x08
+    #define GPU_DEVICE_ATTRIBUTE_MAX   1
+    #define GPU_MEMHOSTALLOC_PORTABLE  0
+    #define GPU_MEMHOSTALLOC_DEVICEMAP 0
+    #define GPU_SUCCESS                0
+    #define GPU_ERROR_OUT_OF_MEMORY    0
+    #define GPU_ERROR_UNKNOWN          0
+    #define GPU_ERROR_NOT_READY        0
+    #define GPU_EVENT_DISABLE_TIMING   2
+    #define GPU_ERROR_NO_DEVICE        100
+    #define GPU_CTX_MAP_HOST           0x08
 
 using half_type = unsigned char;
 using bfloat16_type = char;
@@ -225,9 +225,10 @@ struct GPU_MEMCPY2D {
 };
 enum GPUresult {};
 enum gpuError_t {};
-enum GPUdevice_attribute {};
-enum GPUstream_flags {};
-enum GPUevent_wait_flags {};
+using GPUdevice_attribute = int;
+using GPUstream_flags = int;
+using GPUevent_wait_flags = int;
+
     #define GPU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK    GPUdevice_attribute(1)
     #define GPU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X          GPUdevice_attribute(2)
     #define GPU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y          GPUdevice_attribute(3)
@@ -239,6 +240,7 @@ enum GPUevent_wait_flags {};
     #define GPU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR GPUdevice_attribute(76)
     #define GPU_STREAM_NON_BLOCKING                       GPUstream_flags(1)
     #define GPU_EVENT_WAIT_DEFAULT                        GPUevent_wait_flags(0)
+
 enum GPUpointer_attribute {};
     #define GPU_POINTER_ATTRIBUTE_MEMORY_TYPE             GPUpointer_attribute(2)
     #define GPU_POINTER_ATTRIBUTE_DEVICE_ORDINAL          GPUpointer_attribute(9)

@@ -92,7 +92,10 @@ bool BlockAllocator::allocate_async(size_t nbytes, void** addr_out, DeviceEventS
         auto new_block = std::make_unique<Block>(base_addr, block_size, std::move(deps));
         region = new_block->head.get();
 
-        m_blocks.insert(m_blocks.begin() + m_active_block, std::move(new_block));
+        m_blocks.insert(
+            m_blocks.begin() + static_cast<ptrdiff_t>(m_active_block),
+            std::move(new_block)
+        );
     }
 
     auto* block = region->parent;

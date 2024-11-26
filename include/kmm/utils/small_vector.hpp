@@ -137,7 +137,7 @@ struct small_vector {
 
     template<typename U>
     void insert_all(const U* begin, const U* end) {
-        size_t n = end - begin;
+        size_t n = static_cast<size_t>(end - begin);
 
         if (m_capacity - m_size < n) {
             grow_capacity(n);

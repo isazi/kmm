@@ -77,7 +77,8 @@ struct ReductionFunctor<T, ReductionOp::BitOr, std::enable_if_t<std::is_integral
 template<typename T>
 struct ReductionFunctor<T, ReductionOp::BitAnd, std::enable_if_t<std::is_integral_v<T>>> {
     static KMM_HOST_DEVICE T identity() {
-        return ~T(0);
+        // Note: we need the static cast here since decltype(~(short)0) == int
+        return static_cast<T>(~T(0));
     }
 
     static KMM_HOST_DEVICE T combine(T a, T b) {

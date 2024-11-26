@@ -9,7 +9,8 @@ class TaskGraph;
 struct ReductionInput;
 
 template<size_t N>
-struct ArrayBuilder {
+class ArrayBuilder {
+  public:
     ArrayBuilder(Dim<N> sizes, BufferLayout element_layout) :
         m_sizes(sizes),
         m_element_layout(element_layout) {}
@@ -17,13 +18,15 @@ struct ArrayBuilder {
     size_t add_chunk(TaskBuilder& builder, Range<N> access_region);
     std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
 
+  private:
     Dim<N> m_sizes;
     BufferLayout m_element_layout;
     std::vector<ArrayChunk<N>> m_chunks;
 };
 
 template<size_t N>
-struct ArrayReductionBuilder {
+class ArrayReductionBuilder {
+  public:
     ArrayReductionBuilder(Dim<N> sizes, DataType data_type, ReductionOp operation) :
         m_sizes(sizes),
         m_dtype(data_type),
@@ -32,6 +35,7 @@ struct ArrayReductionBuilder {
     size_t add_chunk(TaskBuilder& builder, Range<N> access_region, size_t replication_factor = 1);
     std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
 
+  private:
     Dim<N> m_sizes;
     DataType m_dtype;
     ReductionOp m_reduction;
