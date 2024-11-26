@@ -1,6 +1,6 @@
 #pragma once
 
-#include <iostream>
+#include <ostream>
 
 #define KMM_PANIC(...)                                           \
     do {                                                         \

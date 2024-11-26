@@ -622,7 +622,7 @@ KMM_POINT_OPERATOR_IMPL(/);
 
 }  // namespace kmm
 
-#include <iostream>
+#include <iosfwd>
 
 namespace kmm {
 

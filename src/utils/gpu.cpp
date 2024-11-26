@@ -14,11 +14,7 @@ void gpu_throw_exception(gpuError_t result, const char* file, int line, const ch
     throw GPURuntimeException(fmt::format("{} ({}:{})", expression, file, line), result);
 }
 
-void gpu_throw_exception(
-    blasStatus_t result,
-    const char* file,
-    int line,
-    const char* expression) {
+void gpu_throw_exception(blasStatus_t result, const char* file, int line, const char* expression) {
     throw BlasException(fmt::format("{} ({}:{})", expression, file, line), result);
 }
 
@@ -46,8 +42,7 @@ GPURuntimeException::GPURuntimeException(const std::string& message, gpuError_t 
     m_message = fmt::format("GPU runtime error: {} ({}): {}", description, name, message);
 }
 
-BlasException::BlasException(const std::string& message, blasStatus_t result) :
-    status(result) {
+BlasException::BlasException(const std::string& message, blasStatus_t result) : status(result) {
     const char* name = blasGetStatusName(result);
     const char* description = blasGetStatusString(result);
 
@@ -89,14 +84,18 @@ std::vector<GPUdevice> get_gpu_devices() {
 std::optional<GPUdevice> get_gpu_device_by_address(const void* address) {
     int ordinal;
     GPUmemorytype memory_type;
-    GPUresult result =
-        gpuPointerGetAttribute(&memory_type, GPU_POINTER_ATTRIBUTE_MEMORY_TYPE, GPUdeviceptr(address));
+    GPUresult result = gpuPointerGetAttribute(
+        &memory_type,
+        GPU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+        GPUdeviceptr(address)
+    );
 
     if (result == GPU_SUCCESS && memory_type == GPU_MEMORYTYPE_DEVICE) {
         result = gpuPointerGetAttribute(
             &ordinal,
             GPU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
-            GPUdeviceptr(address));
+            GPUdeviceptr(address)
+        );
 
         if (result == GPU_SUCCESS) {
             return GPUdevice {ordinal};

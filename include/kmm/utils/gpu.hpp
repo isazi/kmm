@@ -9,22 +9,18 @@
 #include "kmm/utils/macros.hpp"
 
 #define KMM_GPU_CHECK(...)                                                        \
-    do {                                                                           \
-        auto __code = (__VA_ARGS__);                                               \
-        if (__code != decltype(__code)(0)) {                                       \
+    do {                                                                          \
+        auto __code = (__VA_ARGS__);                                              \
+        if (__code != decltype(__code)(0)) {                                      \
             ::kmm::gpu_throw_exception(__code, __FILE__, __LINE__, #__VA_ARGS__); \
-        }                                                                          \
+        }                                                                         \
     } while (0);
 
 namespace kmm {
 
 void gpu_throw_exception(GPUresult result, const char* file, int line, const char* expression);
 void gpu_throw_exception(gpuError_t result, const char* file, int line, const char* expression);
-void gpu_throw_exception(
-    blasStatus_t result,
-    const char* file,
-    int line,
-    const char* expression);
+void gpu_throw_exception(blasStatus_t result, const char* file, int line, const char* expression);
 
 class GPUException: public std::exception {
   public:

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <deque>
+#include <memory>
+
 #include "kmm/internals/device_stream_manager.hpp"
 #include "kmm/utils/macros.hpp"
 

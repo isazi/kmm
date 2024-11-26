@@ -1,5 +1,5 @@
-#include "kmm/utils/macros.hpp"
 #include "kmm/internals/backends.hpp"
+#include "kmm/utils/macros.hpp"
 
 namespace kmm {
 

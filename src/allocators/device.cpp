@@ -57,8 +57,6 @@ void DeviceMemoryAllocator::deallocate(void* addr, size_t nbytes) {
     KMM_GPU_CHECK(gpuMemFree(GPUdeviceptr(addr)));
 }
 
-
-
 DevicePoolAllocator::DevicePoolAllocator(
     GPUContextHandle context,
     std::shared_ptr<DeviceStreamManager> streams,

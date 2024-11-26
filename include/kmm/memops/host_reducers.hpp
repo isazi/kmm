@@ -9,7 +9,10 @@ template<typename T, ReductionOp Op, typename = void>
 struct ReductionFunctor;
 
 template<typename T>
-struct ReductionFunctor<T, ReductionOp::Sum, std::void_t<decltype(std::declval<T>() + std::declval<T>())>> {
+struct ReductionFunctor<
+    T,
+    ReductionOp::Sum,
+    std::void_t<decltype(std::declval<T>() + std::declval<T>())>> {
     static KMM_HOST_DEVICE T identity() {
         return T(0);
     }
@@ -20,7 +23,10 @@ struct ReductionFunctor<T, ReductionOp::Sum, std::void_t<decltype(std::declval<T
 };
 
 template<typename T>
-struct ReductionFunctor<T, ReductionOp::Product, std::void_t<decltype(std::declval<T>() * std::declval<T>())>> {
+struct ReductionFunctor<
+    T,
+    ReductionOp::Product,
+    std::void_t<decltype(std::declval<T>() * std::declval<T>())>> {
     static KMM_HOST_DEVICE T identity() {
         return T(1);
     }
@@ -130,4 +136,4 @@ template<typename T, ReductionOp Op>
 struct ReductionFunctorSupported<T, Op, std::void_t<decltype(ReductionFunctor<T, Op>())>>:
     std::true_type {};
 
-}
+}  // namespace kmm

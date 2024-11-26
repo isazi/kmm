@@ -1,6 +1,6 @@
 
-#include "kmm/internals/backends.hpp"
 #include "kmm/core/reduction.hpp"
+#include "kmm/internals/backends.hpp"
 
 namespace kmm {
 
@@ -100,7 +100,7 @@ GPUresult gpuMemFreeAsync(GPUdeviceptr, stream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuCtxGetStreamPriorityRange(int* , int*) {
+GPUresult gpuCtxGetStreamPriorityRange(int*, int*) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -124,11 +124,11 @@ GPUresult gpuEventSynchronize(event_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuEventRecord(event_t , stream_t) {
+GPUresult gpuEventRecord(event_t, stream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuStreamWaitEvent(stream_t , event_t , unsigned int) {
+GPUresult gpuStreamWaitEvent(stream_t, event_t, unsigned int) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -140,7 +140,7 @@ GPUresult gpuEventDestroy(event_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuEventCreate(event_t , unsigned int) {
+GPUresult gpuEventCreate(event_t, unsigned int) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -188,7 +188,7 @@ gpuError_t gpuGetLastError(void) {
     return gpuError_t(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuInit (unsigned int) {
+GPUresult gpuInit(unsigned int) {
     return GPUresult(GPU_ERROR_NO_DEVICE);
 }
 
@@ -235,7 +235,7 @@ GPUresult gpuMemPoolTrimTo(GPUmemoryPool, size_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuDeviceGetDefaultMemPool (GPUmemoryPool*, GPUdevice) {
+GPUresult gpuDeviceGetDefaultMemPool(GPUmemoryPool*, GPUdevice) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -259,15 +259,25 @@ const char* blasGetStatusString(blasStatus_t) {
     return "";
 }
 
-void execute_gpu_fill_async(stream_t stream, GPUdeviceptr dst_buffer, size_t nbytes, const void* pattern, size_t pattern_nbytes) {
+void execute_gpu_fill_async(
+    stream_t stream,
+    GPUdeviceptr dst_buffer,
+    size_t nbytes,
+    const void* pattern,
+    size_t pattern_nbytes
+) {
     return;
 }
 
-void execute_gpu_reduction_async(stream_t stream, GPUdeviceptr src_buffer, GPUdeviceptr dst_buffer, ReductionDef reduction
+void execute_gpu_reduction_async(
+    stream_t stream,
+    GPUdeviceptr src_buffer,
+    GPUdeviceptr dst_buffer,
+    ReductionDef reduction
 ) {
     return;
 }
 
 #endif
 
-} // kmm
+}  // namespace kmm

@@ -1,5 +1,5 @@
-#include "kmm/internals/backends.hpp"
 #include "kmm/core/copy_def.hpp"
+#include "kmm/internals/backends.hpp"
 
 namespace kmm {
 

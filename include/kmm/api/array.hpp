@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <stdexcept>
+#include <typeinfo>
 #include <vector>
 
 #include "spdlog/spdlog.h"

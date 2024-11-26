@@ -1,7 +1,7 @@
 #pragma once
 
-#include "kmm/internals/backends.hpp"
 #include "kmm/core/reduction.hpp"
+#include "kmm/internals/backends.hpp"
 
 namespace kmm {
 

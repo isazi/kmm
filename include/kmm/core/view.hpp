@@ -475,7 +475,7 @@ template<typename D, typename D2>
 struct convert<right_to_left<D>, right_to_left<D2>> {
     KMM_HOST_DEVICE
     static right_to_left<D2> call(const right_to_left<D>& from) {
-        return right_to_left<D2>{domains::convert<D, D2>::call(from.domain())};
+        return right_to_left<D2> {domains::convert<D, D2>::call(from.domain())};
     }
 };
 
@@ -491,7 +491,7 @@ template<typename D, typename D2>
 struct convert<left_to_right<D>, left_to_right<D2>> {
     KMM_HOST_DEVICE
     static left_to_right<D2> call(const left_to_right<D>& from) {
-        return left_to_right<D2>{domains::convert<D, D2>::call(from.domain())};
+        return left_to_right<D2> {domains::convert<D, D2>::call(from.domain())};
     }
 };
 

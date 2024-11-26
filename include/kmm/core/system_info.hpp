@@ -1,7 +1,10 @@
 #pragma once
 
-#include "identifiers.hpp"
+#include <array>
+#include <string>
+#include <vector>
 
+#include "kmm/core/identifiers.hpp"
 #include "kmm/utils/gpu.hpp"
 
 namespace kmm {

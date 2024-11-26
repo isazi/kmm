@@ -1,7 +1,7 @@
 #pragma once
 
-#include "kmm/memops/host_reducers.hpp"
 #include "kmm/core/reduction.hpp"
+#include "kmm/memops/host_reducers.hpp"
 
 namespace kmm {
 
@@ -67,9 +67,9 @@ struct GPUReductionFunctor<
     }
 };
 
-#define GPU_REDUCTION_IMPL(T, OP, EXPR)                            \
+#define GPU_REDUCTION_IMPL(T, OP, EXPR)                             \
     template<>                                                      \
-    struct GPUReductionFunctor<T, OP>: ReductionFunctor<T, OP> {   \
+    struct GPUReductionFunctor<T, OP>: ReductionFunctor<T, OP> {    \
         static KMM_DEVICE void atomic_combine(T* output, T input) { \
             EXPR(output, input);                                    \
         }                                                           \

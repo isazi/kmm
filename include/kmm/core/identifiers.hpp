@@ -1,5 +1,6 @@
 #pragma once
-#include <iostream>
+
+#include <iosfwd>
 #include <utility>
 
 #include "fmt/ostream.h"
