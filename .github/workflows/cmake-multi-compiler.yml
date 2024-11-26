@@ -52,4 +52,4 @@ jobs:
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: ./kmmTest
+      run: ./test/kmmTest
