@@ -3,6 +3,8 @@
 
 namespace kmm {
 
+#if !defined(KMM_USE_CUDA) && !defined(KMM_USE_HIP)
+
 dim3::dim3(int x) {
     this->x = x;
     this->y = 1;
@@ -255,5 +257,7 @@ const char* blasGetStatusName(blasStatus_t) {
 const char* blasGetStatusString(blasStatus_t) {
     return "";
 }
+
+#endif
 
 } // kmm
