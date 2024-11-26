@@ -15,7 +15,7 @@ TEST(Geometry, Point_basics) {
     ASSERT_EQ(z, Point(42, 42, 42));
 
     auto a = Point<3, float>::from(Point<3, int>{4, 5, 6});
-    ASSERT_EQ(a, (Point<3, float>(4.0f, 5.0f, 6.0f)));
+    ASSERT_EQ(a, (Point<3, float>(4.0F, 5.0F, 6.0F)));
 
     Point<3> zero = Point<3>::zero();
     ASSERT_EQ(zero, Point(0, 0, 0));
@@ -49,9 +49,9 @@ TEST(Geometry, dim_basics) {
     ASSERT_EQ(z.volume(), 0);
 
     auto a = Dim<3, float>::from(Dim<3, int>{4, 5, 6});
-    ASSERT_EQ(a, (Dim<3, float>(4.0f, 5.0f, 6.0f)));
+    ASSERT_EQ(a, (Dim<3, float>(4.0F, 5.0F, 6.0F)));
     ASSERT_EQ(a.is_empty(), false);
-    ASSERT_EQ(a.volume(), 120.0f);
+    ASSERT_EQ(a.volume(), 120.0F);
 
     Dim<3> zero = Dim<3>::zero();
     ASSERT_EQ(zero, Dim(0, 0, 0));
