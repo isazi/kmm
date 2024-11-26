@@ -14,7 +14,7 @@ TaskPartition TaskPartitioner::operator()(
 
     if (space == ExecutionSpace::Host) {
         devices.push_back(ProcessorId::host());
-    } else if (space == ExecutionSpace::Cuda) {
+    } else if (space == ExecutionSpace::Device) {
         for (size_t i = 0; i < info.num_devices(); i++) {
             devices.push_back(DeviceId(i));
         }

@@ -11,14 +11,14 @@
 
 namespace kmm {
 
-class BufferGuard;
+struct BufferGuard;
 
 class Worker: public std::enable_shared_from_this<Worker> {
     KMM_NOT_COPYABLE_OR_MOVABLE(Worker)
 
   public:
     Worker(
-        std::vector<CudaContextHandle> contexts,
+        std::vector<GPUContextHandle> contexts,
         std::shared_ptr<DeviceStreamManager> stream_manager,
         std::shared_ptr<MemorySystem> memory_system
     );

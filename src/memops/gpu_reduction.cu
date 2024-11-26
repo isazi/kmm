@@ -1,17 +1,17 @@
 #include <float.h>
 
-#include "cuda_reducers.cuh"
-
-#include "kmm/memops/cuda_fill.hpp"
-#include "kmm/memops/cuda_reduction.hpp"
+#include "kmm/memops/gpu_fill.hpp"
+#include "kmm/memops/gpu_reduction.hpp"
+#include "kmm/memops/gpu_reducers.hpp"
 #include "kmm/utils/checked_math.hpp"
-#include "kmm/utils/cuda.hpp"
+#include "kmm/utils/gpu.hpp"
 #include "kmm/utils/integer_fun.hpp"
 
 namespace kmm {
 
 static constexpr size_t total_block_size = 256;
 
+#ifdef KMM_USE_DEVICE
 template<typename T, ReductionOp Op, bool UseAtomics = true>
 __global__ void reduction_kernel(
     const T* src_buffer,
@@ -51,18 +51,19 @@ __global__ void reduction_kernel(
         }
 
         if constexpr (UseAtomics) {
-            CudaReductionFunctor<T, Op>::atomic_combine(&dst_buffer[global_x], local_result);
+            GPUReductionFunctor<T, Op>::atomic_combine(&dst_buffer[global_x], local_result);
         } else {
             dst_buffer[global_x] = local_result;
         }
     }
 }
+#endif
 
 template<typename T, ReductionOp Op>
 void execute_reduction_for_type_and_op(
-    CUstream stream,
-    CUdeviceptr src_buffer,
-    CUdeviceptr dst_buffer,
+    stream_t stream,
+    GPUdeviceptr src_buffer,
+    GPUdeviceptr dst_buffer,
     size_t num_outputs,
     size_t num_partials_per_output
 ) {
@@ -114,6 +115,7 @@ void execute_reduction_for_type_and_op(
 
     if (grid_size.y == 1) {
         if constexpr (ReductionFunctorSupported<T, Op>()) {
+#ifdef KMM_USE_DEVICE
             reduction_kernel<T, Op, false><<<grid_size, block_size, 0, stream>>>(
                 reinterpret_cast<const T*>(src_buffer),
                 reinterpret_cast<T*>(dst_buffer),
@@ -121,16 +123,18 @@ void execute_reduction_for_type_and_op(
                 num_partials_per_output,
                 items_per_thread
             );
+#endif
 
-            KMM_CUDA_CHECK(cudaGetLastError());
+            KMM_GPU_CHECK(gpuGetLastError());
             return;
         }
     }
 
     if constexpr (CudaReductionFunctorSupported<T, Op>()) {
         T identity = ReductionFunctor<T, Op>::identity();
-        execute_cuda_fill_async(stream, dst_buffer, num_outputs * sizeof(T), &identity, sizeof(T));
+        execute_gpu_fill_async(stream, dst_buffer, num_outputs * sizeof(T), &identity, sizeof(T));
 
+#ifdef KMM_USE_DEVICE
         reduction_kernel<T, Op><<<grid_size, block_size, 0, stream>>>(
             reinterpret_cast<const T*>(src_buffer),
             reinterpret_cast<T*>(dst_buffer),
@@ -138,8 +142,9 @@ void execute_reduction_for_type_and_op(
             num_partials_per_output,
             items_per_thread
         );
+#endif
 
-        KMM_CUDA_CHECK(cudaGetLastError());
+        KMM_GPU_CHECK(gpuGetLastError());
         return;
     }
 
@@ -156,10 +161,10 @@ void execute_reduction_for_type_and_op(
 
 template<typename T>
 void execute_reduction_for_type(
-    CUstream stream,
+    stream_t stream,
     ReductionOp operation,
-    CUdeviceptr src_buffer,
-    CUdeviceptr dst_buffer,
+    GPUdeviceptr src_buffer,
+    GPUdeviceptr dst_buffer,
     size_t num_outputs,
     size_t num_partials_per_output
 ) {
@@ -198,10 +203,10 @@ void execute_reduction_for_type(
     }
 }
 
-void execute_cuda_reduction_async(
-    CUstream stream,
-    CUdeviceptr src_buffer,
-    CUdeviceptr dst_buffer,
+void execute_gpu_reduction_async(
+    stream_t stream,
+    GPUdeviceptr src_buffer,
+    GPUdeviceptr dst_buffer,
     ReductionDef reduction
 ) {
     auto element_size = reduction.data_type.size_in_bytes();

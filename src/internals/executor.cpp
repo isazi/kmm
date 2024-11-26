@@ -1,6 +1,6 @@
 #include "kmm/internals/executor.hpp"
-#include "kmm/memops/cuda_copy.hpp"
-#include "kmm/memops/cuda_reduction.hpp"
+#include "kmm/memops/gpu_copy.hpp"
+#include "kmm/memops/gpu_reduction.hpp"
 #include "kmm/memops/host_copy.hpp"
 #include "kmm/memops/host_reduction.hpp"
 
@@ -107,7 +107,7 @@ class DeviceJob: public Executor::Job {
             executor.stream_manager().wait_for_events(state.stream, m_dependencies);
 
             {
-                CudaContextGuard guard {state.context};
+                GPUContextGuard guard {state.context};
                 submit(state.device, executor.access_requests(m_requests));
             }
 
@@ -273,10 +273,10 @@ class CopyDeviceJob: public DeviceJob {
         KMM_ASSERT(accessors[1].layout.size_in_bytes >= m_copy.minimum_destination_bytes_needed());
         KMM_ASSERT(accessors[1].is_writable);
 
-        execute_cuda_d2d_copy_async(
+        execute_gpu_d2d_copy_async(
             device,
-            reinterpret_cast<CUdeviceptr>(accessors[0].address),
-            reinterpret_cast<CUdeviceptr>(accessors[1].address),
+            reinterpret_cast<GPUdeviceptr>(accessors[0].address),
+            reinterpret_cast<GPUdeviceptr>(accessors[1].address),
             m_copy
         );
     }
@@ -305,10 +305,10 @@ class ReductionDeviceJob: public DeviceJob {
         m_definition(std::move(definition)) {}
 
     void submit(DeviceContext& device, std::vector<BufferAccessor> accessors) {
-        execute_cuda_reduction_async(
+        execute_gpu_reduction_async(
             device,
-            reinterpret_cast<CUdeviceptr>(accessors[0].address),
-            reinterpret_cast<CUdeviceptr>(accessors[1].address),
+            reinterpret_cast<GPUdeviceptr>(accessors[0].address),
+            reinterpret_cast<GPUdeviceptr>(accessors[1].address),
             m_definition
         );
     }
@@ -358,7 +358,7 @@ class PrefetchJob: public Executor::Job {
 };
 
 Executor::Executor(
-    std::vector<CudaContextHandle> contexts,
+    std::vector<GPUContextHandle> contexts,
     std::shared_ptr<DeviceStreamManager> stream_manager,
     std::shared_ptr<MemorySystem> memory_system
 ) :

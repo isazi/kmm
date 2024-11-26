@@ -1,14 +1,11 @@
 #pragma once
 
-#include <cublas_v2.h>
-#include <cuda.h>
-
 #include "system_info.hpp"
 #include "task.hpp"
 #include "view.hpp"
 
 #include "kmm/utils/checked_math.hpp"
-#include "kmm/utils/cuda.hpp"
+#include "kmm/utils/gpu.hpp"
 
 namespace kmm {
 
@@ -16,53 +13,53 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
     KMM_NOT_COPYABLE_OR_MOVABLE(DeviceContext);
 
   public:
-    DeviceContext(DeviceInfo info, CudaContextHandle context, CUstream stream);
+    DeviceContext(DeviceInfo info, GPUContextHandle context, stream_t stream);
     ~DeviceContext();
 
     /**
-     * Returns a handle to the CUDA context associated with this device.
+     * Returns a handle to the context associated with this device.
      */
-    CudaContextHandle context_handle() const {
+    GPUContextHandle context_handle() const {
         return m_context;
     }
 
     /**
-     * Returns a handle to the CUDA context associated with this device.
+     * Returns a handle to the context associated with this device.
      */
-    CUcontext context() const {
+    GPUcontext context() const {
         return m_context;
     }
 
     /**
-     * Returns a handle to the CUDA stream associated with this device.
+     * Returns a handle to the stream associated with this device.
      */
-    CUstream stream() const {
+    stream_t stream() const {
         return m_stream;
     }
 
     /**
      * Shorthand for `stream()`.
      */
-    operator CUstream() const {
+    operator stream_t() const {
         return m_stream;
     }
 
     /**
-     * Returns a handle to the cuBLAS instance associated with this device.
+     * Returns a handle to the BLAS instance associated with this device.
      */
-    cublasHandle_t cublas() const {
-        return m_cublas_handle;
+    blasHandle_t blas() const {
+        return m_blas_handle;
     }
 
     /**
      * Block the current thread until all work submitted onto the stream of this device has
-     * finished. Note that the CUDA executor thread will also synchronize the stream automatically
+     * finished. Note that the executor thread will also synchronize the stream automatically
      * after each task, so calling thus function manually is not mandatory.
      */
     void synchronize() const;
 
     /**
-     * Launch the given CUDA kernel onto the stream of this device. The `kernel_function` argument
+     * Launch the given kernel onto the stream of this device. The `kernel_function` argument
      * should be a pointer to a `__global__` function.
      */
     template<typename... Args>
@@ -77,9 +74,9 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
         void* void_args[sizeof...(Args) + 1] = {static_cast<void*>(&args)..., nullptr};
 
         // Launch the kernel!
-        // NOTE: This must be in the header file since `cudaLaunchKernel` seems to no find the
+        // NOTE: This must be in the header file since `gpuLaunchKernel` seems to no find the
         // kernel function if it is called from within a C++ file.
-        KMM_CUDA_CHECK(cudaLaunchKernel(
+        KMM_GPU_CHECK(GPUrtLaunchKernel(
             reinterpret_cast<const void*>(kernel_function),
             grid_dim,
             block_dim,
@@ -119,7 +116,7 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
      * asynchronously on the stream of this device.
      */
     template<typename T, size_t N>
-    void fill(cuda_view_mut<T, N> dest, T value) const {
+    void fill(gpu_view_mut<T, N> dest, T value) const {
         fill_bytes(dest.data(), dest.size_in_bytes(), &value, sizeof(T));
     }
 
@@ -128,19 +125,19 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
      * asynchronously on the stream of the current device.
      */
     template<typename T, size_t N>
-    void copy(cuda_view<T, N> source, cuda_view_mut<T, N> dest) const {
+    void copy(gpu_view<T, N> source, gpu_view_mut<T, N> dest) const {
         KMM_ASSERT(source.sizes() == dest.sizes());
         copy_bytes(source.data(), dest.data(), source.size_in_bytes());
     }
 
     template<typename T, size_t N>
-    void copy(cuda_view<T, N> source, view_mut<T, N> dest) const {
+    void copy(gpu_view<T, N> source, view_mut<T, N> dest) const {
         KMM_ASSERT(source.sizes() == dest.sizes());
         copy_bytes(source.data(), dest.data(), source.size_in_bytes());
     }
 
     template<typename T, size_t N>
-    void copy(view<T, N> source, cuda_view_mut<T, N> dest) const {
+    void copy(view<T, N> source, gpu_view_mut<T, N> dest) const {
         KMM_ASSERT(source.sizes() == dest.sizes());
         copy_bytes(source.data(), dest.data(), source.size_in_bytes());
     }
@@ -177,9 +174,9 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
     void copy_bytes(const void* source_buffer, void* dest_buffer, size_t nbytes) const;
 
   private:
-    CudaContextHandle m_context;
-    CUstream m_stream;
-    cublasHandle_t m_cublas_handle;
+    GPUContextHandle m_context;
+    stream_t m_stream;
+    blasHandle_t m_blas_handle;
 };
 
 }  // namespace kmm

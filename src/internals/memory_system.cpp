@@ -3,7 +3,7 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/internals/memory_system.hpp"
-#include "kmm/memops/cuda_fill.hpp"
+#include "kmm/memops/gpu_fill.hpp"
 #include "kmm/memops/host_fill.hpp"
 
 namespace kmm {
@@ -12,7 +12,7 @@ struct MemorySystem::Device {
     KMM_NOT_COPYABLE(Device)
 
   public:
-    CudaContextHandle context;
+    GPUContextHandle context;
     std::unique_ptr<AsyncAllocator> allocator;
 
     DeviceStream h2d_stream;
@@ -21,7 +21,7 @@ struct MemorySystem::Device {
     DeviceStream d2h_hi_stream;  // high priority stream
 
     Device(
-        CudaContextHandle context,
+        GPUContextHandle context,
         std::unique_ptr<AsyncAllocator> allocator,
         DeviceStreamManager& streams
     ) :
@@ -35,7 +35,7 @@ struct MemorySystem::Device {
 
 MemorySystem::MemorySystem(
     std::shared_ptr<DeviceStreamManager> stream_manager,
-    std::vector<CudaContextHandle> device_contexts,
+    std::vector<GPUContextHandle> device_contexts,
     std::unique_ptr<AsyncAllocator> host_mem,
     std::vector<std::unique_ptr<AsyncAllocator>> device_mems
 ) :
@@ -97,7 +97,7 @@ void MemorySystem::trim_device(size_t bytes_remaining) {
 bool MemorySystem::allocate_device(
     DeviceId device_id,
     size_t nbytes,
-    CUdeviceptr* ptr_out,
+    GPUdeviceptr* ptr_out,
     DeviceEventSet* deps_out
 ) {
     KMM_ASSERT(m_devices[device_id]);
@@ -109,13 +109,13 @@ bool MemorySystem::allocate_device(
     }
 
     deps_out->remove_completed(*m_streams);
-    *ptr_out = (CUdeviceptr)addr;
+    *ptr_out = (GPUdeviceptr)addr;
     return true;
 }
 
 void MemorySystem::deallocate_device(
     DeviceId device_id,
-    CUdeviceptr ptr,
+    GPUdeviceptr ptr,
     size_t nbytes,
     DeviceEventSet deps
 ) {
@@ -145,7 +145,7 @@ static constexpr size_t HIGH_PRIORITY_THRESHOLD = 1024L * 1024;
 
 DeviceEvent MemorySystem::fill_device(
     DeviceId device_id,
-    CUdeviceptr dst_addr,
+    GPUdeviceptr dst_addr,
     size_t nbytes,
     const std::vector<uint8_t>& fill_pattern,
     DeviceEventSet deps
@@ -157,14 +157,14 @@ DeviceEvent MemorySystem::fill_device(
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.h2d_hi_stream : device.h2d_stream;
 
     return m_streams->with_stream(stream, deps, [&](auto stream) {
-        execute_cuda_fill_async(stream, dst_addr, nbytes, fill_pattern.data(), fill_pattern.size());
+        execute_gpu_fill_async(stream, dst_addr, nbytes, fill_pattern.data(), fill_pattern.size());
     });
 }
 
 DeviceEvent MemorySystem::copy_host_to_device(
     DeviceId device_id,
     const void* src_addr,
-    CUdeviceptr dst_addr,
+    GPUdeviceptr dst_addr,
     size_t nbytes,
     DeviceEventSet deps
 ) {
@@ -173,13 +173,13 @@ DeviceEvent MemorySystem::copy_host_to_device(
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.h2d_hi_stream : device.h2d_stream;
 
     return m_streams->with_stream(stream, deps, [&](auto stream) {
-        KMM_CUDA_CHECK(cuMemcpyHtoDAsync(dst_addr, src_addr, nbytes, stream));
+        KMM_GPU_CHECK(gpuMemcpyHtoDAsync(dst_addr, src_addr, nbytes, stream));
     });
 }
 
 DeviceEvent MemorySystem::copy_device_to_host(
     DeviceId device_id,
-    CUdeviceptr src_addr,
+    GPUdeviceptr src_addr,
     void* dst_addr,
     size_t nbytes,
     DeviceEventSet deps
@@ -189,7 +189,7 @@ DeviceEvent MemorySystem::copy_device_to_host(
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.d2h_hi_stream : device.d2h_stream;
 
     return m_streams->with_stream(stream, deps, [&](auto stream) {
-        KMM_CUDA_CHECK(cuMemcpyDtoHAsync(dst_addr, src_addr, nbytes, stream));
+        KMM_GPU_CHECK(gpuMemcpyDtoHAsync(dst_addr, src_addr, nbytes, stream));
     });
 }
 
