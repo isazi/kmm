@@ -2,23 +2,26 @@
 
 #include <cstddef>
 
-using std::size_t;
+#ifdef KMM_USE_CUDA
+#include <cuda.h>
+#include <cuda_runtime_api.h>
+#include <cuda_bf16.h>
+#include <cuda_fp16.h>
+#include <cublas_v2.h>
+#elif KMM_USE_HIP
+#include <hip_runtime_api.h>
+#endif
 
 namespace kmm {
 
 #ifdef KMM_USE_CUDA
 
+// CUDA backend
 #define KMM_USE_DEVICE 1
 #define KMM_HOST_DEVICE __host__ __device__ __forceinline__
 #define KMM_DEVICE      __device__ __forceinline__
 #define KMM_HOST_DEVICE_NOINLINE __host__ __device__
 #define KMM_DEVICE_NOINLINE      __device__
-
-// CUDA backend
-#include <cuda.h>
-#include <cuda_runtime_api.h>
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
 
 using half_type = __half;
 using bfloat16_type = __nv_bfloat16;
@@ -37,9 +40,9 @@ using bfloat16_type = __nv_bfloat16;
 #define GPU_MEMHOSTALLOC_DEVICEMAP CU_MEMHOSTALLOC_DEVICEMAP
 #define GPU_SUCCESS CUDA_SUCCESS
 #define GPU_ERROR_OUT_OF_MEMORY CUDA_ERROR_OUT_OF_MEMORY
-#define GPU_MEM_ALLOCATION_TYPE_PINNED CUmemAllocationType::CU_MEM_ALLOCATION_TYPE_PINNED
-#define GPU_MEM_HANDLE_TYPE_NONE CUmemAllocationHandleType::CU_MEM_HANDLE_TYPE_NONE
-#define GPU_MEM_LOCATION_TYPE_DEVICE CUmemLocationType::CU_MEM_LOCATION_TYPE_DEVICE
+#define GPU_MEM_ALLOCATION_TYPE_PINNED CU_MEM_ALLOCATION_TYPE_PINNED
+#define GPU_MEM_HANDLE_TYPE_NONE CU_MEM_HANDLE_TYPE_NONE
+#define GPU_MEM_LOCATION_TYPE_DEVICE CU_MEM_LOCATION_TYPE_DEVICE
 #define GPU_ERROR_UNKNOWN CUDA_ERROR_UNKNOWN
 #define GPU_STREAM_NON_BLOCKING CU_STREAM_NON_BLOCKING
 #define GPU_EVENT_WAIT_DEFAULT CU_EVENT_WAIT_DEFAULT
@@ -121,8 +124,6 @@ using event_t = CUevent;
 using GPU_MEMCPY2D = CUDA_MEMCPY2D;
 
 // cuBLAS
-#include <cublas_v2.h>
-
 #define blasCreate cublasCreate
 #define blasSetStream cublasSetStream
 #define blasDestroy cublasDestroy
@@ -134,12 +135,9 @@ using blasHandle_t = cublasHandle_t;
 
 #elif KMM_USE_HIP
 
-#define KMM_USE_DEVICE 1
-
 // HIP backend
 // Experimental draft, not working
-#include <hip_runtime_api.h>
-
+#define KMM_USE_DEVICE 1
 #define GPU_MEM_ALLOCATION_TYPE_PINNED hipMemAllocationType::hipMemAllocationTypePinned
 #define hipCtxGetDevice gpuCtxGetDevice
 
