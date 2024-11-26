@@ -6,19 +6,19 @@ namespace kmm {
 
 #if !defined(KMM_USE_CUDA) && !defined(KMM_USE_HIP)
 
-dim3::dim3(int x) {
+dim3::dim3(unsigned int x) {
     this->x = x;
     this->y = 1;
     this->z = 1;
 }
 
-dim3::dim3(int x, int y) {
+dim3::dim3(unsigned int x, unsigned int y) {
     this->x = x;
     this->y = y;
     this->z = 1;
 }
 
-dim3::dim3(int x, int y, int z) {
+dim3::dim3(unsigned int x, unsigned int y, unsigned int z) {
     this->x = x;
     this->y = y;
     this->z = z;

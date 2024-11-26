@@ -17,7 +17,6 @@ namespace kmm {
 #ifdef KMM_USE_CUDA
 
 // CUDA backend
-#define KMM_USE_DEVICE 1
 #define KMM_HOST_DEVICE __host__ __device__ __forceinline__
 #define KMM_DEVICE      __device__ __forceinline__
 #define KMM_HOST_DEVICE_NOINLINE __host__ __device__
@@ -138,7 +137,6 @@ using blasHandle_t = cublasHandle_t;
 
 // HIP backend
 // Experimental draft, not working
-#define KMM_USE_DEVICE 1
 #define GPU_MEM_ALLOCATION_TYPE_PINNED hipMemAllocationTypePinned
 #define hipCtxGetDevice gpuCtxGetDevice
 
@@ -178,12 +176,12 @@ using size_t = std::size_t;
 using GPUdevice = int;
 class dim3 {
 public:
-    dim3(int x);
-    dim3(int x, int y);
-    dim3(int x, int y, int z);
-    int x;
-    int y;
-    int z;
+    dim3(unsigned int x);
+    dim3(unsigned int x, unsigned int y);
+    dim3(unsigned int x, unsigned int y, unsigned int z);
+    unsigned int x;
+    unsigned int y;
+    unsigned int z;
 };
 enum GPUmemAllocationType {GPU_MEM_ALLOCATION_TYPE_PINNED = 1};
 enum GPUmemAllocationHandleType {GPU_MEM_HANDLE_TYPE_NONE = 0};

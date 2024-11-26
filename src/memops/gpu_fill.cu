@@ -8,7 +8,6 @@
 
 namespace kmm {
 
-#ifdef KMM_USE_DEVICE
 template<typename T, uint32_t block_size>
 __global__ void fill_kernel(size_t nelements, T* dest_buffer, T fill_value) {
     size_t i = blockIdx.x * size_t(block_size) + threadIdx.x;
@@ -18,7 +17,6 @@ __global__ void fill_kernel(size_t nelements, T* dest_buffer, T fill_value) {
         i += size_t(block_size) * gridDim.x;
     }
 }
-#endif
 
 template<typename T>
 void submit_fill_kernel(
@@ -37,10 +35,8 @@ void submit_fill_kernel(
         ? static_cast<uint32_t>(div_ceil(nelements, size_t(block_size)))
         : max_grid_size;
 
-#ifdef KMM_USE_DEVICE
     fill_kernel<T, block_size>
         <<<grid_size, block_size, 0, stream>>>(nelements, (T*)dest_buffer, fill_value);
-#endif
 }
 
 template<size_t N>

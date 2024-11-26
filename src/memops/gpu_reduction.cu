@@ -11,7 +11,6 @@ namespace kmm {
 
 static constexpr size_t total_block_size = 256;
 
-#ifdef KMM_USE_DEVICE
 template<typename T, ReductionOp Op, bool UseAtomics = true>
 __global__ void reduction_kernel(
     const T* src_buffer,
@@ -57,7 +56,6 @@ __global__ void reduction_kernel(
         }
     }
 }
-#endif
 
 template<typename T, ReductionOp Op>
 void execute_reduction_for_type_and_op(
@@ -115,7 +113,6 @@ void execute_reduction_for_type_and_op(
 
     if (grid_size.y == 1) {
         if constexpr (ReductionFunctorSupported<T, Op>()) {
-#ifdef KMM_USE_DEVICE
             reduction_kernel<T, Op, false><<<grid_size, block_size, 0, stream>>>(
                 reinterpret_cast<const T*>(src_buffer),
                 reinterpret_cast<T*>(dst_buffer),
@@ -123,7 +120,6 @@ void execute_reduction_for_type_and_op(
                 num_partials_per_output,
                 items_per_thread
             );
-#endif
 
             KMM_GPU_CHECK(gpuGetLastError());
             return;
@@ -134,7 +130,6 @@ void execute_reduction_for_type_and_op(
         T identity = ReductionFunctor<T, Op>::identity();
         execute_gpu_fill_async(stream, dst_buffer, num_outputs * sizeof(T), &identity, sizeof(T));
 
-#ifdef KMM_USE_DEVICE
         reduction_kernel<T, Op><<<grid_size, block_size, 0, stream>>>(
             reinterpret_cast<const T*>(src_buffer),
             reinterpret_cast<T*>(dst_buffer),
@@ -142,7 +137,6 @@ void execute_reduction_for_type_and_op(
             num_partials_per_output,
             items_per_thread
         );
-#endif
 
         KMM_GPU_CHECK(gpuGetLastError());
         return;
