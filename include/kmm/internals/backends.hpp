@@ -39,7 +39,7 @@ using bfloat16_type = __nv_bfloat16;
 #define GPU_ERROR_OUT_OF_MEMORY CUDA_ERROR_OUT_OF_MEMORY
 #define GPU_MEM_ALLOCATION_TYPE_PINNED CUmemAllocationType::CU_MEM_ALLOCATION_TYPE_PINNED
 #define GPU_MEM_HANDLE_TYPE_NONE CUmemAllocationHandleType::CU_MEM_HANDLE_TYPE_NONE
-#define GPU_MEM_LOCATION_TYPE_DEVICE GPUmemLocationType::CU_MEM_LOCATION_TYPE_DEVICE
+#define GPU_MEM_LOCATION_TYPE_DEVICE CUmemLocationType::CU_MEM_LOCATION_TYPE_DEVICE
 #define GPU_ERROR_UNKNOWN CUDA_ERROR_UNKNOWN
 #define GPU_STREAM_NON_BLOCKING CU_STREAM_NON_BLOCKING
 #define GPU_EVENT_WAIT_DEFAULT CU_EVENT_WAIT_DEFAULT
@@ -108,7 +108,6 @@ using GPUresult = CUresult;
 using gpuError_t = cudaError_t;
 using GPUdevice = CUdevice;
 using GPUdevice_attribute = CUdevice_attribute;
-using GPUContextHandle = CudaContextHandle;
 using GPUcontext = CUcontext;
 using GPUmemorytype = CUmemorytype;
 using stream_t = CUstream;
