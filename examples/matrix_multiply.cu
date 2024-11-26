@@ -90,7 +90,7 @@ int main() {
         rt.parallel_submit(
             {n, m, k},
             {chunk_size, chunk_size, chunk_size},
-            kmm::Cuda(matrix_multiply),
+            kmm::GPU(matrix_multiply),
             n,
             m,
             k,

@@ -66,7 +66,7 @@ int main() {
     rt.parallel_submit(
         {width, height},
         {chunk_width, chunk_height},
-        kmm::CudaKernel(initialize_matrix_kernel, {16, 16}),
+        kmm::GPUKernel(initialize_matrix_kernel, {16, 16}),
         write(matrix, access(_y, _x))
     );
 
@@ -79,7 +79,7 @@ int main() {
     rt.parallel_submit(
         {width, height},
         {chunk_width, chunk_height},
-        kmm::CudaKernel(sum_total_kernel, {16, 16}),
+        kmm::GPUKernel(sum_total_kernel, {16, 16}),
         read(matrix, access(_y, _x)),
         reduce(total_sum, kmm::ReductionOp::Sum, privatize(_y, _x))
     );
@@ -89,7 +89,7 @@ int main() {
     rt.parallel_submit(
         {width, height},
         {chunk_width, chunk_height},
-        kmm::CudaKernel(sum_rows_kernel, {16, 16}),
+        kmm::GPUKernel(sum_rows_kernel, {16, 16}),
         read(matrix, access(_y, _x)),
         reduce(rows_sum, kmm::ReductionOp::Sum, privatize(_y), access(_x))
     );
@@ -99,7 +99,7 @@ int main() {
     rt.parallel_submit(
         {width, height},
         {chunk_width, chunk_height},
-        kmm::CudaKernel(sum_cols_kernel, {16, 16}),
+        kmm::GPUKernel(sum_cols_kernel, {16, 16}),
         read(matrix, access(_y, _x)),
         reduce(cols_sum, kmm::ReductionOp::Sum, privatize(_x), access(_y))
     );

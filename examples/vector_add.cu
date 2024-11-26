@@ -56,14 +56,14 @@ int main() {
     rt.parallel_submit(
         {n},
         {chunk_size},
-        kmm::CudaKernel(initialize_range, block_size),
+        kmm::GPUKernel(initialize_range, block_size),
         write(A, access(_x))
     );
 
     rt.parallel_submit(
         {n},
         {chunk_size},
-        kmm::CudaKernel(fill_range, block_size),
+        kmm::GPUKernel(fill_range, block_size),
         float(M_PI),
         write(B, access(_x))
     );
@@ -71,7 +71,7 @@ int main() {
     rt.parallel_submit(
         {n},
         {chunk_size},
-        kmm::CudaKernel(vector_add, block_size),
+        kmm::GPUKernel(vector_add, block_size),
         write(C, access(_x)),
         read(A, access(_x)),
         read(B, access(_x))

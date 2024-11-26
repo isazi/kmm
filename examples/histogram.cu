@@ -78,7 +78,7 @@ int main() {
     rt.parallel_submit(
         {width, height, num_images},
         {width, height, images_per_chunk},
-        kmm::CudaKernel(calculate_histogram, block_size),
+        kmm::GPUKernel(calculate_histogram, block_size),
         width,
         height,
         read(images, access(i, j, image_id)),
