@@ -103,13 +103,13 @@ void execute_reduction_for_type_and_op(
     }
 
     dim3 block_size = {
-        checked_cast<int>(block_size_x),
-        checked_cast<int>(block_size_y),
+        checked_cast<unsigned int>(block_size_x),
+        checked_cast<unsigned int>(block_size_y),
     };
 
     dim3 grid_size = {
-        checked_cast<int>(div_ceil(num_outputs, block_size_x)),
-        checked_cast<int>(
+        checked_cast<unsigned int>(div_ceil(num_outputs, block_size_x)),
+        checked_cast<unsigned int>(
             div_ceil(num_partials_per_output, block_size_y * items_per_thread)
         )};
 

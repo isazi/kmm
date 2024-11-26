@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstddef>
-
 #ifdef KMM_USE_CUDA
 #include <cuda.h>
 #include <cuda_runtime_api.h>
@@ -106,6 +104,7 @@ using bfloat16_type = __nv_bfloat16;
 #define GPUrtLaunchKernel cudaLaunchKernel
 #define gpuMemPoolTrimTo cuMemPoolTrimTo
 #define gpuDeviceGetDefaultMemPool cuDeviceGetDefaultMemPool
+#define gpuPointerGetAttribute cuPointerGetAttribute
 
 using GPUresult = CUresult;
 using gpuError_t = cudaError_t;
@@ -172,6 +171,7 @@ using blasStatus_t = rocblas_status;
 
 using half_type = unsigned char;
 using bfloat16_type = char;
+using size_t = unsigned int;
 
 using GPUdevice = int;
 class dim3 {
