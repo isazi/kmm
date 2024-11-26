@@ -113,10 +113,10 @@ GPU_REDUCTION_IMPL(unsigned long long int, ReductionOp::Max, atomicMax)
 //GPU_REDUCTION_IMPL(__nv_bfloat16, ReductionOp::Max, atomicMax)
 
 template<typename T, ReductionOp Op, typename = void>
-struct CudaReductionFunctorSupported: std::false_type {};
+struct GPUReductionFunctorSupported: std::false_type {};
 
 template<typename T, ReductionOp Op>
-struct CudaReductionFunctorSupported<T, Op, std::void_t<decltype(GPUReductionFunctor<T, Op>())>>:
+struct GPUReductionFunctorSupported<T, Op, std::void_t<decltype(GPUReductionFunctor<T, Op>())>>:
     std::true_type {};
 
 }  // namespace kmm

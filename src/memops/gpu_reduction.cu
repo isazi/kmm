@@ -91,7 +91,7 @@ void execute_reduction_for_type_and_op(
     size_t max_grid_size_y = div_ceil(max_blocks_per_gpu, div_ceil(num_outputs, block_size_x));
 
     // If we do not have atomics, we can only have 1 block in the y-direction
-    if (!CudaReductionFunctorSupported<T, Op>()) {
+    if (!GPUReductionFunctorSupported<T, Op>()) {
         max_grid_size_y = 1;
     }
 
@@ -130,7 +130,7 @@ void execute_reduction_for_type_and_op(
         }
     }
 
-    if constexpr (CudaReductionFunctorSupported<T, Op>()) {
+    if constexpr (GPUReductionFunctorSupported<T, Op>()) {
         T identity = ReductionFunctor<T, Op>::identity();
         execute_gpu_fill_async(stream, dst_buffer, num_outputs * sizeof(T), &identity, sizeof(T));
 

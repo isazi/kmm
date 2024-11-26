@@ -143,11 +143,11 @@ struct MemoryId {
 
 class ProcessorId {
   public:
-    enum struct Type : uint8_t { Host, Cuda };
+    enum struct Type : uint8_t { Host, GPU };
 
     constexpr ProcessorId(Type type, uint8_t id = 0) : m_type(type), m_value(id) {}
 
-    constexpr ProcessorId(DeviceId device) : ProcessorId(Type::Cuda, device.get()) {}
+    constexpr ProcessorId(DeviceId device) : ProcessorId(Type::GPU, device.get()) {}
 
     static constexpr ProcessorId host() {
         return ProcessorId {Type::Host};
@@ -158,7 +158,7 @@ class ProcessorId {
     }
 
     constexpr bool is_device() const {
-        return m_type == Type::Cuda;
+        return m_type == Type::GPU;
     }
 
     constexpr DeviceId as_device() const {
