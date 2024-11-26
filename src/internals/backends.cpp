@@ -1,5 +1,6 @@
 
 #include "kmm/internals/backends.hpp"
+#include "kmm/core/reduction.hpp"
 
 namespace kmm {
 
@@ -256,6 +257,15 @@ const char* blasGetStatusName(blasStatus_t) {
 
 const char* blasGetStatusString(blasStatus_t) {
     return "";
+}
+
+void execute_gpu_fill_async(stream_t stream, GPUdeviceptr dst_buffer, size_t nbytes, const void* pattern, size_t pattern_nbytes) {
+    return;
+}
+
+void execute_gpu_reduction_async(stream_t stream, GPUdeviceptr src_buffer, GPUdeviceptr dst_buffer, ReductionDef reduction
+) {
+    return;
 }
 
 #endif

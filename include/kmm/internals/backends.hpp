@@ -8,6 +8,8 @@
 #include <cublas_v2.h>
 #elif KMM_USE_HIP
 #include <hip_runtime_api.h>
+#else
+#include <cstddef>
 #endif
 
 namespace kmm {
@@ -171,7 +173,7 @@ using blasStatus_t = rocblas_status;
 
 using half_type = unsigned char;
 using bfloat16_type = char;
-using size_t = unsigned int;
+using size_t = std::size_t;
 
 using GPUdevice = int;
 class dim3 {
