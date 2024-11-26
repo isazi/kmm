@@ -205,8 +205,10 @@ struct right_to_left: private D {
     stride_type stride(size_t axis) const {
         stride_type stride = 1;
 
-        for (size_t i = rank; i > axis + 1; i--) {
-            stride *= stride_type(domain().size(i - 1));
+        for (size_t i = rank; i > 0; i--) {
+            if (i - 1 > axis) {
+                stride *= stride_type(domain().size(i - 1));
+            }
         }
 
         return stride;
@@ -214,11 +216,12 @@ struct right_to_left: private D {
 
     KMM_HOST_DEVICE
     stride_type data_offset() const {
+        stride_type stride = 1;
         stride_type offset = 0;
 
         for (size_t i = rank; i > 0; i--) {
-            offset =
-                offset * stride_type(domain().size(i - 1)) + stride_type(domain().offset(i - 1));
+            offset += stride_type(domain().offset(i - 1)) * stride;
+            stride *= stride_type(domain().size(i - 1));
         }
 
         return -offset;
@@ -226,10 +229,12 @@ struct right_to_left: private D {
 
     KMM_HOST_DEVICE
     stride_type linearize_index(fixed_array<index_type, rank> ndindex) const {
+        stride_type stride = 1;
         stride_type linear = 0;
 
         for (size_t i = rank; i > 0; i--) {
-            linear = linear * stride_type(domain().size(i - 1)) + stride_type(ndindex[i - 1]);
+            linear += stride_type(ndindex[i - 1]) * stride;
+            stride *= stride_type(domain().size(i - 1));
         }
 
         return linear;
@@ -257,8 +262,10 @@ struct left_to_right: private D {
     KMM_HOST_DEVICE
     stride_type stride(size_t axis) const {
         stride_type result = 1;
-        for (size_t i = 0; i < axis; i++) {
-            result *= stride_type {this->size(i)};
+        for (size_t i = 0; i < rank; i++) {
+            if (i < axis) {
+                result *= stride_type {domain().size(i)};
+            }
         }
 
         return result;
@@ -468,7 +475,7 @@ template<typename D, typename D2>
 struct convert<right_to_left<D>, right_to_left<D2>> {
     KMM_HOST_DEVICE
     static right_to_left<D2> call(const right_to_left<D>& from) {
-        return domains::convert<D, D2>::call(from.domain());
+        return right_to_left<D2>{domains::convert<D, D2>::call(from.domain())};
     }
 };
 
@@ -484,7 +491,7 @@ template<typename D, typename D2>
 struct convert<left_to_right<D>, left_to_right<D2>> {
     KMM_HOST_DEVICE
     static left_to_right<D2> call(const left_to_right<D>& from) {
-        return domains::convert<D, D2>::call(from.domain());
+        return left_to_right<D2>{domains::convert<D, D2>::call(from.domain())};
     }
 };
 
