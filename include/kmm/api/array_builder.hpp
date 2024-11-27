@@ -15,6 +15,10 @@ class ArrayBuilder {
         m_sizes(sizes),
         m_element_layout(element_layout) {}
 
+    Dim<N> sizes() const {
+        return m_sizes;
+    }
+
     size_t add_chunk(TaskBuilder& builder, Range<N> access_region);
     std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
 
@@ -31,6 +35,10 @@ class ArrayReductionBuilder {
         m_sizes(sizes),
         m_dtype(data_type),
         m_reduction(operation) {}
+
+    Dim<N> sizes() const {
+        return m_sizes;
+    }
 
     size_t add_chunk(TaskBuilder& builder, Range<N> access_region, size_t replication_factor = 1);
     std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);

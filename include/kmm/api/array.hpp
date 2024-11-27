@@ -166,7 +166,7 @@ struct ArgumentHandler<Write<Array<T, N>>> {
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_builder.m_sizes;
+        auto access_region = m_builder.sizes();
         size_t buffer_index = m_builder.add_chunk(builder, access_region);
         views::domains::bounds<N> domain = {access_region};
 
@@ -244,7 +244,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_access_mapper(builder.chunk, m_builder.m_sizes);
+        auto access_region = m_access_mapper(builder.chunk, m_builder.sizes());
         size_t buffer_index = m_builder.add_chunk(builder, access_region);
         views::domains::subbounds<N> domain = {access_region.offset, access_region.sizes};
         return {buffer_index, domain};
@@ -275,7 +275,7 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_builder.m_sizes;
+        auto access_region = m_builder.sizes();
         size_t buffer_index = m_builder.add_chunk(builder, access_region);
         views::domains::bounds<N> domain = {access_region};
         return {buffer_index, domain};
@@ -312,7 +312,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = Range<N>(m_builder.m_sizes);
+        auto access_region = Range<N>(m_builder.sizes());
         auto private_region = m_private_mapper(builder.chunk);
         size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
@@ -363,7 +363,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
 
     type process_chunk(TaskBuilder& builder) {
         auto private_region = m_private_mapper(builder.chunk);
-        auto access_region = m_access_mapper(builder.chunk, m_builder.m_sizes);
+        auto access_region = m_access_mapper(builder.chunk, m_builder.sizes());
         size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
         views::domains::subbounds<K + N> domain = {
