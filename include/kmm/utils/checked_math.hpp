@@ -294,7 +294,7 @@ bool compare_equal(const L& left, const R& right) {
  */
 template<typename U, typename T>
 bool in_range(const T& value) {
-    return !compare_less(value, std::numeric_limits<U>::min())
+    return !compare_less(value, std::numeric_limits<U>::lowest())
         && !compare_greater(value, std::numeric_limits<U>::max());
 }
 

@@ -11,11 +11,11 @@ struct ReductionInput;
 template<size_t N>
 class ArrayBuilder {
   public:
-    ArrayBuilder(Dim<N> sizes, BufferLayout element_layout) :
+    ArrayBuilder(Size<N> sizes, BufferLayout element_layout) :
         m_sizes(sizes),
         m_element_layout(element_layout) {}
 
-    Dim<N> sizes() const {
+    Size<N> sizes() const {
         return m_sizes;
     }
 
@@ -23,7 +23,7 @@ class ArrayBuilder {
     std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
 
   private:
-    Dim<N> m_sizes;
+    Size<N> m_sizes;
     BufferLayout m_element_layout;
     std::vector<ArrayChunk<N>> m_chunks;
 };
@@ -31,12 +31,12 @@ class ArrayBuilder {
 template<size_t N>
 class ArrayReductionBuilder {
   public:
-    ArrayReductionBuilder(Dim<N> sizes, DataType data_type, ReductionOp operation) :
+    ArrayReductionBuilder(Size<N> sizes, DataType data_type, ReductionOp operation) :
         m_sizes(sizes),
         m_dtype(data_type),
         m_reduction(operation) {}
 
-    Dim<N> sizes() const {
+    Size<N> sizes() const {
         return m_sizes;
     }
 
@@ -44,7 +44,7 @@ class ArrayReductionBuilder {
     std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
 
   private:
-    Dim<N> m_sizes;
+    Size<N> m_sizes;
     DataType m_dtype;
     ReductionOp m_reduction;
     std::unordered_map<Range<N>, std::vector<ReductionInput>> m_partial_inputs;

@@ -98,11 +98,11 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, Dim<N> shape, MemoryId memory_id) const {
+    Array<T, N> allocate(const T* data, Size<N> shape, MemoryId memory_id) const {
         auto layout = BufferLayout::for_type<T>().repeat(checked_cast<size_t>(shape.volume()));
         auto buffer_id = allocate_bytes(data, layout, memory_id);
 
-        auto chunk = ArrayChunk<N> {buffer_id, memory_id, Point<N>::zero(), shape};
+        auto chunk = ArrayChunk<N> {buffer_id, memory_id, Index<N>::zero(), shape};
         auto backend =
             std::make_shared<ArrayBackend<N>>(m_worker, shape, std::vector<ArrayChunk<N>> {chunk});
         return Array<T, N> {std::move(backend)};
@@ -121,7 +121,7 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, const Dim<N>& shape) const {
+    Array<T, N> allocate(const T* data, const Size<N>& shape) const {
         return allocate(data, shape, memory_affinity_for_address(data));
     }
 
@@ -136,9 +136,9 @@ class Runtime {
     /**
      * Alias for `allocate(data, dim<N>{sizes...})`
      */
-    template<typename T, typename... Sizes>
-    Array<T> allocate(const T* data, const Sizes&... num_elements) const {
-        return allocate(data, Dim<sizeof...(Sizes)> {checked_cast<int64_t>(num_elements)...});
+    template<typename T, typename... Is>
+    Array<T, sizeof...(Is)> allocate(const T* data, const Is&... num_elements) const {
+        return allocate(data, Size<sizeof...(Is)> {checked_cast<int64_t>(num_elements)...});
     }
 
     /**

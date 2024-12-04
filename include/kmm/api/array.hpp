@@ -27,7 +27,7 @@ class ArrayBase {
 template<typename T, size_t N = 1>
 class Array: public ArrayBase {
   public:
-    Array(Dim<N> shape = {}) : m_shape(shape) {}
+    Array(Size<N> shape = {}) : m_shape(shape) {}
 
     explicit Array(std::shared_ptr<ArrayBackend<N>> b) :
         m_backend(b),
@@ -41,7 +41,7 @@ class Array: public ArrayBase {
         return N;
     }
 
-    Dim<N> sizes() const {
+    Size<N> sizes() const {
         return m_shape;
     }
 
@@ -66,7 +66,7 @@ class Array: public ArrayBase {
         return *m_backend;
     }
 
-    Dim<N> chunk_size() const {
+    Size<N> chunk_size() const {
         return inner().chunk_size();
     }
 
@@ -116,8 +116,8 @@ class Array: public ArrayBase {
 
   private:
     std::shared_ptr<ArrayBackend<N>> m_backend;
-    Point<N> m_offset;
-    Dim<N> m_shape;
+    Index<N> m_offset;
+    Size<N> m_shape;
 };
 
 template<typename T>

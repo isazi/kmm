@@ -42,12 +42,12 @@ TaskPartition TaskPartitioner::operator()(
 
     size_t owner_id = 0;
     auto offset = NDIndex {};
-    auto size = NDDim {};
+    auto size = NDSize {};
 
     for (int64_t z = 0; z < num_chunks[2]; z++) {
         for (int64_t y = 0; y < num_chunks[1]; y++) {
             for (int64_t x = 0; x < num_chunks[0]; x++) {
-                auto current = Point<3> {x, y, z};
+                auto current = Index<3> {x, y, z};
 
                 for (size_t i = 0; i < ND_DIMS; i++) {
                     offset[i] = index_space.begin[i] + current[i] * m_chunk_size[i];

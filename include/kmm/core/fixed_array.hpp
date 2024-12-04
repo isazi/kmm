@@ -229,7 +229,7 @@ template<size_t N, typename T>
 struct std::hash<kmm::fixed_array<T, N>> {
     size_t operator()(const kmm::fixed_array<T, N>& p) const {
         size_t result = 0;
-        for (size_t i = 0; kmm::is_less(i, N); i++) {
+        for (size_t i = 0; i < N; i++) {
             kmm::hash_combine(result, p[i]);
         }
         return result;

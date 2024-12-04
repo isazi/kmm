@@ -11,11 +11,11 @@ template<size_t N>
 Range<N> index2region(
     size_t index,
     std::array<size_t, N> num_chunks,
-    Dim<N> chunk_size,
-    Dim<N> array_size
+    Size<N> chunk_size,
+    Size<N> array_size
 ) {
-    Point<N> offset;
-    Dim<N> sizes;
+    Index<N> offset;
+    Size<N> sizes;
 
     for (size_t j = 0; compare_less(j, N); j++) {
         size_t i = N - 1 - j;
@@ -32,13 +32,13 @@ Range<N> index2region(
 template<size_t N>
 ArrayBackend<N>::ArrayBackend(
     std::shared_ptr<Worker> worker,
-    Dim<N> array_size,
+    Size<N> array_size,
     std::vector<ArrayChunk<N>> chunks
 ) :
     m_worker(worker),
     m_array_size(array_size) {
     for (const auto& chunk : chunks) {
-        if (chunk.offset == Point<N>::zero()) {
+        if (chunk.offset == Index<N>::zero()) {
             m_chunk_size = chunk.size;
         }
     }
@@ -58,8 +58,8 @@ ArrayBackend<N>::ArrayBackend(
 
     for (const auto& chunk : chunks) {
         size_t buffer_index = 0;
-        Point<N> expected_offset;
-        Dim<N> expected_size;
+        Index<N> expected_offset;
+        Size<N> expected_size;
 
         for (size_t i = 0; compare_less(i, N); i++) {
             auto k = div_floor(chunk.offset[i], m_chunk_size[i]);
@@ -114,8 +114,8 @@ ArrayBackend<N>::~ArrayBackend() {
 template<size_t N>
 ArrayChunk<N> ArrayBackend<N>::find_chunk(Range<N> region) const {
     size_t buffer_index = 0;
-    Point<N> offset;
-    Dim<N> sizes;
+    Index<N> offset;
+    Size<N> sizes;
 
     for (size_t i = 0; compare_less(i, N); i++) {
         auto k = div_floor(region.offset[i], m_chunk_size[i]);
@@ -190,7 +190,7 @@ void ArrayBackend<N>::synchronize() const {
 template<size_t N>
 class CopyOutTask: public Task {
   public:
-    CopyOutTask(void* data, size_t element_size, Dim<N> array_size, Range<N> region) :
+    CopyOutTask(void* data, size_t element_size, Size<N> array_size, Range<N> region) :
         m_dst_addr(data),
         m_element_size(element_size),
         m_array_size(array_size),
@@ -225,7 +225,7 @@ class CopyOutTask: public Task {
   private:
     void* m_dst_addr;
     size_t m_element_size;
-    Dim<N> m_array_size;
+    Size<N> m_array_size;
     Range<N> m_region;
 };
 

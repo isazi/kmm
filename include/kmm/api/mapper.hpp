@@ -43,7 +43,7 @@ struct Axis {
 struct IdentityMap {
     template<size_t N>
     Range<N> operator()(TaskChunk chunk, Range<N> bounds) const {
-        return {Point<N>::from(chunk.offset), Dim<N>::from(chunk.size)};
+        return {Index<N>::from(chunk.offset), Size<N>::from(chunk.size)};
     }
 };
 

@@ -13,7 +13,7 @@ namespace kmm {
 struct TaskChunk {
     ProcessorId owner_id;
     NDIndex offset;
-    NDDim size;
+    NDSize size;
 };
 
 struct TaskPartition {
@@ -21,7 +21,7 @@ struct TaskPartition {
 };
 
 struct TaskPartitioner {
-    TaskPartitioner(NDDim chunk_size) : m_chunk_size(chunk_size) {}
+    TaskPartitioner(NDSize chunk_size) : m_chunk_size(chunk_size) {}
     TaskPartitioner(
         int64_t x,
         int64_t y = std::numeric_limits<int64_t>::max(),
@@ -33,7 +33,7 @@ struct TaskPartitioner {
         const;
 
   private:
-    NDDim m_chunk_size;
+    NDSize m_chunk_size;
 };
 
 }  // namespace kmm

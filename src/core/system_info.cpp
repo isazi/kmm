@@ -24,17 +24,17 @@ DeviceInfo::DeviceInfo(DeviceId id, GPUContextHandle context) : m_id(id) {
 
 dim3 DeviceInfo::max_block_dim() const {
     return dim3(
-        attribute(GPU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
-        attribute(GPU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
-        attribute(GPU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z)
+        checked_cast<unsigned int>(attribute(GPU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X)),
+        checked_cast<unsigned int>(attribute(GPU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y)),
+        checked_cast<unsigned int>(attribute(GPU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z))
     );
 }
 
 dim3 DeviceInfo::max_grid_dim() const {
     return dim3(
-        attribute(GPU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X),
-        attribute(GPU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y),
-        attribute(GPU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z)
+        checked_cast<unsigned int>(attribute(GPU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X)),
+        checked_cast<unsigned int>(attribute(GPU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)),
+        checked_cast<unsigned int>(attribute(GPU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z))
     );
 }
 

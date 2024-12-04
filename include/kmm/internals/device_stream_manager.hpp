@@ -160,7 +160,11 @@ DeviceEvent DeviceStreamManager::with_stream(
     F fun
 ) {
     wait_for_events(stream, deps);
+    with_stream(stream, std::move(fun));
+}
 
+template<typename F>
+DeviceEvent DeviceStreamManager::with_stream(DeviceStream stream, F fun) {
     try {
         fun(get(stream));
         return record_event(stream);
@@ -168,11 +172,6 @@ DeviceEvent DeviceStreamManager::with_stream(
         wait_until_ready(stream);
         throw;
     }
-}
-
-template<typename F>
-DeviceEvent DeviceStreamManager::with_stream(DeviceStream stream, F fun) {
-    return with_stream(stream, {}, fun);
 }
 
 }  // namespace kmm

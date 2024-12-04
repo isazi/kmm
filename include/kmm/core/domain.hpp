@@ -13,12 +13,12 @@ static constexpr size_t ND_DIMS = 3;
 /**
  * Type alias for the index type used in the work space.
  */
-using NDIndex = Point<ND_DIMS>;
+using NDIndex = Index<ND_DIMS>;
 
 /**
  * Type alias for the size of the work space.
  */
-using NDDim = Dim<ND_DIMS>;
+using NDSize = Size<ND_DIMS>;
 
 struct NDRange {
     NDIndex begin;  ///< The starting index of the work chunk.
@@ -40,7 +40,7 @@ struct NDRange {
      * Constructs a chunk with a given offset and size.
      */
     KMM_HOST_DEVICE
-    explicit NDRange(NDIndex offset, NDDim size) : begin(offset) {
+    explicit NDRange(NDIndex offset, NDSize size) : begin(offset) {
         // Doing this in the initializer causes a SEGFAULT in GCC
         this->end = offset + size.to_point();
     }
@@ -49,14 +49,14 @@ struct NDRange {
      * Constructs a chunk with a given size and starting at the origin.
      */
     KMM_HOST_DEVICE
-    NDRange(NDDim size) : end(size) {}
+    NDRange(NDSize size) : end(size) {}
 
     /**
      * Gets the sizes of the work chunk in each dimension.
      */
     KMM_HOST_DEVICE
-    NDDim sizes() const {
-        return NDDim::from(end - begin);
+    NDSize sizes() const {
+        return NDSize::from(end - begin);
     }
 
     /**
@@ -113,7 +113,7 @@ struct NDRange {
      * Checks if a multidimensional point is contained within the work chunk.
      */
     template<size_t N>
-    KMM_HOST_DEVICE bool contains(Point<N> p) const {
+    KMM_HOST_DEVICE bool contains(Index<N> p) const {
         bool result = true;
 
         for (size_t i = 0; i < N && i < ND_DIMS; i++) {
