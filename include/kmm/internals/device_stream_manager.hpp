@@ -160,7 +160,7 @@ DeviceEvent DeviceStreamManager::with_stream(
     F fun
 ) {
     wait_for_events(stream, deps);
-    with_stream(stream, std::move(fun));
+    return with_stream(stream, std::move(fun));
 }
 
 template<typename F>

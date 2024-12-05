@@ -4,27 +4,27 @@
 
 using namespace kmm;
 
-TEST(Geometry, Point_basics) {
-    Point<3> x = {};
-    ASSERT_EQ(x, Point(0, 0, 0));
+TEST(Geometry, index_basics) {
+    Index<3> x = {};
+    ASSERT_EQ(x, Index(0, 0, 0));
 
-    Point<3> y = {1, 2, 3};
-    ASSERT_EQ(y, Point(1, 2, 3));
+    Index<3> y = {1, 2, 3};
+    ASSERT_EQ(y, Index(1, 2, 3));
 
-    Point<3> z = Point<3>::fill(42);
-    ASSERT_EQ(z, Point(42, 42, 42));
+    Index<3> z = Index<3>::fill(42);
+    ASSERT_EQ(z, Index(42, 42, 42));
 
-    auto a = Point<3, float>::from(Point<3, int>{4, 5, 6});
-    ASSERT_EQ(a, (Point<3, float>(4.0F, 5.0F, 6.0F)));
+    auto a = Index<3, float>::from(Index<3, int>{4, 5, 6});
+    ASSERT_EQ(a, (Index<3, float>(4.0F, 5.0F, 6.0F)));
 
-    Point<3> zero = Point<3>::zero();
-    ASSERT_EQ(zero, Point(0, 0, 0));
+    Index<3> zero = Index<3>::zero();
+    ASSERT_EQ(zero, Index(0, 0, 0));
 
-    Point<3> one = Point<3>::one();
-    ASSERT_EQ(one, Point(1, 1, 1));
+    Index<3> one = Index<3>::one();
+    ASSERT_EQ(one, Index(1, 1, 1));
 
     one[0] = 42;
-    ASSERT_EQ(one, Point(42, 1, 1));
+    ASSERT_EQ(one, Index(42, 1, 1));
 
     ASSERT_FALSE(one == zero);
     ASSERT_FALSE(zero == one);
@@ -33,67 +33,67 @@ TEST(Geometry, Point_basics) {
 }
 
 TEST(Geometry, dim_basics) {
-    Dim<3> x = {};
-    ASSERT_EQ(x, Dim(1, 1, 1));
+    Size<3> x = {};
+    ASSERT_EQ(x, Size(1, 1, 1));
     ASSERT_EQ(x.is_empty(), false);
     ASSERT_EQ(x.volume(), 1);
 
-    Dim<3> y = {1, 2, 3};
-    ASSERT_EQ(y, Dim(1, 2, 3));
+    Size<3> y = {1, 2, 3};
+    ASSERT_EQ(y, Size(1, 2, 3));
     ASSERT_EQ(y.is_empty(), false);
     ASSERT_EQ(y.volume(), 6);
 
-    Dim<3> z = {-5, 3, 1};
-    ASSERT_EQ(z, Dim(-5, 3, 1));
+    Size<3> z = {-5, 3, 1};
+    ASSERT_EQ(z, Size(-5, 3, 1));
     ASSERT_EQ(z.is_empty(), true);
     ASSERT_EQ(z.volume(), 0);
 
-    auto a = Dim<3, float>::from(Dim<3, int>{4, 5, 6});
-    ASSERT_EQ(a, (Dim<3, float>(4.0F, 5.0F, 6.0F)));
+    auto a = Size<3, float>::from(Size<3, int>{4, 5, 6});
+    ASSERT_EQ(a, (Size<3, float>(4.0F, 5.0F, 6.0F)));
     ASSERT_EQ(a.is_empty(), false);
     ASSERT_EQ(a.volume(), 120.0F);
 
-    Dim<3> zero = Dim<3>::zero();
-    ASSERT_EQ(zero, Dim(0, 0, 0));
+    Size<3> zero = Size<3>::zero();
+    ASSERT_EQ(zero, Size(0, 0, 0));
     ASSERT_EQ(zero.is_empty(), true);
     ASSERT_EQ(zero.volume(), 0);
 
-    Dim<3> one = Dim<3>::one();
-    ASSERT_EQ(one, Dim(1, 1, 1));
+    Size<3> one = Size<3>::one();
+    ASSERT_EQ(one, Size(1, 1, 1));
     ASSERT_EQ(one.is_empty(), false);
     ASSERT_EQ(one.volume(), 1);
 
     one[0] = 42;
-    ASSERT_EQ(one, Dim(42, 1, 1));
+    ASSERT_EQ(one, Size(42, 1, 1));
     ASSERT_EQ(one.is_empty(), false);
     ASSERT_EQ(one.volume(), 42);
 }
 
 TEST(Geometry, dim_intersection) {
-    Dim<3> x = {5, 42, 1};
-    Dim<3> y = {1, 2, 3};
-    Dim<3> z = {1, 1, 1};
-    Dim<3> w = {-5, 2, 1};
+    Size<3> x = {5, 42, 1};
+    Size<3> y = {1, 2, 3};
+    Size<3> z = {1, 1, 1};
+    Size<3> w = {-5, 2, 1};
     
-    ASSERT_EQ(x.intersection(x), Dim(5, 42, 1));
-    ASSERT_EQ(x.intersection(y), Dim(1, 2, 1));
-    ASSERT_EQ(x.intersection(z), Dim(1, 1, 1));
-    ASSERT_EQ(x.intersection(w), Dim(0, 2, 1));
+    ASSERT_EQ(x.intersection(x), Size(5, 42, 1));
+    ASSERT_EQ(x.intersection(y), Size(1, 2, 1));
+    ASSERT_EQ(x.intersection(z), Size(1, 1, 1));
+    ASSERT_EQ(x.intersection(w), Size(0, 2, 1));
     
-    ASSERT_EQ(y.intersection(x), Dim(1, 2, 1));
-    ASSERT_EQ(y.intersection(y), Dim(1, 2, 3));
-    ASSERT_EQ(y.intersection(z), Dim(1, 1, 1));
-    ASSERT_EQ(y.intersection(w), Dim(0, 2, 1));
+    ASSERT_EQ(y.intersection(x), Size(1, 2, 1));
+    ASSERT_EQ(y.intersection(y), Size(1, 2, 3));
+    ASSERT_EQ(y.intersection(z), Size(1, 1, 1));
+    ASSERT_EQ(y.intersection(w), Size(0, 2, 1));
     
-    ASSERT_EQ(z.intersection(x), Dim(1, 1, 1));
-    ASSERT_EQ(z.intersection(y), Dim(1, 1, 1));
-    ASSERT_EQ(z.intersection(z), Dim(1, 1, 1));
-    ASSERT_EQ(z.intersection(w), Dim(0, 1, 1));
+    ASSERT_EQ(z.intersection(x), Size(1, 1, 1));
+    ASSERT_EQ(z.intersection(y), Size(1, 1, 1));
+    ASSERT_EQ(z.intersection(z), Size(1, 1, 1));
+    ASSERT_EQ(z.intersection(w), Size(0, 1, 1));
     
-    ASSERT_EQ(w.intersection(x), Dim(0, 2, 1));
-    ASSERT_EQ(w.intersection(y), Dim(0, 2, 1));
-    ASSERT_EQ(w.intersection(z), Dim(0, 1, 1));
-    ASSERT_EQ(w.intersection(w), Dim(0, 2, 1));
+    ASSERT_EQ(w.intersection(x), Size(0, 2, 1));
+    ASSERT_EQ(w.intersection(y), Size(0, 2, 1));
+    ASSERT_EQ(w.intersection(z), Size(0, 1, 1));
+    ASSERT_EQ(w.intersection(w), Size(0, 2, 1));
     
     
     ASSERT_EQ(x.overlaps(x), true);
@@ -138,9 +138,9 @@ TEST(Geometry, dim_intersection) {
     ASSERT_EQ(w.contains(w), true);
 
 
-    Point<3> a = {0, 0, 0};
-    Point<3> b = {0, 2, 0};
-    Point<3> c = {-2, 0, 1};
+    Index<3> a = {0, 0, 0};
+    Index<3> b = {0, 2, 0};
+    Index<3> c = {-2, 0, 1};
 
     ASSERT_EQ(x.contains(a), true);
     ASSERT_EQ(x.contains(b), true);
@@ -161,34 +161,34 @@ TEST(Geometry, dim_intersection) {
 
 TEST(Geometry, range_basics) {
     Range<3> a = {{0, 0, 0}, {42, 2, 1}};
-    ASSERT_EQ(a.offset, Point(0, 0, 0));
-    ASSERT_EQ(a.sizes, Dim(42, 2, 1));
-    ASSERT_EQ(a.begin(), Point(0, 0, 0));
-    ASSERT_EQ(a.end(), Point(42, 2, 1));
+    ASSERT_EQ(a.offset, Index(0, 0, 0));
+    ASSERT_EQ(a.sizes, Size(42, 2, 1));
+    ASSERT_EQ(a.begin(), Index(0, 0, 0));
+    ASSERT_EQ(a.end(), Index(42, 2, 1));
     ASSERT_EQ(a.size(), 84);
     ASSERT_EQ(a.is_empty(), false);
 
     Range<3> b = {{1, 1, 1}, {3, 2, 1}};
-    ASSERT_EQ(b.offset, Point(1, 1, 1));
-    ASSERT_EQ(b.sizes, Dim(3, 2, 1));
-    ASSERT_EQ(b.begin(), Point(1, 1, 1));
-    ASSERT_EQ(b.end(), Point(4, 3, 2));
+    ASSERT_EQ(b.offset, Index(1, 1, 1));
+    ASSERT_EQ(b.sizes, Size(3, 2, 1));
+    ASSERT_EQ(b.begin(), Index(1, 1, 1));
+    ASSERT_EQ(b.end(), Index(4, 3, 2));
     ASSERT_EQ(b.size(), 6);
     ASSERT_EQ(b.is_empty(), false);
 
     Range<3> c = {{1, -5, 1}, {2, 2, 2}};
-    ASSERT_EQ(c.offset, Point(1, -5, 1));
-    ASSERT_EQ(c.sizes, Dim(2, 2, 2));
-    ASSERT_EQ(c.begin(), Point(1, -5, 1));
-    ASSERT_EQ(c.end(), Point(3, -3, 3));
+    ASSERT_EQ(c.offset, Index(1, -5, 1));
+    ASSERT_EQ(c.sizes, Size(2, 2, 2));
+    ASSERT_EQ(c.begin(), Index(1, -5, 1));
+    ASSERT_EQ(c.end(), Index(3, -3, 3));
     ASSERT_EQ(c.size(), 8);
     ASSERT_EQ(c.is_empty(), false);
 
     Range<3> d = {{5, 1, 2}, {-5, 3, 1}};
-    ASSERT_EQ(d.offset, Point(5, 1, 2));
-    ASSERT_EQ(d.sizes, Dim(-5, 3, 1));
-    ASSERT_EQ(d.begin(), Point(5, 1, 2));
-    ASSERT_EQ(d.end(), Point(5, 4, 3));
+    ASSERT_EQ(d.offset, Index(5, 1, 2));
+    ASSERT_EQ(d.sizes, Size(-5, 3, 1));
+    ASSERT_EQ(d.begin(), Index(5, 1, 2));
+    ASSERT_EQ(d.end(), Index(5, 4, 3));
     ASSERT_EQ(d.size(), 0);
     ASSERT_EQ(d.is_empty(), true);
 }
