@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 
 #include "kmm/utils/integer_fun.hpp"
 
@@ -72,7 +72,7 @@ TEST(IntegerFuns, round_up_to_power_of_two) {
 }
 
 TEST(IntegerFuns, div_ceil_and_div_floor) {
-#define CHECK_DIV_CASE(T, A, B) \
+#define CHECK_DIV_CASE(T, A, B)                                           \
     ASSERT_EQ(div_ceil(T(A), T(B)), T(std::ceil(double(A) / double(B)))); \
     ASSERT_EQ(div_floor(T(A), T(B)), T(std::floor(double(A) / double(B))));
 

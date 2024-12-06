@@ -1,96 +1,151 @@
 #pragma once
-#include <cstddef>
-#include <cstdio>
 
-#include "kmm/core/geometry.hpp"
-#include "kmm/utils/macros.hpp"
+#include "fixed_array.hpp"
 
 namespace kmm {
-
-using default_stride_type = ptrdiff_t;
-using default_index_type = default_geometry_type;
-
 namespace views {
 
-namespace domains {
+using default_index_type = int64_t;
+using default_stride_type = int64_t;
+
+template<typename I, I... Dims>
+struct domain_static {
+    static constexpr size_t rank = sizeof...(Dims);
+    using index_type = I;
+
+    KMM_HOST_DEVICE
+    static domain_static from_domain(const domain_static& domain) noexcept {
+        return domain;
+    }
+
+    KMM_HOST_DEVICE
+    constexpr index_type offset(size_t axis) const noexcept {
+        return static_cast<index_type>(0);
+    }
+
+    KMM_HOST_DEVICE
+    constexpr index_type size(size_t axis) const noexcept {
+        index_type sizes[rank] = {Dims...};
+        return axis < rank ? sizes[axis] : static_cast<index_type>(1);
+    }
+};
+
+template<typename I>
+struct domain_static<I> {
+    static constexpr size_t rank = 0;
+    using index_type = I;
+
+    template<typename D>
+    KMM_HOST_DEVICE static domain_static from_domain(const D& domain) noexcept {
+        static_assert(D::rank == rank);
+        return {};
+    }
+
+    KMM_HOST_DEVICE
+    constexpr index_type offset(size_t axis) const noexcept {
+        return static_cast<index_type>(0);
+    }
+
+    KMM_HOST_DEVICE
+    constexpr index_type size(size_t axis) const noexcept {
+        return static_cast<index_type>(1);
+    }
+};
+
 template<size_t N, typename I = default_index_type>
-struct bounds {
+struct domain_bounds {
     static constexpr size_t rank = N;
     using index_type = I;
 
     KMM_HOST_DEVICE
-    bounds(fixed_array<index_type, rank> sizes = {}) : m_sizes(sizes) {}
+    domain_bounds(fixed_array<index_type, rank> sizes = {}) noexcept : m_sizes(sizes) {}
 
     KMM_HOST_DEVICE
-    index_type offset(size_t axis) const {
-        return 0;
+    static domain_bounds from_domain(const domain_bounds& domain) noexcept {
+        return domain;
     }
+
+    template<I... Dims>
+    KMM_HOST_DEVICE static domain_bounds from_domain(const domain_static<I, Dims...>& domain
+    ) noexcept {
+        static_assert(sizeof...(Dims) == rank);
+        return fixed_array<index_type, rank> {Dims...};
+    }
+
     KMM_HOST_DEVICE
-    index_type size(size_t axis) const {
-        return axis < rank ? m_sizes[axis] : 1;
+    constexpr index_type offset(size_t axis) const noexcept {
+        return static_cast<index_type>(0);
+    }
+
+    KMM_HOST_DEVICE
+    constexpr index_type size(size_t axis) const noexcept {
+        return axis < rank ? m_sizes[axis] : static_cast<index_type>(1);
     }
 
   private:
     fixed_array<index_type, rank> m_sizes;
 };
 
-template<typename I>
-struct bounds<0, I> {
-    static constexpr size_t rank = 0;
-    using index_type = I;
-
-    KMM_HOST_DEVICE
-    bounds(fixed_array<index_type, 0> sizes = {}) {}
-
-    KMM_HOST_DEVICE
-    index_type offset(size_t axis) const {
-        return 0;
-    }
-
-    KMM_HOST_DEVICE
-    index_type size(size_t axis) const {
-        return 1;
-    }
-};
-
-template<typename I, I... Sizes>
-struct static_bounds {
-    static constexpr size_t rank = sizeof...(Sizes);
-    using index_type = I;
-
-    KMM_HOST_DEVICE
-    constexpr index_type offset(size_t axis) const {
-        return 0;
-    }
-
-    KMM_HOST_DEVICE
-    constexpr index_type size(size_t axis) const {
-        fixed_array<index_type, rank> sizes = {Sizes...};
-        return axis < rank ? sizes[axis] : 1;
-    }
-};
-
 template<size_t N, typename I = default_index_type>
-struct subbounds {
+struct domain_subbounds {
     static constexpr size_t rank = N;
     using index_type = I;
 
     KMM_HOST_DEVICE
-    subbounds() = default;
+    constexpr domain_subbounds() noexcept {
+        for (size_t i = 0; i < N; i++) {
+            m_sizes[i] = 0;
+            m_offsets[i] = 0;
+        }
+    }
 
     KMM_HOST_DEVICE
-    subbounds(fixed_array<index_type, rank> offsets, fixed_array<index_type, rank> sizes) :
+    constexpr domain_subbounds(fixed_array<index_type, rank> sizes) noexcept : m_sizes(sizes) {
+        for (size_t i = 0; i < N; i++) {
+            m_offsets[i] = 0;
+        }
+    }
+
+    KMM_HOST_DEVICE
+    constexpr domain_subbounds(
+        fixed_array<index_type, rank> offsets,
+        fixed_array<index_type, rank> sizes
+    ) noexcept :
         m_offsets(offsets),
         m_sizes(sizes) {}
 
     KMM_HOST_DEVICE
-    index_type offset(size_t axis) const {
-        return axis < rank ? m_offsets[axis] : 0;
+    static domain_subbounds from_domain(const domain_subbounds& domain) noexcept {
+        return domain;
     }
 
     KMM_HOST_DEVICE
-    index_type size(size_t axis) const {
-        return axis < rank ? m_sizes[axis] : 1;
+    static domain_subbounds from_domain(const domain_bounds<N, I>& domain) noexcept {
+        fixed_array<index_type, rank> offsets;
+        fixed_array<index_type, rank> sizes;
+
+        for (size_t i = 0; i < rank; i++) {
+            offsets[i] = 0;
+            sizes[i] = domain.size(i);
+        }
+
+        return {offsets, sizes};
+    }
+
+    template<I... Dims>
+    KMM_HOST_DEVICE static domain_subbounds from_domain(const domain_static<I, Dims...>& domain
+    ) noexcept {
+        return from_domain(domain_bounds<N, I>::from_domain(domain));
+    }
+
+    KMM_HOST_DEVICE
+    constexpr index_type offset(size_t axis) const noexcept {
+        return axis < rank ? m_offsets[axis] : static_cast<index_type>(0);
+    }
+
+    KMM_HOST_DEVICE
+    constexpr index_type size(size_t axis) const noexcept {
+        return axis < rank ? m_sizes[axis] : static_cast<index_type>(1);
     }
 
   private:
@@ -98,550 +153,370 @@ struct subbounds {
     fixed_array<index_type, rank> m_sizes;
 };
 
-template<typename From, typename To, typename = void>
-struct convert {};
-
-template<typename D>
-struct convert<D, D> {
-    KMM_HOST_DEVICE
-    static D call(D domain) {
-        return domain;
-    }
-};
-
-template<typename I, I... Sizes>
-struct convert<static_bounds<I, Sizes...>, bounds<sizeof...(Sizes), I>> {
-    KMM_HOST_DEVICE
-    static bounds<sizeof...(Sizes), I> call(static_bounds<I, Sizes...>) {
-        return {Sizes...};
-    }
-};
-
-template<typename D>
-struct convert<D, subbounds<D::rank, typename D::index_type>> {
-    static constexpr size_t rank = D::rank;
-    using index_type = typename D::index_type;
-
-    KMM_HOST_DEVICE
-    static subbounds<rank, index_type> call(const D& domain) {
-        fixed_array<index_type, rank> new_offsets, new_sizes;
-        for (size_t i = 0; i < rank; i++) {
-            new_offsets[i] = domain.offset(i);
-            new_sizes[i] = domain.size(i);
-        }
-
-        return {new_offsets, new_sizes};
-    }
-};
-
-template<typename D, size_t Axis>
-struct remove_axis_impl {};
-
-template<size_t N, typename I, size_t Axis>
-struct remove_axis_impl<bounds<N, I>, Axis> {
-    static_assert(Axis < N, "Axis cannot exceed rank");
-    using type = bounds<N - 1, I>;
-
-    KMM_HOST_DEVICE
-    static type call(bounds<N, I> source) {
-        fixed_array<I, N - 1> new_sizes;
-        for (size_t i = 0; i < N - 1; i++) {
-            if constexpr (Axis == 0) {
-                new_sizes[i] = source.size(i + 1);
-            } else {
-                new_sizes[i] = source.size(i + size_t(i >= Axis));
-            }
-        }
-        return new_sizes;
-    }
-};
-
-template<size_t N, typename I, size_t Axis>
-struct remove_axis_impl<subbounds<N, I>, Axis> {
-    static_assert(Axis < N, "Axis cannot exceed rank");
-    using type = subbounds<N - 1, I>;
-
-    KMM_HOST_DEVICE
-    static type call(subbounds<N, I> source) {
-        fixed_array<I, N - 1> new_offsets;
-        fixed_array<I, N - 1> new_sizes;
-        for (size_t i = 0; i < N - 1; i++) {
-            if constexpr (Axis == 0) {
-                new_offsets[i] = source.offset(i + 1);
-                new_sizes[i] = source.size(i + 1);
-            } else {
-                new_offsets[i] = source.offset(i + size_t(i >= Axis));
-                new_sizes[i] = source.size(i + size_t(i >= Axis));
-            }
-        }
-        return {new_offsets, new_sizes};
-    }
-};
-
-template<typename D, size_t Axis>
-using remove_axis_type = typename remove_axis_impl<D, Axis>::type;
-}  // namespace domains
-
-namespace layouts {
-template<typename D, typename S = default_stride_type>
-struct right_to_left: private D {
-    static constexpr size_t rank = D::rank;
-    using domain_type = D;
+template<typename S = default_stride_type, S... Strides>
+struct layout_static {
+    static constexpr size_t rank = sizeof...(Strides);
     using stride_type = S;
-    using index_type = typename domain_type::index_type;
+
+    constexpr layout_static() noexcept = default;
 
     KMM_HOST_DEVICE
-    right_to_left() : domain_type() {}
-
-    KMM_HOST_DEVICE
-    explicit right_to_left(domain_type domain) : domain_type(domain) {}
-
-    KMM_HOST_DEVICE
-    const domain_type& domain() const {
-        return *this;
+    static layout_static from_layout(const layout_static& layout) noexcept {
+        return layout;
     }
 
     KMM_HOST_DEVICE
-    stride_type stride(size_t axis) const {
+    stride_type stride(size_t axis) const noexcept {
+        S strides[rank] = {Strides...};
+        return axis < rank ? strides[axis] : static_cast<stride_type>(0);
+    }
+
+    template<typename I>
+    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, rank>& ndindex
+    ) const noexcept {
+        S strides[rank] = {Strides...};
+        stride_type result = 0;
+
+        for (size_t i = 0; i < rank; i++) {
+            result += strides[i] * static_cast<stride_type>(ndindex[i]);
+        }
+
+        return result;
+    }
+};
+
+template<typename S>
+struct layout_static<S> {
+    static constexpr size_t rank = 0;
+    using stride_type = S;
+
+    template<typename L>
+    KMM_HOST_DEVICE static layout_static from_layout(const L& layout) noexcept {
+        static_assert(L::rank == 0);
+        return {};
+    }
+
+    template<typename D>
+    KMM_HOST_DEVICE static layout_static from_domain(const D& domain) noexcept {
+        static_assert(D::rank == 0);
+        return {};
+    }
+
+    KMM_HOST_DEVICE
+    stride_type stride(size_t axis) const noexcept {
+        return static_cast<stride_type>(0);
+    }
+
+    template<typename I>
+    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, rank>& ndindex
+    ) const noexcept {
+        return static_cast<stride_type>(0);
+    }
+};
+
+template<size_t N, typename S = default_stride_type>
+struct layout_left_to_right {
+    static constexpr size_t rank = N;
+    using stride_type = S;
+
+    KMM_HOST_DEVICE
+    constexpr layout_left_to_right(fixed_array<stride_type, rank> dims = {}) noexcept :
+        m_dims(dims) {}
+
+    KMM_HOST_DEVICE
+    static layout_left_to_right from_layout(const layout_left_to_right& layout) noexcept {
+        return layout;
+    }
+
+    template<typename D>
+    KMM_HOST_DEVICE static layout_left_to_right from_domain(const D& domain) noexcept {
+        fixed_array<stride_type, rank> dims;
+
+        for (size_t i = 0; i < rank; i++) {
+            dims[i] = static_cast<stride_type>(domain.size(i));
+        }
+
+        return dims;
+    }
+
+    KMM_HOST_DEVICE
+    stride_type stride(size_t axis) const noexcept {
         stride_type stride = 1;
 
-        for (size_t i = rank; i > 0; i--) {
-            if (i - 1 > axis) {
-                stride *= stride_type(domain().size(i - 1));
+        for (size_t i = 0; i < rank; i++) {
+            if (i < axis) {
+                stride *= m_dims[i];
             }
         }
 
         return stride;
     }
 
-    KMM_HOST_DEVICE
-    stride_type data_offset() const {
-        stride_type stride = 1;
+    template<typename I>
+    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
         stride_type offset = 0;
 
-        for (size_t i = rank; i > 0; i--) {
-            offset += stride_type(domain().offset(i - 1)) * stride;
-            stride *= stride_type(domain().size(i - 1));
+        for (size_t i = 0; i < rank; i++) {
+            offset = offset * m_dims[N - i - 1] + ndindex[N - i - 1];
         }
 
-        return -offset;
+        return offset;
     }
 
-    KMM_HOST_DEVICE
-    stride_type linearize_index(fixed_array<index_type, rank> ndindex) const {
-        stride_type stride = 1;
-        stride_type linear = 0;
-
-        for (size_t i = rank; i > 0; i--) {
-            linear += stride_type(ndindex[i - 1]) * stride;
-            stride *= stride_type(domain().size(i - 1));
-        }
-
-        return linear;
-    }
+  private:
+    fixed_array<stride_type, rank> m_dims;
 };
 
-template<typename D, typename S = default_stride_type>
-struct left_to_right: private D {
-    static constexpr size_t rank = D::rank;
-    using domain_type = D;
+template<size_t N, typename S = default_stride_type>
+struct layout_right_to_left {
+    static constexpr size_t rank = N;
     using stride_type = S;
-    using index_type = typename domain_type::index_type;
 
     KMM_HOST_DEVICE
-    left_to_right() : domain_type() {}
+    constexpr layout_right_to_left(fixed_array<stride_type, rank> dims) noexcept : m_dims(dims) {}
 
     KMM_HOST_DEVICE
-    explicit left_to_right(domain_type domain) : domain_type(domain) {}
+    static layout_right_to_left from_layout(const layout_right_to_left& layout) noexcept {
+        return layout;
+    }
 
-    KMM_HOST_DEVICE
-    const domain_type& domain() const {
-        return *this;
+    template<typename D>
+    KMM_HOST_DEVICE static layout_right_to_left from_domain(const D& domain) noexcept {
+        fixed_array<stride_type, rank> dims;
+
+        for (size_t i = 0; i < rank; i++) {
+            dims[i] = static_cast<stride_type>(domain.size(i));
+        }
+
+        return dims;
     }
 
     KMM_HOST_DEVICE
-    stride_type stride(size_t axis) const {
-        stride_type result = 1;
+    stride_type layout_size(size_t axis) const noexcept {
+        return m_dims[axis];
+    }
+
+    KMM_HOST_DEVICE
+    stride_type stride(size_t axis) const noexcept {
+        stride_type stride = 1;
+
         for (size_t i = 0; i < rank; i++) {
-            if (i < axis) {
-                result *= stride_type {domain().size(i)};
+            if (N - i - 1 > axis) {
+                stride *= m_dims[N - i - 1];
             }
+        }
+
+        return stride;
+    }
+
+    template<typename I>
+    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
+        stride_type offset = 0;
+
+        for (size_t i = 0; i < rank; i++) {
+            offset = offset * m_dims[i] + ndindex[i];
+        }
+
+        return offset;
+    }
+
+  private:
+    fixed_array<stride_type, rank> m_dims;
+};
+
+template<size_t N, typename S = default_stride_type>
+struct layout_strided {
+    static constexpr size_t rank = N;
+    using stride_type = S;
+
+    KMM_HOST_DEVICE
+    constexpr layout_strided(fixed_array<stride_type, rank> strides) noexcept :
+        m_strides(strides) {}
+
+    template<typename L>
+    KMM_HOST_DEVICE static layout_strided from_layout(const L& layout) noexcept {
+        fixed_array<stride_type, rank> strides;
+
+        for (size_t i = 0; i < rank; i++) {
+            strides[i] = layout.stride(i);
+        }
+
+        return strides;
+    }
+
+    template<typename D>
+    KMM_HOST_DEVICE static layout_strided from_domain(const D& domain) noexcept {
+        return from_layout(layout_right_to_left<N, S>::from_domain(domain));
+    }
+
+    KMM_HOST_DEVICE
+    stride_type stride(size_t axis) const noexcept {
+        return m_strides[axis];
+    }
+
+    template<typename I>
+    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
+        stride_type result = 0;
+
+        for (size_t i = 0; i < rank; i++) {
+            result += m_strides[i] * static_cast<stride_type>(ndindex[i]);
         }
 
         return result;
     }
 
-    KMM_HOST_DEVICE
-    stride_type data_offset() const {
-        stride_type stride = 1;
-        stride_type offset = 0;
-
-        for (size_t i = 0; i < rank; i++) {
-            offset += stride_type(domain().offset(i)) * stride;
-            stride *= stride_type(domain().size(i));
-        }
-
-        return -offset;
-    }
-
-    KMM_HOST_DEVICE
-    stride_type linearize_index(fixed_array<index_type, rank> ndindex) const {
-        stride_type stride = 1;
-        stride_type linear = 0;
-
-        for (size_t i = 0; i < rank; i++) {
-            linear += stride_type(ndindex[i]) * stride;
-            stride *= stride_type(domain().size(i));
-        }
-
-        return linear;
-    }
-};
-
-template<typename D, typename S = default_stride_type>
-struct strided: private D {
-    static constexpr size_t rank = D::rank;
-    using domain_type = D;
-    using stride_type = S;
-    using index_type = typename domain_type::index_type;
-
-    KMM_HOST_DEVICE
-    strided() : domain_type(), m_strides() {}
-
-    KMM_HOST_DEVICE
-    explicit strided(domain_type domain, fixed_array<stride_type, rank> strides = {}) :
-        domain_type(domain),
-        m_strides(strides) {}
-
-    KMM_HOST_DEVICE
-    const domain_type& domain() const {
-        return *this;
-    }
-
-    KMM_HOST_DEVICE
-    stride_type stride(size_t axis) const {
-        return axis < rank ? m_strides[axis] : 0;
-    }
-
-    KMM_HOST_DEVICE
-    stride_type data_offset() const {
-        stride_type offset = 0;
-
-        for (size_t i = 0; i < rank; i++) {
-            offset += stride_type(domain().offset(i)) * m_strides[i];
-        }
-
-        return -offset;
-    }
-
-    KMM_HOST_DEVICE
-    stride_type linearize_index(fixed_array<index_type, rank> ndindex) const {
-        stride_type linear = 0;
-
-        for (size_t i = 0; i < rank; i++) {
-            linear += stride_type(ndindex[i]) * m_strides[i];
-        }
-
-        return linear;
-    }
-
   private:
     fixed_array<stride_type, rank> m_strides;
 };
 
-template<size_t ContiguousAxis, typename D, typename S = default_stride_type>
-struct contiguous_strided: private D {
-    static_assert(ContiguousAxis < D::rank || D::rank == 0, "Axis out of bounds");
-
-    static constexpr size_t rank = D::rank;
-    using domain_type = D;
-    using stride_type = S;
-    using index_type = typename domain_type::index_type;
+template<size_t Axis, typename D>
+struct drop_domain_axis {
+    static_assert(Axis < D::rank);
+    using index_type = typename D::index_type;
+    using type = domain_subbounds<D::rank - 1, index_type>;
 
     KMM_HOST_DEVICE
-    contiguous_strided() : domain_type({}), m_strides({}) {}
+    static type call(const D& domain) noexcept {
+        fixed_array<index_type, D::rank - 1> new_offsets;
+        fixed_array<index_type, D::rank - 1> new_sizes;
+        size_t axis = Axis;
 
-    KMM_HOST_DEVICE
-    explicit contiguous_strided(domain_type domain, fixed_array<stride_type, rank> strides = {}) :
-        domain_type(domain),
-        m_strides(strides) {}
-
-    KMM_HOST_DEVICE
-    const domain_type& domain() const {
-        return *this;
-    }
-
-    KMM_HOST_DEVICE
-    strided<D, S> to_strided() const {
-        return {domain(), m_strides};
-    }
-
-    KMM_HOST_DEVICE
-    stride_type stride(size_t axis) const {
-        return axis == ContiguousAxis ? 1 : (axis < rank ? m_strides[axis] : 0);
-    }
-
-    KMM_HOST_DEVICE
-    stride_type data_offset() const {
-        stride_type offset = 0;
-
-        for (size_t i = 0; i < rank; i++) {
-            offset += stride_type(domain().offset(i)) * stride(i);
+        for (size_t i = 0; i < D::rank - 1; i++) {
+            new_offsets[i] = domain.offset(i < axis ? i : i + 1);
+            new_sizes[i] = domain.size(i < axis ? i : i + 1);
         }
 
-        return -offset;
+        return {new_offsets, new_sizes};
     }
+};
+
+template<size_t Axis, size_t N, typename I>
+struct drop_domain_axis<Axis, domain_bounds<N, I>> {
+    static_assert(Axis < N);
+    using index_type = I;
+    using type = domain_bounds<N - 1, I>;
 
     KMM_HOST_DEVICE
-    stride_type linearize_index(fixed_array<index_type, rank> ndindex) const {
-        stride_type linear = 0;
+    static type call(const domain_bounds<N, I>& domain) noexcept {
+        fixed_array<index_type, N - 1> new_sizes;
+        size_t axis = Axis;
 
-        for (size_t i = 0; i < rank; i++) {
-            linear += stride_type(ndindex[i]) * stride(i);
+        for (size_t i = 0; i < N - 1; i++) {
+            new_sizes[i] = domain.size(i < axis ? i : i + 1);
         }
 
-        return linear;
-    }
-
-  private:
-    fixed_array<stride_type, rank> m_strides;
-};
-
-template<typename D, typename S, S... Strides>
-struct static_strided: private D {
-    static_assert(D::rank == sizeof...(Strides), "number of strides must match domain rank");
-    static constexpr size_t rank = sizeof...(Strides);
-    using domain_type = D;
-    using stride_type = S;
-    using index_type = typename domain_type::index_type;
-
-    KMM_HOST_DEVICE
-    static_strided(domain_type domain = {}) : domain_type(domain) {}
-
-    KMM_HOST_DEVICE
-    const domain_type& domain() const {
-        return *this;
-    }
-
-    KMM_HOST_DEVICE
-    strided<D, S> to_strided() const {
-        fixed_array<stride_type, rank> strides = {Strides...};
-        return {domain(), strides};
-    }
-
-    KMM_HOST_DEVICE
-    stride_type stride(size_t axis) const {
-        return to_strided().stride(axis);
-    }
-
-    KMM_HOST_DEVICE
-    stride_type data_offset() const {
-        return to_strided().data_offset();
-    }
-
-    KMM_HOST_DEVICE
-    stride_type linearize_index(fixed_array<index_type, rank> ndindex) const {
-        return to_strided().linearize_index(ndindex);
+        return {new_sizes};
     }
 };
 
-template<typename From, typename To, typename = void>
-struct convert {};
+template<size_t Axis, typename I, I... Dims>
+struct drop_domain_axis<Axis, domain_static<I, Dims...>> {
+    using index_type = I;
+    using domain_type = domain_bounds<sizeof...(Dims), I>;
+    using type = typename drop_domain_axis<Axis, domain_type>::type;
 
-template<typename L>
-struct convert<L, L> {
     KMM_HOST_DEVICE
-    static L call(const L& layout) {
-        return layout;
+    static type call(const domain_static<I, Dims...>& domain) noexcept {
+        return drop_domain_axis<Axis, domain_type>::call(domain_type::from_domain(domain));
     }
 };
 
-template<typename From, typename D, typename S>
-struct convert<From, strided<D, S>> {
-    KMM_HOST_DEVICE
-    static strided<D, S> call(const From& from) {
-        D new_domain = domains::convert<typename From::domain_type, D>::call(from.domain());
-
-        fixed_array<S, D::rank> new_strides;
-        for (size_t i = 0; i < D::rank; i++) {
-            new_strides[i] = from.stride(i);
-        }
-
-        return {new_domain, new_strides};
-    }
-};
-
-template<typename D, typename D2>
-struct convert<right_to_left<D>, right_to_left<D2>> {
-    KMM_HOST_DEVICE
-    static right_to_left<D2> call(const right_to_left<D>& from) {
-        return right_to_left<D2> {domains::convert<D, D2>::call(from.domain())};
-    }
-};
-
-template<typename D>
-struct convert<right_to_left<D>, right_to_left<D>> {
-    KMM_HOST_DEVICE
-    static right_to_left<D> call(const right_to_left<D>& from) {
-        return from;
-    }
-};
-
-template<typename D, typename D2>
-struct convert<left_to_right<D>, left_to_right<D2>> {
-    KMM_HOST_DEVICE
-    static left_to_right<D2> call(const left_to_right<D>& from) {
-        return left_to_right<D2> {domains::convert<D, D2>::call(from.domain())};
-    }
-};
-
-template<typename D>
-struct convert<left_to_right<D>, left_to_right<D>> {
-    KMM_HOST_DEVICE
-    static left_to_right<D> call(const left_to_right<D>& from) {
-        return from;
-    }
-};
-
-template<typename D, typename D2>
-struct convert<right_to_left<D>, contiguous_strided<D::rank - 1, D2>> {
-    KMM_HOST_DEVICE
-    static contiguous_strided<D::rank - 1, D2> call(const right_to_left<D>& from) {
-        return domains::convert<D, D2>::call(from.domain());
-    }
-};
-
-template<typename D, typename D2>
-struct convert<left_to_right<D>, contiguous_strided<0, D2>> {
-    KMM_HOST_DEVICE
-    static contiguous_strided<0, D2> call(const left_to_right<D>& from) {
-        return domains::convert<D, D2>::call(from.domain());
-    }
-};
-
-template<typename L, size_t Axis>
-struct remove_axis_impl {
-    using new_domain_type = domains::remove_axis_type<typename L::domain_type, Axis>;
+template<size_t Axis, typename L>
+struct drop_layout_axis {
     using stride_type = typename L::stride_type;
-    using type = strided<new_domain_type, stride_type>;
+    using type = layout_strided<L::rank - 1, stride_type>;
 
     KMM_HOST_DEVICE
-    static type call(const L& from) {
-        auto new_domain =
-            domains::remove_axis_impl<typename L::domain_type, Axis>::call(from.domain());
-
+    static type call(const L& layout) noexcept {
         fixed_array<stride_type, L::rank - 1> new_strides;
+        size_t axis = Axis;
+
         for (size_t i = 0; i < L::rank - 1; i++) {
-            new_strides[i] = from.stride(i + size_t(i >= Axis));
+            new_strides[i] = layout.stride(i < axis ? i : i + 1);
         }
 
-        return type {new_domain, new_strides};
+        return {new_strides};
     }
 };
 
-template<typename D, typename S>
-struct remove_axis_impl<right_to_left<D, S>, 0> {
-    using type = right_to_left<domains::remove_axis_type<D, 0>, S>;
+template<size_t N, typename S>
+struct drop_layout_axis<0, layout_right_to_left<N, S>> {
+    using stride_type = S;
+    using type = layout_right_to_left<N - 1, S>;
 
     KMM_HOST_DEVICE
-    static type call(const right_to_left<D, S>& from) {
-        return type {domains::remove_axis_impl<D, 0>::call(from.domain())};
+    static type call(const layout_right_to_left<N, S>& layout) noexcept {
+        fixed_array<stride_type, N - 1> new_dims;
+
+        for (size_t i = 0; i < N - 1; i++) {
+            new_dims[i] = layout.layout_size(i + 1);
+        }
+
+        return {new_dims};
     }
 };
 
-template<typename L, size_t Axis>
-using remove_axis_type = typename remove_axis_impl<L, Axis>::type;
+template<size_t K, typename S>
+struct drop_layout_axis<K, layout_left_to_right<K + 1, S>> {
+    using stride_type = S;
+    using type = layout_right_to_left<K, S>;
 
-}  // namespace layouts
+    KMM_HOST_DEVICE
+    static type call(const layout_right_to_left<K + 1, S>& layout) noexcept {
+        fixed_array<stride_type, K> new_dims;
 
-namespace mappings {
-struct right_to_left {
-    template<typename D>
-    using layout_type = layouts::right_to_left<D>;
+        for (size_t i = 0; i < K; i++) {
+            new_dims[i] = layout.layout_size(i);
+        }
+
+        return {new_dims};
+    }
 };
 
-struct left_to_right {
-    template<typename D>
-    using layout_type = layouts::left_to_right<D>;
-};
+template<size_t N, typename S = default_stride_type>
+using layout_default = layout_right_to_left<N, S>;
 
-template<typename S = default_stride_type>
-struct strided {
-    template<typename D>
-    using layout_type = layouts::strided<D, S>;
-};
+template<typename D>
+using layout_default_for = layout_default<D::rank, typename D::index_type>;
 
-template<size_t ContiguousAxis, typename S = default_stride_type>
-struct contiguous_strided {
-    template<typename D>
-    using layout_type = layouts::contiguous_strided<ContiguousAxis, D, S>;
-};
-
-template<default_stride_type... Strides>
-struct static_strided {
-    template<typename D>
-    using layout_type = layouts::static_strided<D, default_stride_type, Strides...>;
-};
-}  // namespace mappings
-
-namespace accessors {
-struct host {
+struct accessor_host {
     template<typename T>
-    KMM_HOST_DEVICE T& access(T* ptr) const {
+    KMM_HOST_DEVICE T& dereference_pointer(T* ptr) const noexcept {
         return *ptr;
     }
 };
 
-struct gpu_device {
+struct accessor_device {
     template<typename T>
-    KMM_HOST_DEVICE T* offset(T* ptr, ptrdiff_t offset) const {
-        return ptr + offset;
-    }
-
-    template<typename T>
-    KMM_HOST_DEVICE T& access(T* ptr) const {
+    KMM_HOST_DEVICE T& dereference_pointer(T* ptr) const {
+#if __CUDA_ARCH__
         return *ptr;
+#else
+        throw std::runtime_error("device data cannot be accessed on host");
+#endif
     }
 };
 
-template<typename From, typename To>
-struct convert {};
-
-template<typename T>
-struct convert<T, T> {
-    KMM_HOST_DEVICE
-    static T* call(T* input) {
-        return input;
-    }
-};
-
-template<typename T>
-struct convert<T, const T> {
-    KMM_HOST_DEVICE
-    static const T* call(T* input) {
-        return input;
-    }
-};
-}  // namespace accessors
-
-template<typename View, typename T, typename L, size_t K = 0, size_t N = L::rank>
+}  // namespace views
+template<typename View, typename T, typename D, size_t K = 0, size_t N = D::rank>
 struct view_subscript {
     using type = view_subscript;
-    using subscript_type = typename view_subscript<View, T, L, K + 1>::type;
-    using index_type = typename L::index_type;
-    using ndindex_type = fixed_array<index_type, L::rank>;
+    using subscript_type = typename view_subscript<View, T, D, K + 1>::type;
+    using index_type = typename D::index_type;
+    using ndindex_type = fixed_array<index_type, D::rank>;
+
     KMM_HOST_DEVICE
-    static type instantiate(const View* base, ndindex_type index = {}) {
+    static type instantiate(const View* base, ndindex_type index = {}) noexcept {
         return type {base, index};
     }
 
     KMM_HOST_DEVICE
-    view_subscript(const View* base, ndindex_type index) : base_(base), index_(index) {}
+    view_subscript(const View* base, ndindex_type index) noexcept : base_(base), index_(index) {}
 
     KMM_HOST_DEVICE
     subscript_type operator[](index_type index) {
         index_[K] = index;
-        return view_subscript<View, T, L, K + 1>::instantiate(base_, index_);
+        return view_subscript<View, T, D, K + 1>::instantiate(base_, index_);
     }
 
   private:
@@ -649,10 +524,10 @@ struct view_subscript {
     ndindex_type index_;
 };
 
-template<typename View, typename T, typename L, size_t N>
-struct view_subscript<View, T, L, N, N> {
+template<typename View, typename T, typename D, size_t N>
+struct view_subscript<View, T, D, N, N> {
     using type = T&;
-    using index_type = typename L::index_type;
+    using index_type = typename D::index_type;
     using ndindex_type = fixed_array<index_type, N>;
 
     KMM_HOST_DEVICE
@@ -661,19 +536,19 @@ struct view_subscript<View, T, L, N, N> {
     }
 };
 
-template<typename Derived, typename T, typename L, size_t N = L::rank>
+template<typename Derived, typename T, typename D, size_t N = D::rank>
 struct basic_view_base {
-    using index_type = typename L::index_type;
-    using subscript_type = typename view_subscript<Derived, T, L>::subscript_type;
+    using index_type = typename D::index_type;
+    using subscript_type = typename view_subscript<Derived, T, D>::subscript_type;
 
     KMM_HOST_DEVICE
     subscript_type operator[](index_type index) const {
-        return view_subscript<Derived, T, L>::instantiate(static_cast<const Derived*>(this))[index];
+        return view_subscript<Derived, T, D>::instantiate(static_cast<const Derived*>(this))[index];
     }
 };
 
-template<typename Derived, typename T, typename L>
-struct basic_view_base<Derived, T, L, 0> {
+template<typename Derived, typename T, typename D>
+struct basic_view_base<Derived, T, D, 0> {
     using reference = T&;
 
     KMM_HOST_DEVICE
@@ -681,90 +556,117 @@ struct basic_view_base<Derived, T, L, 0> {
         return static_cast<const Derived*>(this)->access({});
     }
 };
-}  // namespace views
 
-template<typename T, typename L, typename A>
-struct basic_view: private L, private A, public views::basic_view_base<basic_view<T, L, A>, T, L> {
+template<typename T, typename D, typename L, typename A = views::accessor_host>
+struct basic_view:
+    public D,
+    public L,
+    public A,
+    public basic_view_base<basic_view<T, D, L, A>, T, D> {
+    static_assert(D::rank == L::rank, "domain type and layout type must have equal rank");
+
     using self_type = basic_view;
     using value_type = T;
+    using domain_type = D;
     using layout_type = L;
     using accessor_type = A;
     using pointer = T*;
     using reference = T&;
 
-    using domain_type = typename layout_type::domain_type;
-    using stride_type = typename layout_type::stride_type;
+    static constexpr size_t rank = D::rank;
     using index_type = typename domain_type::index_type;
-    static constexpr size_t rank = domain_type::rank;
+    using stride_type = typename layout_type::stride_type;
     using ndindex_type = fixed_array<index_type, rank>;
     using ndstride_type = fixed_array<stride_type, rank>;
 
-    KMM_HOST_DEVICE
     basic_view(const basic_view&) = default;
+    basic_view(basic_view&&) noexcept = default;
+
+    basic_view& operator=(const basic_view&) = default;
+    basic_view& operator=(basic_view&&) noexcept = default;
 
     KMM_HOST_DEVICE
-    basic_view(pointer data = nullptr, layout_type layout = {}, accessor_type accessor = {}) :
+    basic_view(
+        pointer data,
+        domain_type domain,
+        layout_type layout,
+        accessor_type accessor = {}
+    ) noexcept :
+        domain_type(domain),
         layout_type(layout),
-        accessor_type(accessor),
-        m_data(data + this->layout().data_offset()) {}
-
-    KMM_HOST_DEVICE
-    basic_view(pointer data, domain_type domain, accessor_type accessor = {}) :
-        basic_view(data, layout_type(domain), accessor) {}
-
-    template<typename T2, typename L2>
-    KMM_HOST_DEVICE basic_view(const basic_view<T2, L2, A>& that) :
-        layout_type(views::layouts::convert<L2, L>::call(that.layout())),
-        accessor_type(that.accessor()),
-        m_data(views::accessors::convert<T2, T>::call(that.data()) + layout().data_offset()) {}
-
-    KMM_HOST_DEVICE
-    pointer data() const {
-        return m_data - layout().data_offset();
+        accessor_type(accessor) {
+        m_data = data - this->layout().linearize_index(offsets());
     }
 
     KMM_HOST_DEVICE
-    operator pointer() const {
+    basic_view(pointer data = nullptr, domain_type domain = {}) noexcept :
+        basic_view(data, domain, layout_type::from_domain(domain)) {}
+
+    template<typename D2, typename L2>
+    KMM_HOST_DEVICE basic_view(const basic_view<T, D2, L2, A>& that) noexcept :
+        basic_view(
+            that.data(),
+            D::from_domain(that.domain()),
+            L::from_layout(that.layout()),
+            that.accessor()
+        ) {}
+
+    template<typename D2, typename L2>
+    KMM_HOST_DEVICE basic_view& operator=(const basic_view<T, D2, L2, A>& that) const noexcept {
+        return *this = basic_view(that);
+    }
+
+    KMM_HOST_DEVICE
+    pointer data() const noexcept {
+        return m_data + layout().linearize_index(offsets());
+    }
+
+    KMM_HOST_DEVICE
+    operator pointer() const noexcept {
         return data();
     }
 
     KMM_HOST_DEVICE
-    const layout_type& layout() const {
+    const layout_type& layout() const noexcept {
         return *this;
     }
 
     KMM_HOST_DEVICE
-    const accessor_type& accessor() const {
+    const domain_type& domain() const noexcept {
         return *this;
     }
 
     KMM_HOST_DEVICE
-    const domain_type& domain() const {
-        return layout_type::domain();
+    const accessor_type& accessor() const noexcept {
+        return *this;
     }
 
     KMM_HOST_DEVICE
-    stride_type stride(size_t axis = 0) const {
-        return layout().stride(axis);
-    }
-
-    KMM_HOST_DEVICE
-    index_type offset(size_t axis = 0) const {
-        return domain().offset(axis);
-    }
-
-    KMM_HOST_DEVICE
-    index_type size(size_t axis) const {
+    index_type size(size_t axis) const noexcept {
         return domain().size(axis);
     }
 
     KMM_HOST_DEVICE
-    size_t size_in_bytes() const {
-        return size_t(size()) * sizeof(T);
+    index_type size() const noexcept {
+        index_type volume = 1;
+        for (size_t i = 0; i < rank; i++) {
+            volume *= domain().size(i);
+        }
+        return volume;
     }
 
     KMM_HOST_DEVICE
-    ndstride_type strides() const {
+    stride_type stride(size_t axis = 0) const noexcept {
+        return layout().stride(axis);
+    }
+
+    KMM_HOST_DEVICE
+    index_type offset(size_t axis = 0) const noexcept {
+        return domain().offset(axis);
+    }
+
+    KMM_HOST_DEVICE
+    ndstride_type strides() const noexcept {
         ndstride_type result;
         for (size_t i = 0; i < rank; i++) {
             result[i] = stride(i);
@@ -773,7 +675,7 @@ struct basic_view: private L, private A, public views::basic_view_base<basic_vie
     }
 
     KMM_HOST_DEVICE
-    ndindex_type offsets() const {
+    ndindex_type offsets() const noexcept {
         ndindex_type result;
         for (size_t i = 0; i < rank; i++) {
             result[i] = offset(i);
@@ -782,84 +684,96 @@ struct basic_view: private L, private A, public views::basic_view_base<basic_vie
     }
 
     KMM_HOST_DEVICE
-    ndindex_type sizes() const {
+    ndindex_type sizes() const noexcept {
         ndindex_type result;
         for (size_t i = 0; i < rank; i++) {
-            result[i] = size(i);
+            result[i] = this->size(i);
         }
         return result;
     }
 
     KMM_HOST_DEVICE
-    index_type size() const {
-        index_type total = 1;
-        for (size_t i = 0; i < rank; i++) {
-            total *= size(i);
-        }
-        return total;
-    }
-
-    KMM_HOST_DEVICE
-    bool is_empty() const {
-        bool result = false;
-        for (size_t i = 0; i < rank; i++) {
-            result |= size(i) == 0;
-        }
-        return result;
-    }
-
-    KMM_HOST_DEVICE
-    bool in_bounds(ndindex_type point) const {
-        bool result = true;
-        for (size_t i = 0; i < rank; i++) {
-            result &= point[i] >= begin(i);
-            result &= point[i] - begin(i) < size(i);
-        }
-        return result;
-    }
-
-    KMM_HOST_DEVICE
-    index_type begin(size_t axis) const {
+    index_type begin(size_t axis = 0) const noexcept {
         return offset(axis);
     }
 
     KMM_HOST_DEVICE
-    index_type end(size_t axis) const {
-        return begin(axis) + size(axis);
+    index_type end(size_t axis = 0) const noexcept {
+        return begin(axis) + this->size(axis);
     }
 
     KMM_HOST_DEVICE
-    stride_type linearize_index(ndindex_type point) const {
-        return layout().linearize_index(point);
+    value_type* data_at(ndindex_type ndindex) const noexcept {
+        return m_data + layout().linearize_index(ndindex);
     }
 
     KMM_HOST_DEVICE
-    value_type* data_at(ndindex_type point) const {
-        return m_data + linearize_index(point);
-    }
-
-    KMM_HOST_DEVICE
-    reference access(ndindex_type point) const {
-        return accessor().access(data_at(point));
-    }
-
-    template<size_t Axis>
-    KMM_HOST_DEVICE basic_view<value_type, views::layouts::remove_axis_type<L, Axis>, accessor_type>
-    drop_axis(index_type index) {
-        stride_type offset = stride_type(index - begin(Axis)) * stride(Axis);
-        return {data() + offset, views::layouts::remove_axis_impl<L, Axis>::call(layout())};
-    }
-
-    template<size_t Axis>
-    KMM_HOST_DEVICE basic_view<value_type, views::layouts::remove_axis_type<L, Axis>, accessor_type>
-    drop_axis() {
-        return {data(), views::layouts::remove_axis_impl<L, Axis>::call(layout())};
+    reference access(ndindex_type ndindex) const noexcept {
+        return accessor().dereference_pointer(data_at(ndindex));
     }
 
     template<typename... Indices>
-    KMM_HOST_DEVICE reference operator()(Indices... indices) const {
+    KMM_HOST_DEVICE reference operator()(Indices... indices) const noexcept {
         static_assert(sizeof...(Indices) == rank, "invalid number of indices");
         return access(ndindex_type {indices...});
+    }
+
+    KMM_HOST_DEVICE
+    bool is_empty() const noexcept {
+        bool result = false;
+        for (size_t i = 0; i < rank; i++) {
+            result |= domain().size(i) <= static_cast<index_type>(0);
+        }
+        return result;
+    }
+
+    KMM_HOST_DEVICE
+    bool in_bounds(ndindex_type ndindex) const noexcept {
+        bool result = true;
+        for (size_t i = 0; i < rank; i++) {
+            result &= ndindex[i] >= domain().offset(i);
+            result &= ndindex[i] - domain().offset(i) < domain().size(i);
+        }
+        return result;
+    }
+
+    KMM_HOST_DEVICE
+    bool is_contiguous() const noexcept {
+        stride_type curr = 1;
+        bool result = true;
+
+        for (size_t i = 0; i < rank; i++) {
+            result &= layout().stride(rank - i - 1) == curr;
+            curr *= static_cast<stride_type>(domain().size(rank - i - 1));
+        }
+
+        return result;
+    }
+
+    template<size_t Axis = 0>
+    KMM_HOST_DEVICE basic_view<
+        T,
+        typename views::drop_domain_axis<Axis, domain_type>::type,
+        typename views::drop_layout_axis<Axis, layout_type>::type,
+        A>
+    drop_axis(index_type index) const noexcept {
+        static_assert(Axis < rank, "axis out of bounds");
+        return {
+            data() + layout().stride(Axis) * (index - offset(Axis)),
+            views::drop_domain_axis<Axis, domain_type>::call(domain()),
+            views::drop_layout_axis<Axis, layout_type>::call(layout()),
+        };
+    }
+
+    template<size_t Axis = 0>
+    KMM_HOST_DEVICE basic_view<
+        T,
+        typename views::drop_domain_axis<Axis, domain_type>::type,
+        typename views::drop_layout_axis<Axis, layout_type>::type,
+        A>
+    drop_axis() const noexcept {
+        static_assert(Axis < rank, "axis out of bounds");
+        return this->template drop_axis<Axis>(offset(Axis));
     }
 
   private:
@@ -869,67 +783,65 @@ struct basic_view: private L, private A, public views::basic_view_base<basic_vie
 template<
     typename T,
     size_t N = 1,
-    typename M = views::mappings::right_to_left,
-    typename A = views::accessors::host>
-using view = basic_view<const T, typename M::template layout_type<views::domains::bounds<N>>, A>;
+    typename M = views::layout_right_to_left<N>,
+    typename A = views::accessor_host>
+using view = basic_view<const T, views::domain_bounds<N>, M, A>;
 
 template<
     typename T,
     size_t N = 1,
-    typename M = views::mappings::right_to_left,
-    typename A = views::accessors::host>
-using view_mut = basic_view<T, typename M::template layout_type<views::domains::bounds<N>>, A>;
+    typename M = views::layout_right_to_left<N>,
+    typename A = views::accessor_host>
+using view_mut = basic_view<T, views::domain_bounds<N>, M, A>;
 
-template<typename T, size_t N = 1, typename A = views::accessors::host>
-using strided_view = view<T, N, views::mappings::strided<default_stride_type>, A>;
+template<typename T, size_t N = 1, typename A = views::accessor_host>
+using strided_view = view<T, N, views::layout_strided<N>, A>;
 
-template<typename T, size_t N = 1, typename A = views::accessors::host>
-using strided_view_mut = view_mut<T, N, views::mappings::strided<default_stride_type>, A>;
+template<typename T, size_t N = 1, typename A = views::accessor_host>
+using strided_view_mut = view_mut<T, N, views::layout_strided<N>, A>;
 
-template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
-using gpu_view = view<T, N, L, views::accessors::gpu_device>;
+template<typename T, size_t N = 1, typename L = views::layout_right_to_left<N>>
+using gpu_view = view<T, N, L, views::accessor_device>;
 
-template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
-using gpu_view_mut = view_mut<T, N, L, views::accessors::gpu_device>;
-
-template<typename T, size_t N = 1>
-using gpu_strided_view = strided_view<T, N, views::accessors::gpu_device>;
+template<typename T, size_t N = 1, typename L = views::layout_right_to_left<N>>
+using gpu_view_mut = view_mut<T, N, L, views::accessor_device>;
 
 template<typename T, size_t N = 1>
-using gpu_strided_view_mut = strided_view_mut<T, N, views::accessors::gpu_device>;
+using gpu_strided_view = strided_view<T, N, views::accessor_device>;
+
+template<typename T, size_t N = 1>
+using gpu_strided_view_mut = strided_view_mut<T, N, views::accessor_device>;
 
 template<
     typename T,
     size_t N = 1,
-    typename M = views::mappings::right_to_left,
-    typename A = views::accessors::host>
-using subview =
-    basic_view<const T, typename M::template layout_type<views::domains::subbounds<N>>, A>;
+    typename M = views::layout_right_to_left<N>,
+    typename A = views::accessor_host>
+using subview = basic_view<const T, views::domain_subbounds<N>, M, A>;
 
 template<
     typename T,
     size_t N = 1,
-    typename M = views::mappings::right_to_left,
-    typename A = views::accessors::host>
-using subview_mut =
-    basic_view<T, typename M::template layout_type<views::domains::subbounds<N>>, A>;
+    typename M = views::layout_right_to_left<N>,
+    typename A = views::accessor_host>
+using subview_mut = basic_view<T, views::domain_subbounds<N>, M, A>;
 
-template<typename T, size_t N = 1, typename A = views::accessors::host>
-using strided_subview = subview<T, N, views::mappings::strided<default_stride_type>, A>;
+template<typename T, size_t N = 1, typename A = views::accessor_host>
+using strided_subview = subview<T, N, views::layout_strided<N>, A>;
 
-template<typename T, size_t N = 1, typename A = views::accessors::host>
-using strided_subview_mut = subview_mut<T, N, views::mappings::strided<default_stride_type>, A>;
+template<typename T, size_t N = 1, typename A = views::accessor_host>
+using strided_subview_mut = subview_mut<T, N, views::layout_strided<N>, A>;
 
-template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
-using gpu_subview = subview<T, N, L, views::accessors::gpu_device>;
+template<typename T, size_t N = 1, typename L = views::layout_right_to_left<N>>
+using gpu_subview = subview<T, N, L, views::accessor_device>;
 
-template<typename T, size_t N = 1, typename L = views::mappings::right_to_left>
-using gpu_subview_mut = subview_mut<T, N, L, views::accessors::gpu_device>;
-
-template<typename T, size_t N = 1>
-using gpu_strided_subview = strided_subview<T, N, views::accessors::gpu_device>;
+template<typename T, size_t N = 1, typename L = views::layout_right_to_left<N>>
+using gpu_subview_mut = subview_mut<T, N, L, views::accessor_device>;
 
 template<typename T, size_t N = 1>
-using gpu_strided_subview_mut = strided_subview_mut<T, N, views::accessors::gpu_device>;
+using gpu_strided_subview = strided_subview<T, N, views::accessor_device>;
+
+template<typename T, size_t N = 1>
+using gpu_strided_subview_mut = strided_subview_mut<T, N, views::accessor_device>;
 
 }  // namespace kmm

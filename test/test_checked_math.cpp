@@ -4,10 +4,10 @@
 
 using namespace kmm;
 
-template <typename T>
+template<typename T>
 static constexpr T MAX = std::numeric_limits<T>::max();
 
-template <typename T>
+template<typename T>
 static constexpr T MIN = std::numeric_limits<T>::min();
 
 TEST(CheckedMath, checked_add) {
@@ -44,7 +44,7 @@ TEST(CheckedMath, checked_mul) {
     ASSERT_EQ(checked_mul(uint32_t(2), MAX<uint32_t> / 2), MAX<uint32_t> - 1);
     ASSERT_EQ(checked_mul(uint32_t(1), MAX<uint32_t>), MAX<uint32_t>);
     ASSERT_ANY_THROW(checked_mul(MAX<uint32_t>, uint32_t(2)));
-    
+
     ASSERT_EQ(checked_mul(int32_t(2), int32_t(0)), int32_t(0));
     ASSERT_EQ(checked_mul(int32_t(2), int32_t(3)), int32_t(6));
     ASSERT_EQ(checked_mul(int32_t(2), MAX<int32_t> / 2), MAX<int32_t> - 1);
@@ -53,7 +53,7 @@ TEST(CheckedMath, checked_mul) {
     ASSERT_EQ(checked_mul(int32_t(1), MIN<int32_t>), MIN<int32_t>);
     ASSERT_ANY_THROW(checked_mul(MAX<int32_t>, int32_t(2)));
     ASSERT_ANY_THROW(checked_mul(MIN<int32_t>, int32_t(2)));
-    
+
     ASSERT_EQ(checked_mul(int8_t(2), int8_t(0)), int8_t(0));
     ASSERT_EQ(checked_mul(int8_t(2), int8_t(3)), int8_t(6));
     ASSERT_EQ(checked_mul(int8_t(2), int8_t(MAX<int8_t> / 2)), MAX<int8_t> - 1);
@@ -81,7 +81,7 @@ TEST(CheckedMath, checked_less) {
     ASSERT_TRUE(compare_less(uint32_t(10), char(50)));
     ASSERT_TRUE(compare_less(size_t(10), char(50)));
     ASSERT_TRUE(compare_less(char(10), char(50)));
-    
+
     ASSERT_FALSE(compare_less(int32_t(50), int32_t(10)));
     ASSERT_FALSE(compare_less(uint32_t(50), int32_t(10)));
     ASSERT_FALSE(compare_less(size_t(50), int32_t(10)));
@@ -98,41 +98,41 @@ TEST(CheckedMath, checked_less) {
     ASSERT_FALSE(compare_less(uint32_t(50), char(10)));
     ASSERT_FALSE(compare_less(size_t(50), char(10)));
     ASSERT_FALSE(compare_less(char(50), char(10)));
-    
+
     ASSERT_TRUE(compare_less(int32_t(-1), int32_t(1)));
-//    ASSERT_TRUE(compare_less(uint32_t(-1), int32_t(1)));
-//    ASSERT_TRUE(compare_less(size_t(-1), int32_t(1)));
+    //    ASSERT_TRUE(compare_less(uint32_t(-1), int32_t(1)));
+    //    ASSERT_TRUE(compare_less(size_t(-1), int32_t(1)));
     ASSERT_TRUE(compare_less(char(-1), uint32_t(1)));
     ASSERT_TRUE(compare_less(int32_t(-1), uint32_t(1)));
-//    ASSERT_TRUE(compare_less(uint32_t(-1), uint32_t(1)));
-//    ASSERT_TRUE(compare_less(size_t(-1), uint32_t(1)));
+    //    ASSERT_TRUE(compare_less(uint32_t(-1), uint32_t(1)));
+    //    ASSERT_TRUE(compare_less(size_t(-1), uint32_t(1)));
     ASSERT_TRUE(compare_less(char(-1), uint32_t(1)));
     ASSERT_TRUE(compare_less(int32_t(-1), size_t(1)));
-//    ASSERT_TRUE(compare_less(uint32_t(-1), size_t(1)));
-//    ASSERT_TRUE(compare_less(size_t(-1), size_t(1)));
-//    ASSERT_TRUE(compare_less(char(-1), size_t(1)));
+    //    ASSERT_TRUE(compare_less(uint32_t(-1), size_t(1)));
+    //    ASSERT_TRUE(compare_less(size_t(-1), size_t(1)));
+    //    ASSERT_TRUE(compare_less(char(-1), size_t(1)));
     ASSERT_TRUE(compare_less(int32_t(-1), char(1)));
-//    ASSERT_TRUE(compare_less(uint32_t(-1), char(1)));
-//    ASSERT_TRUE(compare_less(size_t(-1), char(1)));
+    //    ASSERT_TRUE(compare_less(uint32_t(-1), char(1)));
+    //    ASSERT_TRUE(compare_less(size_t(-1), char(1)));
     ASSERT_TRUE(compare_less(char(-1), char(1)));
-    
+
     ASSERT_FALSE(compare_less(int32_t(1), int32_t(-1)));
     ASSERT_FALSE(compare_less(uint32_t(1), int32_t(-1)));
     ASSERT_FALSE(compare_less(size_t(1), int32_t(-1)));
-//    ASSERT_FALSE(compare_less(char(1), uint32_t(-1)));
-//    ASSERT_FALSE(compare_less(int32_t(1), uint32_t(-1)));
-//    ASSERT_FALSE(compare_less(uint32_t(1), uint32_t(-1)));
-//    ASSERT_FALSE(compare_less(size_t(1), uint32_t(-1)));
-//    ASSERT_FALSE(compare_less(char(1), uint32_t(-1)));
-//    ASSERT_FALSE(compare_less(int32_t(1), size_t(-1)));
-//    ASSERT_FALSE(compare_less(uint32_t(1), size_t(-1)));
-//    ASSERT_FALSE(compare_less(size_t(1), size_t(-1)));
-//    ASSERT_FALSE(compare_less(char(1), size_t(-1)));
+    //    ASSERT_FALSE(compare_less(char(1), uint32_t(-1)));
+    //    ASSERT_FALSE(compare_less(int32_t(1), uint32_t(-1)));
+    //    ASSERT_FALSE(compare_less(uint32_t(1), uint32_t(-1)));
+    //    ASSERT_FALSE(compare_less(size_t(1), uint32_t(-1)));
+    //    ASSERT_FALSE(compare_less(char(1), uint32_t(-1)));
+    //    ASSERT_FALSE(compare_less(int32_t(1), size_t(-1)));
+    //    ASSERT_FALSE(compare_less(uint32_t(1), size_t(-1)));
+    //    ASSERT_FALSE(compare_less(size_t(1), size_t(-1)));
+    //    ASSERT_FALSE(compare_less(char(1), size_t(-1)));
     ASSERT_FALSE(compare_less(int32_t(1), char(-1)));
     ASSERT_FALSE(compare_less(uint32_t(1), char(-1)));
     ASSERT_FALSE(compare_less(size_t(1), char(-1)));
     ASSERT_FALSE(compare_less(char(1), char(-1)));
-    
+
     ASSERT_TRUE(compare_less(MIN<uint32_t>, int32_t(1)));
     ASSERT_TRUE(compare_less(MIN<uint32_t>, int32_t(1)));
     ASSERT_TRUE(compare_less(MIN<size_t>, int32_t(1)));
@@ -149,7 +149,7 @@ TEST(CheckedMath, checked_less) {
     ASSERT_TRUE(compare_less(MIN<uint32_t>, char(1)));
     ASSERT_TRUE(compare_less(MIN<size_t>, char(1)));
     ASSERT_TRUE(compare_less(MIN<char>, char(1)));
-    
+
     ASSERT_FALSE(compare_less(MAX<uint32_t>, int32_t(1)));
     ASSERT_FALSE(compare_less(MAX<uint32_t>, int32_t(1)));
     ASSERT_FALSE(compare_less(MAX<size_t>, int32_t(1)));
@@ -189,7 +189,6 @@ TEST(CheckedMath, checked_cast) {
     ASSERT_EQ(checked_cast<int32_t>(MIN<char>), int32_t(MIN<char>));
     ASSERT_EQ(checked_cast<int32_t>(MAX<char>), int32_t(MAX<char>));
 
-
     ASSERT_EQ(checked_cast<uint32_t>(int32_t(1)), uint32_t(1));
     ASSERT_ANY_THROW(checked_cast<uint32_t>(int32_t(-1)));
     ASSERT_ANY_THROW(checked_cast<uint32_t>(MIN<int32_t>));
@@ -208,7 +207,6 @@ TEST(CheckedMath, checked_cast) {
     ASSERT_ANY_THROW(checked_cast<uint32_t>(char(-1)));
     ASSERT_ANY_THROW(checked_cast<uint32_t>(MIN<char>));
     ASSERT_EQ(checked_cast<uint32_t>(MAX<char>), uint32_t(MAX<char>));
-
 
     ASSERT_EQ(checked_cast<char>(int32_t(1)), char(1));
     ASSERT_EQ(checked_cast<char>(int32_t(-1)), char(-1));
@@ -229,7 +227,6 @@ TEST(CheckedMath, checked_cast) {
     ASSERT_EQ(checked_cast<char>(char(-1)), char(-1));
     ASSERT_EQ(checked_cast<char>(MIN<char>), MIN<char>);
     ASSERT_EQ(checked_cast<char>(MAX<char>), MAX<char>);
-
 
     ASSERT_EQ(checked_cast<size_t>(int32_t(1)), size_t(1));
     ASSERT_ANY_THROW(checked_cast<size_t>(int32_t(-1)));

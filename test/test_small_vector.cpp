@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 
 #include "kmm/utils/small_vector.hpp"
 
@@ -185,7 +185,7 @@ TEST(SmallVector, iterate) {
     small_vector<int, 4> x = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
     size_t index = 0;
-    for (const auto& v: x) {
+    for (const auto& v : x) {
         ASSERT_EQ(v, index);
         index++;
     }

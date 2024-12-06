@@ -7,6 +7,7 @@ add_executable(
       ${PROJECT_SOURCE_DIR}/test/test_checked_math.cpp
       ${PROJECT_SOURCE_DIR}/test/test_small_vector.cpp
       ${PROJECT_SOURCE_DIR}/test/test_geom.cpp
+      ${PROJECT_SOURCE_DIR}/test/test_view.cpp
 )
 
 target_compile_features(kmmTest PRIVATE cxx_std_17)
