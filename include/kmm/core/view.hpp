@@ -160,9 +160,14 @@ struct layout_static {
 
     constexpr layout_static() noexcept = default;
 
-    KMM_HOST_DEVICE
-    static layout_static from_layout(const layout_static& layout) noexcept {
-        return layout;
+    KMM_HOST_DEVICE static layout_static from_layout(const layout_static& layout) noexcept {
+        return {};
+    }
+
+    template<typename D>
+    KMM_HOST_DEVICE static layout_static from_domain(const D& domain) noexcept {
+        static_assert(D::rank == rank);
+        return {};
     }
 
     KMM_HOST_DEVICE
@@ -212,14 +217,35 @@ struct layout_static<S> {
     }
 };
 
+template<typename S = default_stride_type>
+using layout_linear = layout_static<S, static_cast<default_stride_type>(1)>;
+
+struct from_strides_t {};
+
 template<size_t N, typename S = default_stride_type>
 struct layout_left_to_right {
     static constexpr size_t rank = N;
     using stride_type = S;
 
     KMM_HOST_DEVICE
-    constexpr layout_left_to_right(fixed_array<stride_type, rank> dims = {}) noexcept :
-        m_dims(dims) {}
+    explicit constexpr layout_left_to_right(
+        from_strides_t,
+        fixed_array<stride_type, rank> strides
+    ) noexcept {
+        for (size_t i = 1; i < rank; i++) {
+            m_strides[i + 1] = strides[i];
+        }
+    }
+
+    KMM_HOST_DEVICE
+    constexpr layout_left_to_right(fixed_array<stride_type, rank> dims) noexcept {
+        stride_type stride = 1;
+
+        for (size_t i = 0; i < rank - 1; i++) {
+            stride *= static_cast<stride_type>(dims[i]);
+            m_strides[i] = stride;
+        }
+    }
 
     KMM_HOST_DEVICE
     static layout_left_to_right from_layout(const layout_left_to_right& layout) noexcept {
@@ -239,31 +265,38 @@ struct layout_left_to_right {
 
     KMM_HOST_DEVICE
     stride_type stride(size_t axis) const noexcept {
-        stride_type stride = 1;
-
-        for (size_t i = 0; i < rank; i++) {
-            if (i < axis) {
-                stride *= m_dims[i];
-            }
+        if (axis >= 1 && axis < rank) {
+            return m_strides[axis - 1];
+        } else {
+            return static_cast<stride_type>(1);
         }
-
-        return stride;
     }
 
     template<typename I>
     KMM_HOST_DEVICE ptrdiff_t linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
-        ptrdiff_t offset = 0;
+        ptrdiff_t offset = static_cast<ptrdiff_t>(ndindex[0]);
 
-        for (size_t i = 0; i < rank; i++) {
-            offset = (offset * static_cast<ptrdiff_t>(m_dims[N - i - 1]))
-                + static_cast<ptrdiff_t>(ndindex[N - i - 1]);
+        for (size_t i = 1; i < rank; i++) {
+            offset += static_cast<ptrdiff_t>(m_strides[i - 1]) * static_cast<ptrdiff_t>(ndindex[i]);
         }
 
         return offset;
     }
 
   private:
-    fixed_array<stride_type, rank> m_dims;
+    fixed_array<stride_type, rank - 1> m_strides;
+};
+
+template<typename S>
+struct layout_left_to_right<0, S>: public layout_static<S> {
+    KMM_HOST_DEVICE
+    explicit constexpr layout_left_to_right(from_strides_t, fixed_array<S, 0> strides) noexcept {}
+
+    KMM_HOST_DEVICE
+    constexpr layout_left_to_right(fixed_array<S, 0> dims = {}) noexcept {}
+
+    KMM_HOST_DEVICE
+    constexpr layout_left_to_right(layout_static<S>) noexcept {}
 };
 
 template<size_t N, typename S = default_stride_type>
@@ -272,7 +305,24 @@ struct layout_right_to_left {
     using stride_type = S;
 
     KMM_HOST_DEVICE
-    constexpr layout_right_to_left(fixed_array<stride_type, rank> dims) noexcept : m_dims(dims) {}
+    explicit constexpr layout_right_to_left(
+        from_strides_t,
+        fixed_array<stride_type, rank> strides
+    ) noexcept {
+        for (size_t i = 0; i + 1 < rank; i++) {
+            m_strides[i] = strides[i];
+        }
+    }
+
+    KMM_HOST_DEVICE
+    constexpr layout_right_to_left(fixed_array<stride_type, rank> dims) noexcept {
+        stride_type stride = 1;
+
+        for (size_t i = 1; i < rank; i++) {
+            stride *= dims[N - i];
+            m_strides[N - i - 1] = stride;
+        }
+    }
 
     KMM_HOST_DEVICE
     static layout_right_to_left from_layout(const layout_right_to_left& layout) noexcept {
@@ -291,37 +341,39 @@ struct layout_right_to_left {
     }
 
     KMM_HOST_DEVICE
-    stride_type layout_size(size_t axis) const noexcept {
-        return m_dims[axis];
-    }
-
-    KMM_HOST_DEVICE
     stride_type stride(size_t axis) const noexcept {
-        stride_type stride = 1;
-
-        for (size_t i = 0; i < rank; i++) {
-            if (N - i - 1 > axis) {
-                stride *= m_dims[N - i - 1];
-            }
+        if (axis + 1 < rank) {
+            return m_strides[axis];
+        } else {
+            return static_cast<stride_type>(1);
         }
-
-        return stride;
     }
 
     template<typename I>
     KMM_HOST_DEVICE ptrdiff_t linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
-        ptrdiff_t offset = 0;
+        ptrdiff_t offset = static_cast<ptrdiff_t>(ndindex[rank - 1]);
 
-        for (size_t i = 0; i < rank; i++) {
-            offset = (offset * static_cast<ptrdiff_t>(m_dims[i]))  //
-                + static_cast<ptrdiff_t>(ndindex[i]);
+        for (size_t i = 0; i + 1 < rank; i++) {
+            offset += static_cast<ptrdiff_t>(m_strides[i]) * static_cast<ptrdiff_t>(ndindex[i]);
         }
 
         return offset;
     }
 
   private:
-    fixed_array<stride_type, rank> m_dims;
+    fixed_array<stride_type, rank - 1> m_strides;
+};
+
+template<typename S>
+struct layout_right_to_left<0, S>: public layout_static<S> {
+    KMM_HOST_DEVICE
+    explicit constexpr layout_right_to_left(from_strides_t, fixed_array<S, 0> strides) noexcept {}
+
+    KMM_HOST_DEVICE
+    constexpr layout_right_to_left(fixed_array<S, 0> dims = {}) noexcept {}
+
+    KMM_HOST_DEVICE
+    constexpr layout_right_to_left(layout_static<S>) noexcept {}
 };
 
 template<size_t N, typename S = default_stride_type>
@@ -446,13 +498,13 @@ struct drop_layout_axis<0, layout_right_to_left<N, S>> {
 
     KMM_HOST_DEVICE
     static type call(const layout_right_to_left<N, S>& layout) noexcept {
-        fixed_array<stride_type, N - 1> new_dims;
+        fixed_array<stride_type, N - 1> new_strides;
 
         for (size_t i = 0; i < N - 1; i++) {
-            new_dims[i] = layout.layout_size(i + 1);
+            new_strides[i] = layout.stride(i + 1);
         }
 
-        return {new_dims};
+        return type {from_strides_t {}, new_strides};
     }
 };
 
@@ -463,13 +515,13 @@ struct drop_layout_axis<K, layout_left_to_right<K + 1, S>> {
 
     KMM_HOST_DEVICE
     static type call(const layout_right_to_left<K + 1, S>& layout) noexcept {
-        fixed_array<stride_type, K> new_dims;
+        fixed_array<stride_type, K> new_strides;
 
         for (size_t i = 0; i < K; i++) {
-            new_dims[i] = layout.layout_size(i);
+            new_strides[i] = layout.stride(i);
         }
 
-        return {new_dims};
+        return type {from_strides_t {}, new_strides};
     }
 };
 
@@ -704,7 +756,13 @@ struct basic_view:
 
     KMM_HOST_DEVICE
     value_type* data_at(ndindex_type ndindex) const noexcept {
-        return m_data + layout().linearize_index(ndindex);
+        pointer p = m_data;
+
+        for (size_t i = 0; i < rank; i++) {
+            p += static_cast<ptrdiff_t>(ndindex[i]) * static_cast<ptrdiff_t>(layout().stride(i));
+        }
+
+        return p;
     }
 
     KMM_HOST_DEVICE

@@ -193,14 +193,12 @@ TEST(View, conversions) {
     ASSERT_CORRECT_VIEW(h);
 }
 
-TEST(View, drop_axis) {
+TEST(View, drop_axis_dim2) {
     auto vec = std::vector<float>(200);
     auto a = basic_view<  //
         float,
         views::domain_subbounds<2>,
-        views::layout_right_to_left<2>> {vec.data(),
-         {{3, 7}, {10, 20}}
-    };
+        views::layout_right_to_left<2>> {vec.data(), {{3, 7}, {10, 20}}};
 
     // Drop axis 0
     basic_view<float, views::domain_subbounds<1>, views::layout_right_to_left<1>> b = a.drop_axis();
@@ -227,6 +225,73 @@ TEST(View, drop_axis) {
     ASSERT_EQ(c.offset(0), 3);
     ASSERT_EQ(c.stride(0), 20);
     ASSERT_EQ(c.data(), vec.data() + 6);
+}
+
+TEST(View, drop_axis_dim3) {
+    auto vec = std::vector<float>(200);
+    auto a = basic_view<  //
+        float,
+        views::domain_subbounds<3>,
+        views::layout_right_to_left<3>> {
+        vec.data(), {{3, 7, 1}, {2, 5, 20}}
+    };
+
+    // Drop axis 0
+    basic_view<float, views::domain_subbounds<2>, views::layout_right_to_left<2>> b = a.drop_axis();
+    ASSERT_EQ(b.size(0), 5);
+    ASSERT_EQ(b.offset(0), 7);
+    ASSERT_EQ(b.stride(0), 20);
+    ASSERT_EQ(b.size(1), 20);
+    ASSERT_EQ(b.offset(1), 1);
+    ASSERT_EQ(b.stride(1), 1);
+    ASSERT_EQ(b.data(), vec.data());
+
+    b = a.drop_axis(4);
+    ASSERT_EQ(b.size(0), 5);
+    ASSERT_EQ(b.offset(0), 7);
+    ASSERT_EQ(b.stride(0), 20);
+    ASSERT_EQ(b.size(1), 20);
+    ASSERT_EQ(b.offset(1), 1);
+    ASSERT_EQ(b.stride(1), 1);
+    ASSERT_EQ(b.data() - vec.data(), 100);
+
+    // Drop axis 1
+    basic_view<float, views::domain_subbounds<2>, views::layout_strided<2>> c = a.drop_axis<1>();
+    ASSERT_EQ(c.size(0), 2);
+    ASSERT_EQ(c.offset(0), 3);
+    ASSERT_EQ(c.stride(0), 100);
+    ASSERT_EQ(c.size(1), 20);
+    ASSERT_EQ(c.offset(1), 1);
+    ASSERT_EQ(c.stride(1), 1);
+    ASSERT_EQ(c.data(), vec.data());
+
+    c = a.drop_axis<1>(9);
+    ASSERT_EQ(c.size(0), 2);
+    ASSERT_EQ(c.offset(0), 3);
+    ASSERT_EQ(c.stride(0), 100);
+    ASSERT_EQ(c.size(1), 20);
+    ASSERT_EQ(c.offset(1), 1);
+    ASSERT_EQ(c.stride(1), 1);
+    ASSERT_EQ(c.data() - vec.data(),  + 40);
+
+    // Drop axis 3
+    basic_view<float, views::domain_subbounds<2>, views::layout_strided<2>> d = a.drop_axis<2>();
+    ASSERT_EQ(d.size(0), 2);
+    ASSERT_EQ(d.offset(0), 3);
+    ASSERT_EQ(d.stride(0), 100);
+    ASSERT_EQ(d.size(1), 5);
+    ASSERT_EQ(d.offset(1), 7);
+    ASSERT_EQ(d.stride(1), 20);
+    ASSERT_EQ(d.data(), vec.data());
+
+    d = a.drop_axis<2>(13);
+    ASSERT_EQ(d.size(0), 2);
+    ASSERT_EQ(d.offset(0), 3);
+    ASSERT_EQ(d.stride(0), 100);
+    ASSERT_EQ(d.size(1), 5);
+    ASSERT_EQ(d.offset(1), 7);
+    ASSERT_EQ(d.stride(1), 20);
+    ASSERT_EQ(d.data() - vec.data(), 12);
 }
 
 TEST(View, scalar) {
