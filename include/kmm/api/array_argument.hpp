@@ -6,7 +6,7 @@
 
 namespace kmm {
 
-template<typename T, typename D, typename L = views::layout_default_for<D>>
+template<typename T, typename D, typename L = views::layout_default<D::rank>>
 struct ArrayArgument {
     using value_type = T;
     using domain_type = D;

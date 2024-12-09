@@ -146,7 +146,7 @@ TEST(View, conversions) {
 
     auto a = basic_view<  //
         int,
-        views::domain_static<views::default_index_type, 10, 20>,
+        views::domain_static_size<views::default_index_type, 10, 20>,
         views::layout_right_to_left<2>> {nullptr};
     ASSERT_CORRECT_VIEW(a);
 

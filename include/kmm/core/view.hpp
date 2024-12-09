@@ -6,15 +6,15 @@ namespace kmm {
 namespace views {
 
 using default_index_type = int64_t;
-using default_stride_type = int64_t;
+using default_stride_type = int32_t;
 
 template<typename I, I... Dims>
-struct domain_static {
+struct domain_static_size {
     static constexpr size_t rank = sizeof...(Dims);
     using index_type = I;
 
     KMM_HOST_DEVICE
-    static domain_static from_domain(const domain_static& domain) noexcept {
+    static domain_static_size from_domain(const domain_static_size& domain) noexcept {
         return domain;
     }
 
@@ -31,12 +31,12 @@ struct domain_static {
 };
 
 template<typename I>
-struct domain_static<I> {
+struct domain_static_size<I> {
     static constexpr size_t rank = 0;
     using index_type = I;
 
     template<typename D>
-    KMM_HOST_DEVICE static domain_static from_domain(const D& domain) noexcept {
+    KMM_HOST_DEVICE static domain_static_size from_domain(const D& domain) noexcept {
         static_assert(D::rank == rank);
         return {};
     }
@@ -66,7 +66,7 @@ struct domain_bounds {
     }
 
     template<I... Dims>
-    KMM_HOST_DEVICE static domain_bounds from_domain(const domain_static<I, Dims...>& domain
+    KMM_HOST_DEVICE static domain_bounds from_domain(const domain_static_size<I, Dims...>& domain
     ) noexcept {
         static_assert(sizeof...(Dims) == rank);
         return fixed_array<index_type, rank> {Dims...};
@@ -133,7 +133,7 @@ struct domain_subbounds {
     }
 
     template<I... Dims>
-    KMM_HOST_DEVICE static domain_subbounds from_domain(const domain_static<I, Dims...>& domain
+    KMM_HOST_DEVICE static domain_subbounds from_domain(const domain_static_size<I, Dims...>& domain
     ) noexcept {
         return from_domain(domain_bounds<N, I>::from_domain(domain));
     }
@@ -172,13 +172,12 @@ struct layout_static {
     }
 
     template<typename I>
-    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, rank>& ndindex
-    ) const noexcept {
+    KMM_HOST_DEVICE ptrdiff_t linearize_index(const fixed_array<I, rank>& ndindex) const noexcept {
         S strides[rank] = {Strides...};
-        stride_type result = 0;
+        ptrdiff_t result = 0;
 
         for (size_t i = 0; i < rank; i++) {
-            result += strides[i] * static_cast<stride_type>(ndindex[i]);
+            result += static_cast<ptrdiff_t>(strides[i]) * static_cast<ptrdiff_t>(ndindex[i]);
         }
 
         return result;
@@ -208,9 +207,8 @@ struct layout_static<S> {
     }
 
     template<typename I>
-    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, rank>& ndindex
-    ) const noexcept {
-        return static_cast<stride_type>(0);
+    KMM_HOST_DEVICE ptrdiff_t linearize_index(const fixed_array<I, rank>& ndindex) const noexcept {
+        return static_cast<ptrdiff_t>(0);
     }
 };
 
@@ -253,11 +251,12 @@ struct layout_left_to_right {
     }
 
     template<typename I>
-    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
-        stride_type offset = 0;
+    KMM_HOST_DEVICE ptrdiff_t linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
+        ptrdiff_t offset = 0;
 
         for (size_t i = 0; i < rank; i++) {
-            offset = offset * m_dims[N - i - 1] + ndindex[N - i - 1];
+            offset = (offset * static_cast<ptrdiff_t>(m_dims[N - i - 1]))
+                + static_cast<ptrdiff_t>(ndindex[N - i - 1]);
         }
 
         return offset;
@@ -310,11 +309,12 @@ struct layout_right_to_left {
     }
 
     template<typename I>
-    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
-        stride_type offset = 0;
+    KMM_HOST_DEVICE ptrdiff_t linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
+        ptrdiff_t offset = 0;
 
         for (size_t i = 0; i < rank; i++) {
-            offset = offset * m_dims[i] + ndindex[i];
+            offset = (offset * static_cast<ptrdiff_t>(m_dims[i]))  //
+                + static_cast<ptrdiff_t>(ndindex[i]);
         }
 
         return offset;
@@ -355,11 +355,11 @@ struct layout_strided {
     }
 
     template<typename I>
-    KMM_HOST_DEVICE stride_type linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
-        stride_type result = 0;
+    KMM_HOST_DEVICE ptrdiff_t linearize_index(const fixed_array<I, N>& ndindex) const noexcept {
+        ptrdiff_t result = 0;
 
         for (size_t i = 0; i < rank; i++) {
-            result += m_strides[i] * static_cast<stride_type>(ndindex[i]);
+            result += static_cast<ptrdiff_t>(m_strides[i]) * static_cast<ptrdiff_t>(ndindex[i]);
         }
 
         return result;
@@ -410,13 +410,13 @@ struct drop_domain_axis<Axis, domain_bounds<N, I>> {
 };
 
 template<size_t Axis, typename I, I... Dims>
-struct drop_domain_axis<Axis, domain_static<I, Dims...>> {
+struct drop_domain_axis<Axis, domain_static_size<I, Dims...>> {
     using index_type = I;
     using domain_type = domain_bounds<sizeof...(Dims), I>;
     using type = typename drop_domain_axis<Axis, domain_type>::type;
 
     KMM_HOST_DEVICE
-    static type call(const domain_static<I, Dims...>& domain) noexcept {
+    static type call(const domain_static_size<I, Dims...>& domain) noexcept {
         return drop_domain_axis<Axis, domain_type>::call(domain_type::from_domain(domain));
     }
 };
@@ -783,14 +783,14 @@ struct basic_view:
 template<
     typename T,
     size_t N = 1,
-    typename M = views::layout_right_to_left<N>,
+    typename M = views::layout_default<N>,
     typename A = views::accessor_host>
 using view = basic_view<const T, views::domain_bounds<N>, M, A>;
 
 template<
     typename T,
     size_t N = 1,
-    typename M = views::layout_right_to_left<N>,
+    typename M = views::layout_default<N>,
     typename A = views::accessor_host>
 using view_mut = basic_view<T, views::domain_bounds<N>, M, A>;
 
@@ -800,10 +800,10 @@ using strided_view = view<T, N, views::layout_strided<N>, A>;
 template<typename T, size_t N = 1, typename A = views::accessor_host>
 using strided_view_mut = view_mut<T, N, views::layout_strided<N>, A>;
 
-template<typename T, size_t N = 1, typename L = views::layout_right_to_left<N>>
+template<typename T, size_t N = 1, typename L = views::layout_default<N>>
 using gpu_view = view<T, N, L, views::accessor_device>;
 
-template<typename T, size_t N = 1, typename L = views::layout_right_to_left<N>>
+template<typename T, size_t N = 1, typename L = views::layout_default<N>>
 using gpu_view_mut = view_mut<T, N, L, views::accessor_device>;
 
 template<typename T, size_t N = 1>
@@ -815,14 +815,14 @@ using gpu_strided_view_mut = strided_view_mut<T, N, views::accessor_device>;
 template<
     typename T,
     size_t N = 1,
-    typename M = views::layout_right_to_left<N>,
+    typename M = views::layout_default<N>,
     typename A = views::accessor_host>
 using subview = basic_view<const T, views::domain_subbounds<N>, M, A>;
 
 template<
     typename T,
     size_t N = 1,
-    typename M = views::layout_right_to_left<N>,
+    typename M = views::layout_default<N>,
     typename A = views::accessor_host>
 using subview_mut = basic_view<T, views::domain_subbounds<N>, M, A>;
 
@@ -832,10 +832,10 @@ using strided_subview = subview<T, N, views::layout_strided<N>, A>;
 template<typename T, size_t N = 1, typename A = views::accessor_host>
 using strided_subview_mut = subview_mut<T, N, views::layout_strided<N>, A>;
 
-template<typename T, size_t N = 1, typename L = views::layout_right_to_left<N>>
+template<typename T, size_t N = 1, typename L = views::layout_default<N>>
 using gpu_subview = subview<T, N, L, views::accessor_device>;
 
-template<typename T, size_t N = 1, typename L = views::layout_right_to_left<N>>
+template<typename T, size_t N = 1, typename L = views::layout_default<N>>
 using gpu_subview_mut = subview_mut<T, N, L, views::accessor_device>;
 
 template<typename T, size_t N = 1>
