@@ -43,10 +43,10 @@ DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<
     }
 
     for (size_t i = 0; compare_less(i, N); i++) {
-        m_num_chunks[i] = checked_cast<size_t>(div_ceil(array_size[i], m_chunk_size[i]));
+        m_chunks_count[i] = checked_cast<size_t>(div_ceil(array_size[i], m_chunk_size[i]));
     }
 
-    size_t num_total_chunks = checked_product(m_num_chunks.begin(), m_num_chunks.end());
+    size_t num_total_chunks = checked_product(m_chunks_count.begin(), m_chunks_count.end());
 
     static constexpr size_t INVALID_INDEX = static_cast<size_t>(-1);
     std::vector<size_t> buffer_locs(num_total_chunks, INVALID_INDEX);
@@ -62,7 +62,7 @@ DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<
             expected_offset[i] = k * m_chunk_size[i];
             expected_size[i] = std::min(m_chunk_size[i], array_size[i] - expected_offset[i]);
 
-            buffer_index = buffer_index * m_num_chunks[i] + static_cast<size_t>(k);
+            buffer_index = buffer_index * m_chunks_count[i] + static_cast<size_t>(k);
         }
 
         if (chunk.offset != expected_offset || chunk.size != expected_size) {
@@ -85,7 +85,7 @@ DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<
 
     for (size_t index : buffer_locs) {
         if (index == INVALID_INDEX) {
-            auto region = index2region(index, m_num_chunks, m_chunk_size, m_array_size);
+            auto region = index2region(index, m_chunks_count, m_chunk_size, m_array_size);
             throw std::runtime_error(
                 fmt::format("invalid write access pattern, no task writes to region {}", region)
             );
@@ -93,22 +93,22 @@ DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<
     }
 
     for (size_t index : buffer_locs) {
-        m_buffers.push_back(chunks[index].buffer_id);
+        m_chunks.push_back(chunks[index]);
     }
 }
 
 template<size_t N>
 ArrayHandle<N>::~ArrayHandle() {
     m_worker->with_task_graph([&](auto& builder) {
-        for (auto id : this->m_buffers) {
-            builder.delete_buffer(id);
+        for (const auto& chunk : this->m_chunks) {
+            builder.delete_buffer(chunk.buffer_id);
         }
     });
 }
 
 template<size_t N>
 DataChunk<N> DataDistribution<N>::find_chunk(Range<N> region) const {
-    size_t buffer_index = 0;
+    size_t index = 0;
     Index<N> offset;
     Size<N> sizes;
 
@@ -116,7 +116,7 @@ DataChunk<N> DataDistribution<N>::find_chunk(Range<N> region) const {
         auto k = div_floor(region.offset[i], m_chunk_size[i]);
         auto w = region.offset[i] % m_chunk_size[i] + region.sizes[i];
 
-        if (!in_range(k, m_num_chunks[i])) {
+        if (!in_range(k, m_chunks_count[i])) {
             throw std::out_of_range(fmt::format(
                 "invalid read pattern, the region {} exceeds the array dimensions {}",
                 region,
@@ -132,7 +132,7 @@ DataChunk<N> DataDistribution<N>::find_chunk(Range<N> region) const {
             ));
         }
 
-        buffer_index = buffer_index * m_num_chunks[i] + static_cast<size_t>(k);
+        index = index * m_chunks_count[i] + static_cast<size_t>(k);
         offset[i] = k * m_chunk_size[i];
         sizes[i] = m_chunk_size[i];
     }
@@ -140,24 +140,20 @@ DataChunk<N> DataDistribution<N>::find_chunk(Range<N> region) const {
     // TODO?
     MemoryId memory_id = MemoryId::host();
 
-    return {m_buffers[buffer_index], memory_id, offset, sizes};
+    return {m_chunks[index].buffer_id, memory_id, offset, sizes};
 }
 
 template<size_t N>
 DataChunk<N> DataDistribution<N>::chunk(size_t index) const {
-    if (index >= m_buffers.size()) {
+    if (index >= m_chunks.size()) {
         throw std::runtime_error(fmt::format(
             "chunk {} is out of range, there are only {} chunks",
             index,
-            m_buffers.size()
+            m_chunks.size()
         ));
     }
 
-    // TODO?
-    MemoryId memory_id = MemoryId::host();
-    auto region = index2region(index, m_num_chunks, m_chunk_size, m_array_size);
-
-    return {m_buffers[index], memory_id, region.offset, region.sizes};
+    return m_chunks[index];
 }
 
 template<size_t N>
@@ -165,8 +161,8 @@ void ArrayHandle<N>::synchronize() const {
     auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
         auto deps = EventList {};
 
-        for (const auto& buffer_id : this->m_buffers) {
-            deps.insert_all(graph.extract_buffer_dependencies(buffer_id));
+        for (const auto& chunk : this->m_chunks) {
+            deps.insert_all(graph.extract_buffer_dependencies(chunk.buffer_id));
         }
 
         return graph.join_events(deps);
@@ -175,7 +171,7 @@ void ArrayHandle<N>::synchronize() const {
     m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
 
     // Access each buffer once to check for errors.
-    for (size_t i = 0; i < this->m_buffers.size(); i++) {
+    for (size_t i = 0; i < this->m_chunks.size(); i++) {
         //        auto memory_id = this->chunk(i).owner_id;
         //        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
         //        KMM_TODO();
@@ -229,9 +225,9 @@ void ArrayHandle<N>::copy_bytes(void* dest_addr, size_t element_size) const {
     auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
         EventList deps;
 
-        for (size_t i = 0; i < this->m_buffers.size(); i++) {
+        for (size_t i = 0; i < this->m_chunks.size(); i++) {
             auto region =
-                index2region(i, this->m_num_chunks, this->m_chunk_size, this->m_array_size);
+                index2region(i, this->m_chunks_count, this->m_chunk_size, this->m_array_size);
 
             auto task = std::make_shared<CopyOutTask<N>>(
                 dest_addr,
@@ -240,7 +236,7 @@ void ArrayHandle<N>::copy_bytes(void* dest_addr, size_t element_size) const {
                 region
             );
             auto buffer = BufferRequirement {
-                .buffer_id = this->m_buffers[i],
+                .buffer_id = this->m_chunks[i].buffer_id,
                 .memory_id = MemoryId::host(),
                 .access_mode = AccessMode::Read,
             };

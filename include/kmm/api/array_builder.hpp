@@ -3,6 +3,7 @@
 #include "kmm/core/buffer.hpp"
 #include "kmm/core/geometry.hpp"
 #include "kmm/core/reduction.hpp"
+#include "kmm/core/view.hpp"
 
 namespace kmm {
 
@@ -25,11 +26,11 @@ class DataDistribution {
     DataChunk<N> chunk(size_t index) const;
 
     size_t num_chunks() const {
-        return m_buffers.size();
+        return m_chunks.size();
     }
 
-    const std::vector<BufferId>& buffers() const {
-        return m_buffers;
+    const std::vector<DataChunk<N>>& chunks() const {
+        return m_chunks;
     }
 
     Size<N> chunk_size() const {
@@ -41,10 +42,10 @@ class DataDistribution {
     }
 
   protected:
-    std::vector<BufferId> m_buffers;
+    std::vector<DataChunk<N>> m_chunks;
+    std::array<size_t, N> m_chunks_count;
     Size<N> m_array_size = Size<N>::zero();
     Size<N> m_chunk_size = Size<N>::zero();
-    std::array<size_t, N> m_num_chunks;
 };
 
 template<size_t N>

@@ -344,6 +344,13 @@ struct right_to_left_layout {
     }
 
     KMM_HOST_DEVICE
+    constexpr right_to_left_layout() noexcept {
+        for (size_t i = 0; i < rank; i++) {
+            m_strides[i] = 0;
+        }
+    }
+
+    KMM_HOST_DEVICE
     constexpr right_to_left_layout(fixed_array<stride_type, rank> dims) noexcept {
         stride_type stride = 1;
 
