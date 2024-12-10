@@ -438,6 +438,10 @@ std::ostream& operator<<(std::ostream& f, const DeviceStream& e) {
 }
 
 std::ostream& operator<<(std::ostream& f, const DeviceEvent& e) {
+    if (e.m_event_and_stream == 0) {
+        return f << "<none>";
+    }
+
     return f << e.stream() << ":" << e.index();
 }
 
@@ -454,6 +458,11 @@ std::ostream& operator<<(std::ostream& f, const DeviceEventSet& events) {
     f << "[";
 
     for (auto e : sorted_events) {
+        // Skip empty events
+        if (e == DeviceEvent {}) {
+            continue;
+        }
+
         if (!is_first) {
             f << ", ";
         }

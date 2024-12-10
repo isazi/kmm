@@ -38,8 +38,13 @@ struct MemoryManager::Buffer {
     KMM_NOT_COPYABLE_OR_MOVABLE(Buffer);
 
   public:
-    Buffer(BufferLayout layout) : layout(layout) {}
+    Buffer(std::string name, BufferLayout layout) : name(std::move(name)), layout(layout) {
+        if (this->name == "") {
+            this->name = std::to_string(std::intptr_t(this));
+        }
+    }
 
+    std::string name;
     BufferLayout layout;
     HostEntry host_entry;
     DeviceEntry device_entry[MAX_DEVICES];
@@ -70,11 +75,13 @@ struct MemoryManager::Request {
 
   public:
     Request(
+        uint64_t identifier,
         std::shared_ptr<Buffer> buffer,
         MemoryId memory_id,
         AccessMode mode,
         std::shared_ptr<Transaction> parent
     ) :
+        identifier(identifier),
         buffer(std::move(buffer)),
         memory_id(memory_id),
         mode(mode),
@@ -82,6 +89,7 @@ struct MemoryManager::Request {
 
     enum struct Status { Init, Allocated, Locked, Ready, Deleted };
     Status status = Status::Init;
+    uint64_t identifier;
     std::shared_ptr<Buffer> buffer;
     MemoryId memory_id;
     AccessMode mode;
@@ -142,7 +150,7 @@ bool MemoryManager::is_idle(DeviceStreamManager& streams) const {
     return result;
 }
 
-std::shared_ptr<MemoryManager::Buffer> MemoryManager::create_buffer(BufferLayout layout) {
+std::shared_ptr<MemoryManager::Buffer> MemoryManager::create_buffer(BufferLayout layout, std::string name) {
     // Size cannot be zero
     if (layout.size_in_bytes == 0) {
         layout.size_in_bytes = 1;
@@ -152,7 +160,7 @@ std::shared_ptr<MemoryManager::Buffer> MemoryManager::create_buffer(BufferLayout
     layout.alignment = round_up_to_power_of_two(layout.alignment);
     layout.size_in_bytes = round_up_to_multiple(layout.size_in_bytes, layout.alignment);
 
-    auto buffer = std::make_shared<Buffer>(std::move(layout));
+    auto buffer = std::make_shared<Buffer>(std::move(name), std::move(layout));
     m_buffers.emplace(buffer);
     return buffer;
 }
@@ -195,7 +203,7 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     KMM_ASSERT(!buffer->is_deleted);
     buffer->num_requests_active++;
 
-    auto req = std::make_shared<Request>(buffer, memory_id, mode, parent);
+    auto req = std::make_shared<Request>(m_next_request_id++, buffer, memory_id, mode, parent);
     m_active_requests.insert(req);
 
     if (memory_id.is_device()) {
@@ -451,6 +459,8 @@ bool MemoryManager::try_free_device_memory(DeviceId device_id) {
         }
     }
 
+    spdlog::debug("evict buffer {} from GPU {}, frees {} bytes", victim.name, device_id, victim.layout.size_in_bytes);
+
     deallocate_device_async(device_id, victim);
     return true;
 }
@@ -464,10 +474,10 @@ bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer
 
     KMM_ASSERT(device_entry.num_allocation_locks == 0);
     spdlog::trace(
-        "allocate {} bytes from device {} for buffer {}",
+        "allocate {} bytes on GPU {} for buffer {}",
         buffer.layout.size_in_bytes,
         device_id,
-        (void*)&buffer
+        buffer.name
     );
 
     GPUdeviceptr ptr_out;
@@ -497,9 +507,9 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
 
     size_t size_in_bytes = buffer.layout.size_in_bytes;
     spdlog::trace(
-        "free {} bytes for buffer {} on device {} (dependencies={})",
+        "free {} bytes for buffer {} on GPU {} (dependencies={})",
         size_in_bytes,
-        (void*)&buffer,
+        buffer.name,
         device_id,
         device_entry.access_events
     );
@@ -531,7 +541,7 @@ void MemoryManager::allocate_host(Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated == false);
     KMM_ASSERT(host_entry.num_allocation_locks == 0);
 
-    spdlog::trace("allocate {} bytes from host", size_in_bytes, (void*)&buffer);
+    spdlog::trace("allocate {} bytes on host", size_in_bytes, buffer.name);
 
     void* ptr;
     DeviceEventSet events;
@@ -564,7 +574,7 @@ void MemoryManager::deallocate_host(Buffer& buffer) {
     spdlog::trace(
         "free {} bytes on host (dependencies={})",
         size_in_bytes,
-        (void*)&buffer,
+        buffer.name,
         host_entry.access_events
     );
 
@@ -589,8 +599,8 @@ void MemoryManager::lock_allocation_host(Buffer& buffer, Request& req) {
     host_entry.num_allocation_locks++;
     spdlog::trace(
         "lock allocation on host of buffer {} for request {}",
-        (void*)&buffer,
-        (void*)&req
+        buffer.name,
+        req.identifier
     );
 }
 
@@ -620,7 +630,7 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
 
             if (is_out_of_memory(device_id, req)) {
                 throw std::runtime_error(fmt::format(
-                    "cannot allocate {} bytes on device {}, out of memory",
+                    "cannot allocate {} bytes on GPU {}, out of memory",
                     buffer.layout.size_in_bytes,
                     device_id.get()
                 ));
@@ -639,10 +649,10 @@ bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, R
     device_entry.num_allocation_locks++;
 
     spdlog::trace(
-        "lock allocation on device {} of buffer {} for request {}",
+        "lock allocation on GPU {} of buffer {} for request {}",
         device_id,
-        (void*)&buffer,
-        (void*)&req
+        buffer.name,
+        req.identifier
     );
 
     return true;
@@ -658,8 +668,8 @@ void MemoryManager::unlock_allocation_host(Buffer& buffer, Request& req) {
     host_entry.num_allocation_locks--;
     spdlog::trace(
         "unlock allocation on host of buffer {} for request {}",
-        (void*)&buffer,
-        (void*)&req
+        buffer.name,
+        req.identifier
     );
 }
 
@@ -672,10 +682,10 @@ void MemoryManager::unlock_allocation_device(DeviceId device_id, Buffer& buffer,
 
     device_entry.num_allocation_locks--;
     spdlog::trace(
-        "unlock allocation on device {} of buffer {} for request {}",
+        "unlock allocation on GPU {} of buffer {} for request {}",
         device_id,
-        (void*)&buffer,
-        (void*)&req
+        buffer.name,
+        req.identifier
     );
 
     if (device_entry.num_allocation_locks == 0) {
@@ -724,8 +734,8 @@ void MemoryManager::poll_access_queue(Buffer& buffer) {
         req->access_acquired = true;
         spdlog::trace(
             "access to buffer {} was granted to request {} (memory={}, mode={})",
-            (void*)&buffer,
-            (void*)req,
+            buffer.name,
+            req->identifier,
             req->memory_id,
             req->mode
         );
@@ -742,8 +752,8 @@ void MemoryManager::unlock_access(
 ) {
     spdlog::trace(
         "access to buffer {} was revoked from request {} (memory={}, mode={}, GPU event={})",
-        (void*)&buffer,
-        (void*)&req,
+        buffer.name,
+        req.identifier,
         req.memory_id,
         req.mode,
         event
@@ -887,10 +897,10 @@ DeviceEvent MemoryManager::fill_buffer(
 
 DeviceEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     spdlog::trace(
-        "copy {} bytes from host to device {} for buffer {}",
+        "copy {} bytes from host to GPU {} for buffer {}",
         buffer.layout.size_in_bytes,
         device_id,
-        (void*)&buffer
+        buffer.name
     );
 
     auto& host_entry = buffer.host_entry;
@@ -922,10 +932,10 @@ DeviceEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
 
 DeviceEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     spdlog::trace(
-        "copy {} bytes from device to host {} for buffer {}",
+        "copy {} bytes from GPU {} to host for buffer {}",
         buffer.layout.size_in_bytes,
         device_id,
-        (void*)&buffer
+        buffer.name
     );
 
     auto& host_entry = buffer.host_entry;
@@ -983,11 +993,11 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
     }
 
     spdlog::error(
-        "out of memory for device {}, failed to allocate {} bytes of buffer {} for request {}",
+        "out of memory for GPU {}, failed to allocate {} bytes for request {} of buffer {}",
         device_id,
         req.buffer->layout.size_in_bytes,
-        (void*)req.buffer.get(),
-        (void*)&req
+        req.buffer->name,
+        req.identifier
     );
 
     spdlog::error("following buffers are currently allocated: ");
@@ -998,7 +1008,7 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
         if (entry.is_allocated) {
             spdlog::error(
                 " - buffer {} ({} bytes, {} requests active, {} allocation locks)",
-                (void*)buffer.get(),
+                buffer->name,
                 buffer->layout.size_in_bytes,
                 buffer->num_requests_active,
                 entry.num_allocation_locks
@@ -1011,21 +1021,21 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
          it = it->allocation_next) {
         spdlog::error(
             " - request {} ({} bytes, buffer {}, transaction {})",
-            (void*)it,
+            it->identifier,
             it->buffer->layout.size_in_bytes,
-            (void*)it->buffer.get(),
-            (void*)it->parent.get()
+            it->buffer->name,
+            it->parent->id
         );
     }
 
-    spdlog::error("following buffers are pending:");
+    spdlog::error("following requests are pending:");
     for (auto* it = device.allocation_current; it != nullptr; it = it->allocation_next) {
         spdlog::error(
             " - request {} ({} bytes, buffer {}, transaction {})",
-            (void*)it,
+            it->identifier,
             it->buffer->layout.size_in_bytes,
-            (void*)it->buffer.get(),
-            (void*)it->parent.get()
+            it->buffer->name,
+            it->parent->id
         );
     }
 

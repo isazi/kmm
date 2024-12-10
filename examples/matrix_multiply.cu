@@ -62,7 +62,7 @@ int main() {
     int n = 5000;
     int m = 5000;
     int k = 5000;
-    int chunk_size = n / 2;
+    int chunk_size = n / 5;
 
     auto A = kmm::Array<float, 2>{{n, k}};
     auto B = kmm::Array<float, 2>{{k, m}};

@@ -470,7 +470,7 @@ void Executor::insert_job(std::unique_ptr<Job> job) {
 
 void Executor::execute_command(EventId id, const Command& command, DeviceEventSet dependencies) {
     if (const auto* e = std::get_if<CommandBufferCreate>(&command)) {
-        auto buffer = m_memory_manager->create_buffer(e->layout);
+        auto buffer = m_memory_manager->create_buffer(e->layout, std::to_string(e->id));
         m_buffer_manager->add(e->id, buffer);
         m_scheduler->set_complete(id);
 
