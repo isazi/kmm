@@ -102,9 +102,9 @@ class Runtime {
         auto layout = BufferLayout::for_type<T>().repeat(checked_cast<size_t>(shape.volume()));
         auto buffer_id = allocate_bytes(data, layout, memory_id);
 
-        auto chunk = ArrayChunk<N> {buffer_id, memory_id, Index<N>::zero(), shape};
+        auto chunk = DataChunk<N> {buffer_id, memory_id, Index<N>::zero(), shape};
         auto backend =
-            std::make_shared<ArrayBackend<N>>(m_worker, shape, std::vector<ArrayChunk<N>> {chunk});
+            std::make_shared<ArrayHandle<N>>(m_worker, shape, std::vector<DataChunk<N>> {chunk});
         return Array<T, N> {std::move(backend)};
     }
 

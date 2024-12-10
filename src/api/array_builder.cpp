@@ -4,31 +4,26 @@
 namespace kmm {
 
 template<size_t N>
-size_t ArrayBuilder<N>::add_chunk(TaskBuilder& builder, Range<N> access_region) {
+BufferRequirement ArrayBuilder<N>::add_chunk(
+    TaskGraph& graph,
+    MemoryId memory_id,
+    Range<N> access_region
+) {
     auto num_elements = checked_cast<size_t>(access_region.size());
-    auto buffer_id = builder.graph.create_buffer(m_element_layout.repeat(num_elements));
+    auto buffer_id = graph.create_buffer(m_element_layout.repeat(num_elements));
 
-    m_chunks.push_back(ArrayChunk<N> {
+    m_chunks.push_back(DataChunk<N> {
         .buffer_id = buffer_id,
-        .owner_id = builder.memory_id,
+        .owner_id = memory_id,
         .offset = access_region.offset,
         .size = access_region.sizes});
 
-    size_t buffer_index = builder.buffers.size();
-    builder.buffers.emplace_back(BufferRequirement {
-        .buffer_id = buffer_id,
-        .memory_id = builder.memory_id,
-        .access_mode = AccessMode::Exclusive});
-
-    return buffer_index;
+    return {.buffer_id = buffer_id, .memory_id = memory_id, .access_mode = AccessMode::Exclusive};
 }
 
 template<size_t N>
-std::shared_ptr<ArrayBackend<N>> ArrayBuilder<N>::build(
-    std::shared_ptr<Worker> worker,
-    TaskGraph& graph
-) {
-    return std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(m_chunks));
+DataDistribution<N> ArrayBuilder<N>::build(TaskGraph& graph) {
+    return DataDistribution<N>(m_sizes, std::move(m_chunks));
 }
 
 BufferLayout make_layout(size_t num_elements, DataType dtype, ReductionOp reduction) {
@@ -40,15 +35,14 @@ BufferLayout make_layout(size_t num_elements, DataType dtype, ReductionOp reduct
 }
 
 template<size_t N>
-size_t ArrayReductionBuilder<N>::add_chunk(
-    TaskBuilder& builder,
+BufferRequirement ArrayReductionBuilder<N>::add_chunk(
+    TaskGraph& graph,
+    MemoryId memory_id,
     Range<N> access_region,
     size_t replication_factor
 ) {
     auto num_elements = checked_mul(checked_cast<size_t>(access_region.size()), replication_factor);
-    auto memory_id = builder.memory_id;
-
-    auto buffer_id = builder.graph.create_buffer(make_layout(num_elements, m_dtype, m_reduction));
+    auto buffer_id = graph.create_buffer(make_layout(num_elements, m_dtype, m_reduction));
 
     m_partial_inputs[access_region].push_back(ReductionInput {
         .buffer_id = buffer_id,
@@ -56,21 +50,12 @@ size_t ArrayReductionBuilder<N>::add_chunk(
         .dependencies = {},
         .num_inputs_per_output = replication_factor});
 
-    size_t buffer_index = builder.buffers.size();
-    builder.buffers.emplace_back(BufferRequirement {
-        .buffer_id = buffer_id,
-        .memory_id = memory_id,
-        .access_mode = AccessMode::Exclusive});
-
-    return buffer_index;
+    return {.buffer_id = buffer_id, .memory_id = memory_id, .access_mode = AccessMode::Exclusive};
 }
 
 template<size_t N>
-std::shared_ptr<ArrayBackend<N>> ArrayReductionBuilder<N>::build(
-    std::shared_ptr<Worker> worker,
-    TaskGraph& graph
-) {
-    std::vector<ArrayChunk<N>> chunks;
+DataDistribution<N> ArrayReductionBuilder<N>::build(TaskGraph& graph) {
+    std::vector<DataChunk<N>> chunks;
 
     for (auto& p : m_partial_inputs) {
         auto access_region = p.first;
@@ -88,7 +73,7 @@ std::shared_ptr<ArrayBackend<N>> ArrayReductionBuilder<N>::build(
 
         auto event_id = graph.insert_multilevel_reduction(buffer_id, memory_id, reduction, inputs);
 
-        chunks.push_back(ArrayChunk<N> {
+        chunks.push_back(DataChunk<N> {
             .buffer_id = buffer_id,
             .owner_id = memory_id,
             .offset = access_region.offset,
@@ -99,7 +84,7 @@ std::shared_ptr<ArrayBackend<N>> ArrayReductionBuilder<N>::build(
         }
     }
 
-    return std::make_shared<ArrayBackend<N>>(worker, m_sizes, std::move(chunks));
+    return DataDistribution<N>(m_sizes, std::move(chunks));
 }
 
 // NOLINTBEGIN

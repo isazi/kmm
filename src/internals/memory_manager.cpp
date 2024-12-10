@@ -150,7 +150,10 @@ bool MemoryManager::is_idle(DeviceStreamManager& streams) const {
     return result;
 }
 
-std::shared_ptr<MemoryManager::Buffer> MemoryManager::create_buffer(BufferLayout layout, std::string name) {
+std::shared_ptr<MemoryManager::Buffer> MemoryManager::create_buffer(
+    BufferLayout layout,
+    std::string name
+) {
     // Size cannot be zero
     if (layout.size_in_bytes == 0) {
         layout.size_in_bytes = 1;
@@ -459,7 +462,12 @@ bool MemoryManager::try_free_device_memory(DeviceId device_id) {
         }
     }
 
-    spdlog::debug("evict buffer {} from GPU {}, frees {} bytes", victim.name, device_id, victim.layout.size_in_bytes);
+    spdlog::debug(
+        "evict buffer {} from GPU {}, frees {} bytes",
+        victim.name,
+        device_id,
+        victim.layout.size_in_bytes
+    );
 
     deallocate_device_async(device_id, victim);
     return true;

@@ -1,12 +1,51 @@
 #pragma once
 
-#include "array_backend.hpp"
+#include "kmm/core/buffer.hpp"
+#include "kmm/core/geometry.hpp"
+#include "kmm/core/reduction.hpp"
 
 namespace kmm {
 
-class Worker;
 class TaskGraph;
-struct ReductionInput;
+
+template<size_t N>
+struct DataChunk {
+    BufferId buffer_id;
+    MemoryId owner_id;
+    Index<N> offset;
+    Size<N> size;
+};
+
+template<size_t N>
+class DataDistribution {
+  public:
+    DataDistribution(Size<N> array_size, std::vector<DataChunk<N>> chunks);
+
+    DataChunk<N> find_chunk(Range<N> region) const;
+    DataChunk<N> chunk(size_t index) const;
+
+    size_t num_chunks() const {
+        return m_buffers.size();
+    }
+
+    const std::vector<BufferId>& buffers() const {
+        return m_buffers;
+    }
+
+    Size<N> chunk_size() const {
+        return m_chunk_size;
+    }
+
+    Size<N> array_size() const {
+        return m_array_size;
+    }
+
+  protected:
+    std::vector<BufferId> m_buffers;
+    Size<N> m_array_size = Size<N>::zero();
+    Size<N> m_chunk_size = Size<N>::zero();
+    std::array<size_t, N> m_num_chunks;
+};
 
 template<size_t N>
 class ArrayBuilder {
@@ -15,17 +54,17 @@ class ArrayBuilder {
         m_sizes(sizes),
         m_element_layout(element_layout) {}
 
+    BufferRequirement add_chunk(TaskGraph& graph, MemoryId memory_id, Range<N> access_region);
+    DataDistribution<N> build(TaskGraph& graph);
+
     Size<N> sizes() const {
         return m_sizes;
     }
 
-    size_t add_chunk(TaskBuilder& builder, Range<N> access_region);
-    std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
-
   private:
     Size<N> m_sizes;
     BufferLayout m_element_layout;
-    std::vector<ArrayChunk<N>> m_chunks;
+    std::vector<DataChunk<N>> m_chunks;
 };
 
 template<size_t N>
@@ -36,12 +75,18 @@ class ArrayReductionBuilder {
         m_dtype(data_type),
         m_reduction(operation) {}
 
+    BufferRequirement add_chunk(
+        TaskGraph& graph,
+        MemoryId memory_id,
+        Range<N> access_region,
+        size_t replication_factor = 1
+    );
+
+    DataDistribution<N> build(TaskGraph& graph);
+
     Size<N> sizes() const {
         return m_sizes;
     }
-
-    size_t add_chunk(TaskBuilder& builder, Range<N> access_region, size_t replication_factor = 1);
-    std::shared_ptr<ArrayBackend<N>> build(std::shared_ptr<Worker> worker, TaskGraph& graph);
 
   private:
     Size<N> m_sizes;

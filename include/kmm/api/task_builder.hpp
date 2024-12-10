@@ -21,6 +21,12 @@ struct TaskBuilder {
     MemoryId memory_id;
     std::vector<BufferRequirement> buffers;
     EventList dependencies;
+
+    size_t add_buffer_requirement(BufferRequirement req) {
+        size_t index = buffers.size();
+        buffers.push_back(std::move(req));
+        return index;
+    }
 };
 
 struct TaskResult {

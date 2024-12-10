@@ -30,7 +30,7 @@ class MemoryManager {
 
     std::shared_ptr<Transaction> create_transaction(std::shared_ptr<Transaction> parent = nullptr);
 
-    std::shared_ptr<Buffer> create_buffer(BufferLayout layout, std::string name="");
+    std::shared_ptr<Buffer> create_buffer(BufferLayout layout, std::string name = "");
     void delete_buffer(std::shared_ptr<Buffer> buffer);
 
     std::shared_ptr<Request> create_request(

@@ -10,8 +10,8 @@
 #include "kmm/api/access.hpp"
 #include "kmm/api/argument.hpp"
 #include "kmm/api/array_argument.hpp"
-#include "kmm/api/array_backend.hpp"
 #include "kmm/api/array_builder.hpp"
+#include "kmm/api/array_handle.hpp"
 
 namespace kmm {
 
@@ -29,9 +29,9 @@ class Array: public ArrayBase {
   public:
     Array(Size<N> shape = {}) : m_shape(shape) {}
 
-    explicit Array(std::shared_ptr<ArrayBackend<N>> b) :
-        m_backend(b),
-        m_shape(m_backend->array_size()) {}
+    explicit Array(std::shared_ptr<ArrayHandle<N>> b) :
+        m_handle(b),
+        m_shape(m_handle->array_size()) {}
 
     const std::type_info& type_info() const final {
         return typeid(T);
@@ -58,54 +58,54 @@ class Array: public ArrayBase {
     }
 
     bool is_valid() const {
-        return m_backend != nullptr;
+        return m_handle != nullptr;
     }
 
-    const ArrayBackend<N>& inner() const {
-        KMM_ASSERT(m_backend != nullptr);
-        return *m_backend;
+    const ArrayHandle<N>& handle() const {
+        KMM_ASSERT(m_handle != nullptr);
+        return *m_handle;
     }
 
     Size<N> chunk_size() const {
-        return inner().chunk_size();
+        return handle().chunk_size();
     }
 
     int64_t chunk_size(size_t axis) const {
-        return inner().chunk_size().get(axis);
+        return handle().chunk_size().get(axis);
     }
 
     const Worker& worker() const {
-        return inner().worker();
+        return handle().worker();
     }
 
     void synchronize() const {
-        if (m_backend) {
-            m_backend->synchronize();
+        if (m_handle) {
+            m_handle->synchronize();
         }
     }
 
     void reset() {
-        m_backend = nullptr;
+        m_handle = nullptr;
     }
 
     void copy_bytes_to(void* output, size_t num_bytes) const {
         KMM_ASSERT(num_bytes % sizeof(T) == 0 && compare_equal(num_bytes / sizeof(T), size()));
-        inner().copy_bytes(output, sizeof(T));
+        handle().copy_bytes(output, sizeof(T));
     }
 
     void copy_to(T* output) const {
-        inner().copy_bytes(output, sizeof(T));
+        handle().copy_bytes(output, sizeof(T));
     }
 
     template<typename I>
     void copy_to(T* output, I num_elements) const {
         KMM_ASSERT(compare_equal(num_elements, size()));
-        inner().copy_bytes(output, sizeof(T));
+        handle().copy_bytes(output, sizeof(T));
     }
 
     void copy_to(std::vector<T>& output) const {
         output.resize(checked_cast<size_t>(size()));
-        inner().copy_bytes(output, sizeof(T));
+        handle().copy_bytes(output, sizeof(T));
     }
 
     std::vector<T> copy() const {
@@ -115,7 +115,7 @@ class Array: public ArrayBase {
     }
 
   private:
-    std::shared_ptr<ArrayBackend<N>> m_backend;
+    std::shared_ptr<ArrayHandle<N>> m_handle;
     Index<N> m_offset;  // Unused for now
     Size<N> m_shape;
 };
@@ -128,14 +128,13 @@ struct ArgumentHandler<Read<Array<T, N>>> {
     using type = ArrayArgument<const T, views::dynamic_domain<N>>;
 
     ArgumentHandler(Read<Array<T, N>> arg) :
-        m_backend(arg.argument.inner().shared_from_this()),
-        m_chunk(m_backend->find_chunk(m_backend->array_size())) {}
+        m_handle(arg.argument.handle().shared_from_this()),
+        m_chunk(m_handle->find_chunk(m_handle->array_size())) {}
 
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        size_t buffer_index = builder.buffers.size();
-        builder.buffers.emplace_back(BufferRequirement {
+        auto buffer_index = builder.add_buffer_requirement(BufferRequirement {
             .buffer_id = m_chunk.buffer_id,
             .memory_id = builder.memory_id,
             .access_mode = AccessMode::Read});
@@ -147,8 +146,8 @@ struct ArgumentHandler<Read<Array<T, N>>> {
     void finalize(const TaskResult& result) {}
 
   private:
-    std::shared_ptr<const ArrayBackend<N>> m_backend;
-    ArrayChunk<N> m_chunk;
+    std::shared_ptr<const ArrayHandle<N>> m_handle;
+    DataChunk<N> m_chunk;
 };
 
 template<typename T, size_t N>
@@ -167,14 +166,18 @@ struct ArgumentHandler<Write<Array<T, N>>> {
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_builder.sizes();
-        size_t buffer_index = m_builder.add_chunk(builder, access_region);
-        views::dynamic_domain<N> domain = {access_region};
+        auto buffer_index = builder.add_buffer_requirement(
+            m_builder.add_chunk(builder.graph, builder.memory_id, access_region)
+        );
 
+        views::dynamic_domain<N> domain = {access_region};
         return {buffer_index, domain};
     }
 
     void finalize(const TaskResult& result) {
-        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
+        auto handle =
+            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
+        m_array = Array<T, N>(handle);
     }
 
   private:
@@ -197,17 +200,16 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
     );
 
     ArgumentHandler(Read<Array<T, N>, A> arg) :
-        m_backend(arg.argument.inner().shared_from_this()),
+        m_handle(arg.argument.handle().shared_from_this()),
         m_access_mapper(arg.access_mapper) {}
 
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_access_mapper(builder.chunk, m_backend->array_size());
-        auto data_chunk = m_backend->find_chunk(access_region);
+        auto access_region = m_access_mapper(builder.chunk, m_handle->array_size());
+        auto data_chunk = m_handle->find_chunk(access_region);
 
-        size_t buffer_index = builder.buffers.size();
-        builder.buffers.emplace_back(BufferRequirement {
+        auto buffer_index = builder.add_buffer_requirement(BufferRequirement {
             .buffer_id = data_chunk.buffer_id,
             .memory_id = builder.memory_id,
             .access_mode = AccessMode::Read});
@@ -219,7 +221,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
     void finalize(const TaskResult& result) {}
 
   private:
-    std::shared_ptr<const ArrayBackend<N>> m_backend;
+    std::shared_ptr<const ArrayHandle<N>> m_handle;
     A m_access_mapper;
 };
 
@@ -245,13 +247,18 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_access_mapper(builder.chunk, m_builder.sizes());
-        auto buffer_index = m_builder.add_chunk(builder, access_region);
+        auto buffer_index = builder.add_buffer_requirement(
+            m_builder.add_chunk(builder.graph, builder.memory_id, access_region)
+        );
+
         auto domain = views::dynamic_subdomain<N> {access_region.offset, access_region.sizes};
         return {buffer_index, domain};
     }
 
     void finalize(const TaskResult& result) {
-        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
+        auto handle =
+            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
+        m_array = Array<T, N>(handle);
     }
 
   private:
@@ -276,13 +283,18 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_builder.sizes();
-        auto buffer_index = m_builder.add_chunk(builder, access_region);
+        auto buffer_index = builder.add_buffer_requirement(
+            m_builder.add_chunk(builder.graph, builder.memory_id, access_region)
+        );
+
         auto domain = views::dynamic_subdomain<N> {access_region};
         return {buffer_index, domain};
     }
 
     void finalize(const TaskResult& result) {
-        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
+        auto handle =
+            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
+        m_array = Array<T, N>(handle);
     }
 
   private:
@@ -314,7 +326,10 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
     type process_chunk(TaskBuilder& builder) {
         auto access_region = Range<N>(m_builder.sizes());
         auto private_region = m_private_mapper(builder.chunk);
-        auto buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
+        auto rep = private_region.size();
+        auto buffer_index = builder.add_buffer_requirement(
+            m_builder.add_chunk(builder.graph, builder.memory_id, access_region, rep)
+        );
 
         auto domain = views::dynamic_subdomain<K + N> {
             private_region.offset.concat(access_region.offset),
@@ -325,7 +340,9 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
     }
 
     void finalize(const TaskResult& result) {
-        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
+        auto handle =
+            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
+        m_array = Array<T, N>(handle);
     }
 
   private:
@@ -364,7 +381,10 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
     type process_chunk(TaskBuilder& builder) {
         auto private_region = m_private_mapper(builder.chunk);
         auto access_region = m_access_mapper(builder.chunk, m_builder.sizes());
-        size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
+        auto rep = private_region.size();
+        size_t buffer_index = builder.add_buffer_requirement(
+            m_builder.add_chunk(builder.graph, builder.memory_id, access_region, rep)
+        );
 
         views::dynamic_subdomain<K + N> domain = {
             private_region.offset.concat(access_region.offset),
@@ -375,7 +395,9 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
     }
 
     void finalize(const TaskResult& result) {
-        m_array = Array<T, N>(m_builder.build(result.worker, result.graph));
+        auto handle =
+            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
+        m_array = Array<T, N>(handle);
     }
 
   private:

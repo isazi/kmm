@@ -30,12 +30,7 @@ Range<N> index2region(
 }
 
 template<size_t N>
-ArrayBackend<N>::ArrayBackend(
-    std::shared_ptr<Worker> worker,
-    Size<N> array_size,
-    std::vector<ArrayChunk<N>> chunks
-) :
-    m_worker(worker),
+DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<N>> chunks) :
     m_array_size(array_size) {
     for (const auto& chunk : chunks) {
         if (chunk.offset == Index<N>::zero()) {
@@ -103,16 +98,16 @@ ArrayBackend<N>::ArrayBackend(
 }
 
 template<size_t N>
-ArrayBackend<N>::~ArrayBackend() {
+ArrayHandle<N>::~ArrayHandle() {
     m_worker->with_task_graph([&](auto& builder) {
-        for (auto id : m_buffers) {
+        for (auto id : this->m_buffers) {
             builder.delete_buffer(id);
         }
     });
 }
 
 template<size_t N>
-ArrayChunk<N> ArrayBackend<N>::find_chunk(Range<N> region) const {
+DataChunk<N> DataDistribution<N>::find_chunk(Range<N> region) const {
     size_t buffer_index = 0;
     Index<N> offset;
     Size<N> sizes;
@@ -149,7 +144,7 @@ ArrayChunk<N> ArrayBackend<N>::find_chunk(Range<N> region) const {
 }
 
 template<size_t N>
-ArrayChunk<N> ArrayBackend<N>::chunk(size_t index) const {
+DataChunk<N> DataDistribution<N>::chunk(size_t index) const {
     if (index >= m_buffers.size()) {
         throw std::runtime_error(fmt::format(
             "chunk {} is out of range, there are only {} chunks",
@@ -166,11 +161,11 @@ ArrayChunk<N> ArrayBackend<N>::chunk(size_t index) const {
 }
 
 template<size_t N>
-void ArrayBackend<N>::synchronize() const {
+void ArrayHandle<N>::synchronize() const {
     auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
         auto deps = EventList {};
 
-        for (const auto& buffer_id : m_buffers) {
+        for (const auto& buffer_id : this->m_buffers) {
             deps.insert_all(graph.extract_buffer_dependencies(buffer_id));
         }
 
@@ -180,7 +175,7 @@ void ArrayBackend<N>::synchronize() const {
     m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
 
     // Access each buffer once to check for errors.
-    for (size_t i = 0; i < m_buffers.size(); i++) {
+    for (size_t i = 0; i < this->m_buffers.size(); i++) {
         //        auto memory_id = this->chunk(i).owner_id;
         //        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
         //        KMM_TODO();
@@ -230,17 +225,22 @@ class CopyOutTask: public Task {
 };
 
 template<size_t N>
-void ArrayBackend<N>::copy_bytes(void* dest_addr, size_t element_size) const {
+void ArrayHandle<N>::copy_bytes(void* dest_addr, size_t element_size) const {
     auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
         EventList deps;
 
-        for (size_t i = 0; i < m_buffers.size(); i++) {
-            auto region = index2region(i, m_num_chunks, m_chunk_size, m_array_size);
+        for (size_t i = 0; i < this->m_buffers.size(); i++) {
+            auto region =
+                index2region(i, this->m_num_chunks, this->m_chunk_size, this->m_array_size);
 
-            auto task =
-                std::make_shared<CopyOutTask<N>>(dest_addr, element_size, m_array_size, region);
+            auto task = std::make_shared<CopyOutTask<N>>(
+                dest_addr,
+                element_size,
+                this->m_array_size,
+                region
+            );
             auto buffer = BufferRequirement {
-                .buffer_id = m_buffers[i],
+                .buffer_id = this->m_buffers[i],
                 .memory_id = MemoryId::host(),
                 .access_mode = AccessMode::Read,
             };
@@ -256,12 +256,23 @@ void ArrayBackend<N>::copy_bytes(void* dest_addr, size_t element_size) const {
     m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
 }
 
-template class ArrayBackend<0>;
-template class ArrayBackend<1>;
-template class ArrayBackend<2>;
-template class ArrayBackend<3>;
-template class ArrayBackend<4>;
-template class ArrayBackend<5>;
-template class ArrayBackend<6>;
+template<size_t N>
+ArrayHandle<N>::ArrayHandle(std::shared_ptr<Worker> worker, DataDistribution<N> distribution) :
+    DataDistribution<N>(std::move(distribution)),
+    m_worker(worker) {}
+
+// NOLINTBEGIN
+#define INSTANTIATE_ARRAY_IMPL(NAME) \
+    template class NAME<0>;          \
+    template class NAME<1>;          \
+    template class NAME<2>;          \
+    template class NAME<3>;          \
+    template class NAME<4>;          \
+    template class NAME<5>;          \
+    template class NAME<6>;
+
+INSTANTIATE_ARRAY_IMPL(DataDistribution)
+INSTANTIATE_ARRAY_IMPL(ArrayHandle)
+// NOLINTEND
 
 }  // namespace kmm
