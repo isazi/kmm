@@ -6,7 +6,7 @@
 
 namespace kmm {
 
-template<typename T, typename D, typename L = views::layout_default<D::rank>>
+template<typename T, typename D, typename L = views::default_layout<D::rank>>
 struct ArrayArgument {
     using value_type = T;
     using domain_type = D;
@@ -27,7 +27,7 @@ struct ArrayArgument {
 
 template<typename T, typename D, typename L>
 struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<T, D, L>> {
-    using type = basic_view<T, D, L, views::accessor_host>;
+    using type = basic_view<T, D, L, views::host_accessor>;
 
     static type unpack(const TaskContext& context, ArrayArgument<T, D, L> arg) {
         T* data = static_cast<T*>(context.accessors.at(arg.buffer_index).address);
@@ -37,7 +37,7 @@ struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<T, D, L>> {
 
 template<typename T, typename D, typename L>
 struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<const T, D, L>> {
-    using type = basic_view<const T, D, L, views::accessor_host>;
+    using type = basic_view<const T, D, L, views::host_accessor>;
 
     static type unpack(const TaskContext& context, ArrayArgument<const T, D, L> arg) {
         const T* data = static_cast<const T*>(context.accessors.at(arg.buffer_index).address);
@@ -47,7 +47,7 @@ struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<const T, D, L>> {
 
 template<typename T, typename D, typename L>
 struct ArgumentDeserialize<ExecutionSpace::Device, ArrayArgument<T, D, L>> {
-    using type = basic_view<T, D, L, views::accessor_device>;
+    using type = basic_view<T, D, L, views::device_accessor>;
 
     static type unpack(const TaskContext& context, ArrayArgument<T, D, L> arg) {
         T* data = static_cast<T*>(context.accessors.at(arg.buffer_index).address);
@@ -57,7 +57,7 @@ struct ArgumentDeserialize<ExecutionSpace::Device, ArrayArgument<T, D, L>> {
 
 template<typename T, typename D, typename L>
 struct ArgumentDeserialize<ExecutionSpace::Device, ArrayArgument<const T, D, L>> {
-    using type = basic_view<const T, D, L, views::accessor_device>;
+    using type = basic_view<const T, D, L, views::device_accessor>;
 
     static type unpack(const TaskContext& context, ArrayArgument<const T, D, L> arg) {
         const T* data = static_cast<const T*>(context.accessors.at(arg.buffer_index).address);

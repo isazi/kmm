@@ -5,9 +5,9 @@
 
 using namespace kmm;
 
-TEST(View, bound_layout_left_to_right) {
+TEST(View, bound_left_to_right_layout) {
     std::vector<int> vec = {1, 2, 3, 4, 5, 6, 7, 8};
-    basic_view<int, views::domain_bounds<1>, views::layout_left_to_right<1>> v = {vec.data(), {{8}}};
+    basic_view<int, views::dynamic_domain<1>, views::left_to_right_layout<1>> v = {vec.data(), {{8}}};
 
     ASSERT_EQ(v.offset(), 0);
     ASSERT_EQ(v.size(0), 8);
@@ -15,9 +15,9 @@ TEST(View, bound_layout_left_to_right) {
     ASSERT_EQ(v.end(), 8);
     ASSERT_EQ(v.data(), vec.data());
     ASSERT_EQ(v.stride(), 1);
-    ASSERT_EQ(v.strides(), {1});
-    ASSERT_EQ(v.offsets(), {0});
-    ASSERT_EQ(v.sizes(), {8});
+    ASSERT_EQ(v.strides(), 1);
+    ASSERT_EQ(v.offsets(), 0);
+    ASSERT_EQ(v.sizes(), 8);
 
     ASSERT_EQ(v.data_at({0}), &vec[0]);
     ASSERT_EQ(v.data_at({4}), &vec[4]);
@@ -30,9 +30,9 @@ TEST(View, bound_layout_left_to_right) {
     ASSERT_EQ(v[4], vec[4]);
 }
 
-TEST(View, bound2_layout_left_to_right) {
+TEST(View, bound2_left_to_right_layout) {
     std::vector<int> vec = {1, 2, 3, 4, 5, 6, 7, 8};
-    basic_view<int, views::domain_bounds<2>, views::layout_left_to_right<2>> v = {vec.data(), {{4, 2}}};
+    basic_view<int, views::dynamic_domain<2>, views::left_to_right_layout<2>> v = {vec.data(), {{4, 2}}};
 
     ASSERT_EQ(v.offset(0), 0);
     ASSERT_EQ(v.offset(1), 0);
@@ -64,9 +64,9 @@ TEST(View, bound2_layout_left_to_right) {
     ASSERT_EQ(v[3][0], vec[3]);
 }
 
-TEST(View, bound2_layout_right_to_left) {
+TEST(View, bound2_right_to_left_layout) {
     std::vector<int> vec = {1, 2, 3, 4, 5, 6, 7, 8};
-    basic_view<int, views::domain_bounds<2>, views::layout_right_to_left<2>> v = {vec.data(), {{4, 2}}};
+    basic_view<int, views::dynamic_domain<2>, views::right_to_left_layout<2>> v = {vec.data(), {{4, 2}}};
 
     ASSERT_EQ(v.offset(0), 0);
     ASSERT_EQ(v.offset(1), 0);
@@ -98,9 +98,9 @@ TEST(View, bound2_layout_right_to_left) {
     ASSERT_EQ(v[3][0], vec[6]);
 }
 
-TEST(View, subbound2_layout_right_to_left) {
+TEST(View, subbound2_right_to_left_layout) {
     std::vector<int> vec = {1, 2, 3, 4, 5, 6, 7, 8};
-    basic_view<int, views::domain_subbounds<2>, views::layout_right_to_left<2>> v = {
+    basic_view<int, views::dynamic_subdomain<2>, views::right_to_left_layout<2>> v = {
         vec.data(),
         {{100, 42}, {4, 2}}};
 
@@ -134,7 +134,7 @@ TEST(View, subbound2_layout_right_to_left) {
     ASSERT_EQ(v[103][42], vec[6]);
 }
 
-TEST(View, conversions) {
+TEST(View, domain_conversions) {
 #define ASSERT_CORRECT_VIEW(p)    \
     ASSERT_EQ((p).offset(0), 0);  \
     ASSERT_EQ((p).offset(1), 0);  \
@@ -146,62 +146,125 @@ TEST(View, conversions) {
 
     auto a = basic_view<  //
         int,
-        views::domain_static_size<views::default_index_type, 10, 20>,
-        views::layout_right_to_left<2>> {nullptr};
+        views::static_domain<views::default_index_type, 10, 20>,
+        views::right_to_left_layout<2>> {nullptr};
     ASSERT_CORRECT_VIEW(a);
 
     auto b = basic_view<  //
         int,
-        views::domain_bounds<2>,
-        views::layout_right_to_left<2>>(a);
+        views::dynamic_domain<2>,
+        views::right_to_left_layout<2>>(a);
     ASSERT_CORRECT_VIEW(b);
 
     auto c = basic_view<  //
         int,
-        views::domain_subbounds<2>,
-        views::layout_right_to_left<2>>(a);
+        views::dynamic_subdomain<2>,
+        views::right_to_left_layout<2>>(a);
     ASSERT_CORRECT_VIEW(c);
 
     auto d = basic_view<  //
         int,
-        views::domain_subbounds<2>,
-        views::layout_right_to_left<2>>(b);
+        views::dynamic_subdomain<2>,
+        views::right_to_left_layout<2>>(b);
     ASSERT_CORRECT_VIEW(d);
 
     auto e = basic_view<  //
         int,
-        views::domain_subbounds<2>,
-        views::layout_strided<2>>(a);
+        views::dynamic_subdomain<2>,
+        views::dynamic_layout<2>>(a);
     ASSERT_CORRECT_VIEW(e);
 
     auto f = basic_view<  //
         int,
-        views::domain_subbounds<2>,
-        views::layout_strided<2>>(b);
+        views::dynamic_subdomain<2>,
+        views::dynamic_layout<2>>(b);
     ASSERT_CORRECT_VIEW(f);
 
     auto g = basic_view<  //
         int,
-        views::domain_subbounds<2>,
-        views::layout_strided<2>>(c);
+        views::dynamic_subdomain<2>,
+        views::dynamic_layout<2>>(c);
     ASSERT_CORRECT_VIEW(g);
 
     auto h = basic_view<  //
         int,
-        views::domain_subbounds<2>,
-        views::layout_strided<2>>(d);
+        views::dynamic_subdomain<2>,
+        views::dynamic_layout<2>>(d);
     ASSERT_CORRECT_VIEW(h);
+
+#undef ASSERT_CORRECT_VIEW
+}
+
+TEST(View, subdomain_conversions) {
+#define ASSERT_CORRECT_VIEW(p)    \
+    ASSERT_EQ((p).offset(0), 3);  \
+    ASSERT_EQ((p).offset(1), 7);  \
+    ASSERT_EQ((p).size(0), 10);   \
+    ASSERT_EQ((p).size(1), 20);   \
+    ASSERT_EQ((p).stride(0), 20); \
+    ASSERT_EQ((p).stride(1), 1);  \
+    ASSERT_TRUE((p).is_contiguous());
+
+    auto a = basic_view<  //
+        int,
+        views::static_offset<views::static_domain<views::default_index_type, 10, 20>, 3, 7>,
+        views::right_to_left_layout<2>> {nullptr};
+    ASSERT_CORRECT_VIEW(a);
+
+    auto b = basic_view<  //
+        int,
+        views::static_offset<views::dynamic_domain<2>, 3, 7>,
+        views::right_to_left_layout<2>>(a);
+    ASSERT_CORRECT_VIEW(b);
+
+    auto c = basic_view<  //
+        int,
+        views::dynamic_subdomain<2>,
+        views::right_to_left_layout<2>>(a);
+    ASSERT_CORRECT_VIEW(c);
+
+    auto d = basic_view<  //
+        int,
+        views::dynamic_subdomain<2>,
+        views::right_to_left_layout<2>>(b);
+    ASSERT_CORRECT_VIEW(d);
+
+    auto e = basic_view<  //
+        int,
+        views::dynamic_subdomain<2>,
+        views::dynamic_layout<2>>(a);
+    ASSERT_CORRECT_VIEW(e);
+
+    auto f = basic_view<
+        int,
+        views::dynamic_subdomain<2>,
+        views::dynamic_layout<2>>(b);
+    ASSERT_CORRECT_VIEW(f);
+
+    auto g = basic_view<
+        int,
+        views::dynamic_subdomain<2>,
+        views::dynamic_layout<2>>(c);
+    ASSERT_CORRECT_VIEW(g);
+
+    auto h = basic_view<
+        int,
+        views::dynamic_subdomain<2>,
+        views::dynamic_layout<2>>(d);
+    ASSERT_CORRECT_VIEW(h);
+
+#undef ASSERT_CORRECT_VIEW
 }
 
 TEST(View, drop_axis_dim2) {
     auto vec = std::vector<float>(200);
     auto a = basic_view<  //
         float,
-        views::domain_subbounds<2>,
-        views::layout_right_to_left<2>> {vec.data(), {{3, 7}, {10, 20}}};
+        views::dynamic_subdomain<2>,
+        views::right_to_left_layout<2>> {vec.data(), {{3, 7}, {10, 20}}};
 
     // Drop axis 0
-    basic_view<float, views::domain_subbounds<1>, views::layout_right_to_left<1>> b = a.drop_axis();
+    basic_view<float, views::dynamic_subdomain<1>, views::right_to_left_layout<1>> b = a.drop_axis();
     ASSERT_EQ(b.size(0), 20);
     ASSERT_EQ(b.offset(0), 7);
     ASSERT_EQ(b.stride(0), 1);
@@ -214,7 +277,7 @@ TEST(View, drop_axis_dim2) {
     ASSERT_EQ(b.data(), vec.data() + 2 * 20);
 
     // Drop axis 1
-    basic_view<float, views::domain_subbounds<1>, views::layout_strided<1>> c = a.drop_axis<1>();
+    basic_view<float, views::dynamic_subdomain<1>, views::dynamic_layout<1>> c = a.drop_axis<1>();
     ASSERT_EQ(c.size(0), 10);
     ASSERT_EQ(c.offset(0), 3);
     ASSERT_EQ(c.stride(0), 20);
@@ -231,13 +294,13 @@ TEST(View, drop_axis_dim3) {
     auto vec = std::vector<float>(200);
     auto a = basic_view<  //
         float,
-        views::domain_subbounds<3>,
-        views::layout_right_to_left<3>> {
+        views::dynamic_subdomain<3>,
+        views::right_to_left_layout<3>> {
         vec.data(), {{3, 7, 1}, {2, 5, 20}}
     };
 
     // Drop axis 0
-    basic_view<float, views::domain_subbounds<2>, views::layout_right_to_left<2>> b = a.drop_axis();
+    basic_view<float, views::dynamic_subdomain<2>, views::right_to_left_layout<2>> b = a.drop_axis();
     ASSERT_EQ(b.size(0), 5);
     ASSERT_EQ(b.offset(0), 7);
     ASSERT_EQ(b.stride(0), 20);
@@ -256,7 +319,7 @@ TEST(View, drop_axis_dim3) {
     ASSERT_EQ(b.data() - vec.data(), 100);
 
     // Drop axis 1
-    basic_view<float, views::domain_subbounds<2>, views::layout_strided<2>> c = a.drop_axis<1>();
+    basic_view<float, views::dynamic_subdomain<2>, views::dynamic_layout<2>> c = a.drop_axis<1>();
     ASSERT_EQ(c.size(0), 2);
     ASSERT_EQ(c.offset(0), 3);
     ASSERT_EQ(c.stride(0), 100);
@@ -275,7 +338,7 @@ TEST(View, drop_axis_dim3) {
     ASSERT_EQ(c.data() - vec.data(),  + 40);
 
     // Drop axis 3
-    basic_view<float, views::domain_subbounds<2>, views::layout_strided<2>> d = a.drop_axis<2>();
+    basic_view<float, views::dynamic_subdomain<2>, views::dynamic_layout<2>> d = a.drop_axis<2>();
     ASSERT_EQ(d.size(0), 2);
     ASSERT_EQ(d.offset(0), 3);
     ASSERT_EQ(d.stride(0), 100);
@@ -298,8 +361,8 @@ TEST(View, scalar) {
     auto value = int(1);
     auto v = basic_view<  //
         int,
-        views::domain_subbounds<0>,
-        views::layout_right_to_left<0>> {&value};
+        views::dynamic_subdomain<0>,
+        views::right_to_left_layout<0>> {&value};
 
     ASSERT_EQ(v.data(), &value);
     ASSERT_EQ(v.data_at({}), &value);

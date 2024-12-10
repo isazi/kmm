@@ -125,7 +125,7 @@ using Scalar = Array<T, 0>;
 
 template<typename T, size_t N>
 struct ArgumentHandler<Read<Array<T, N>>> {
-    using type = ArrayArgument<const T, views::domain_bounds<N>>;
+    using type = ArrayArgument<const T, views::dynamic_domain<N>>;
 
     ArgumentHandler(Read<Array<T, N>> arg) :
         m_backend(arg.argument.inner().shared_from_this()),
@@ -140,7 +140,7 @@ struct ArgumentHandler<Read<Array<T, N>>> {
             .memory_id = builder.memory_id,
             .access_mode = AccessMode::Read});
 
-        auto domain = views::domain_bounds<N> {m_chunk.size};
+        auto domain = views::dynamic_domain<N> {m_chunk.size};
         return {buffer_index, domain};
     }
 
@@ -153,7 +153,7 @@ struct ArgumentHandler<Read<Array<T, N>>> {
 
 template<typename T, size_t N>
 struct ArgumentHandler<Write<Array<T, N>>> {
-    using type = ArrayArgument<T, views::domain_bounds<N>>;
+    using type = ArrayArgument<T, views::dynamic_domain<N>>;
 
     ArgumentHandler(Write<Array<T, N>> arg) :
         m_array(arg.argument),
@@ -168,7 +168,7 @@ struct ArgumentHandler<Write<Array<T, N>>> {
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_builder.sizes();
         size_t buffer_index = m_builder.add_chunk(builder, access_region);
-        views::domain_bounds<N> domain = {access_region};
+        views::dynamic_domain<N> domain = {access_region};
 
         return {buffer_index, domain};
     }
@@ -189,7 +189,7 @@ struct ArgumentHandler<Array<T, N>>: public ArgumentHandler<Read<Array<T, N>>> {
 
 template<typename T, size_t N, typename A>
 struct ArgumentHandler<Read<Array<T, N>, A>> {
-    using type = ArrayArgument<const T, views::domain_subbounds<N>>;
+    using type = ArrayArgument<const T, views::dynamic_subdomain<N>>;
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,
@@ -212,7 +212,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
             .memory_id = builder.memory_id,
             .access_mode = AccessMode::Read});
 
-        auto domain = views::domain_subbounds<N> {data_chunk.offset, data_chunk.size};
+        auto domain = views::dynamic_subdomain<N> {data_chunk.offset, data_chunk.size};
         return {buffer_index, domain};
     }
 
@@ -225,7 +225,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
 
 template<typename T, size_t N, typename A>
 struct ArgumentHandler<Write<Array<T, N>, A>> {
-    using type = ArrayArgument<T, views::domain_subbounds<N>>;
+    using type = ArrayArgument<T, views::dynamic_subdomain<N>>;
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,
@@ -246,7 +246,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_access_mapper(builder.chunk, m_builder.sizes());
         auto buffer_index = m_builder.add_chunk(builder, access_region);
-        auto domain = views::domain_subbounds<N> {access_region.offset, access_region.sizes};
+        auto domain = views::dynamic_subdomain<N> {access_region.offset, access_region.sizes};
         return {buffer_index, domain};
     }
 
@@ -262,7 +262,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
 
 template<typename T, size_t N>
 struct ArgumentHandler<Reduce<Array<T, N>>> {
-    using type = ArrayArgument<T, views::domain_subbounds<N>>;
+    using type = ArrayArgument<T, views::dynamic_subdomain<N>>;
 
     ArgumentHandler(Reduce<Array<T, N>> arg) :
         m_array(arg.argument),
@@ -277,7 +277,7 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_builder.sizes();
         auto buffer_index = m_builder.add_chunk(builder, access_region);
-        auto domain = views::domain_subbounds<N> {access_region};
+        auto domain = views::dynamic_subdomain<N> {access_region};
         return {buffer_index, domain};
     }
 
@@ -298,7 +298,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
         "private mapper of 'reduce' must return N-dimensional region"
     );
 
-    using type = ArrayArgument<T, views::domain_subbounds<K + N>>;
+    using type = ArrayArgument<T, views::dynamic_subdomain<K + N>>;
 
     ArgumentHandler(Reduce<Array<T, N>, All, P> arg) :
         m_array(arg.argument),
@@ -316,7 +316,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
         auto private_region = m_private_mapper(builder.chunk);
         auto buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
-        auto domain = views::domain_subbounds<K + N> {
+        auto domain = views::dynamic_subdomain<K + N> {
             private_region.offset.concat(access_region.offset),
             private_region.sizes.concat(access_region.sizes),
         };
@@ -337,7 +337,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
 template<typename T, size_t N, typename A, typename P>
 struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
     static constexpr size_t K = mapper_dimensionality<P>;
-    using type = ArrayArgument<T, views::domain_subbounds<K + N>>;
+    using type = ArrayArgument<T, views::dynamic_subdomain<K + N>>;
 
     static_assert(
         is_dimensionality_accepted_by_mapper<A, N>,
@@ -366,7 +366,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
         auto access_region = m_access_mapper(builder.chunk, m_builder.sizes());
         size_t buffer_index = m_builder.add_chunk(builder, access_region, private_region.size());
 
-        views::domain_subbounds<K + N> domain = {
+        views::dynamic_subdomain<K + N> domain = {
             private_region.offset.concat(access_region.offset),
             private_region.sizes.concat(access_region.sizes),
         };
