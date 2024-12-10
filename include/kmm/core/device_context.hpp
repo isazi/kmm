@@ -117,6 +117,7 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
      */
     template<typename T, size_t N>
     void fill(gpu_view_mut<T, N> dest, T value) const {
+        KMM_ASSERT(dest.is_contiguous());
         fill_bytes(dest.data(), dest.size_in_bytes(), &value, sizeof(T));
     }
 
@@ -127,18 +128,21 @@ class DeviceContext: public DeviceInfo, public ExecutionContext {
     template<typename T, size_t N>
     void copy(gpu_view<T, N> source, gpu_view_mut<T, N> dest) const {
         KMM_ASSERT(source.sizes() == dest.sizes());
+        KMM_ASSERT(source.is_contiguous() && dest.is_contiguous());
         copy_bytes(source.data(), dest.data(), source.size_in_bytes());
     }
 
     template<typename T, size_t N>
     void copy(gpu_view<T, N> source, view_mut<T, N> dest) const {
         KMM_ASSERT(source.sizes() == dest.sizes());
+        KMM_ASSERT(source.is_contiguous() && dest.is_contiguous());
         copy_bytes(source.data(), dest.data(), source.size_in_bytes());
     }
 
     template<typename T, size_t N>
     void copy(view<T, N> source, gpu_view_mut<T, N> dest) const {
         KMM_ASSERT(source.sizes() == dest.sizes());
+        KMM_ASSERT(source.is_contiguous() && dest.is_contiguous());
         copy_bytes(source.data(), dest.data(), source.size_in_bytes());
     }
 

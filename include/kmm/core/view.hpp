@@ -549,6 +549,19 @@ struct accessor_device {
     }
 };
 
+template<typename A, typename B>
+struct convert_pointer;
+
+template<typename T>
+struct convert_pointer<T, T> {
+    static KMM_HOST_DEVICE T* call(T* p) {
+        return p;
+    }
+};
+
+template<typename T>
+struct convert_pointer<T, const T>: convert_pointer<const T, const T> {};
+
 }  // namespace views
 template<typename View, typename T, typename D, size_t K = 0, size_t N = D::rank>
 struct view_subscript {
@@ -654,17 +667,17 @@ struct basic_view:
     basic_view(pointer data = nullptr, domain_type domain = {}) noexcept :
         basic_view(data, domain, layout_type::from_domain(domain)) {}
 
-    template<typename D2, typename L2>
-    KMM_HOST_DEVICE basic_view(const basic_view<T, D2, L2, A>& that) noexcept :
+    template<typename T2, typename D2, typename L2>
+    KMM_HOST_DEVICE basic_view(const basic_view<T2, D2, L2, A>& that) noexcept :
         basic_view(
-            that.data(),
+            views::convert_pointer<T2, T>::call(that.data()),
             D::from_domain(that.domain()),
             L::from_layout(that.layout()),
             that.accessor()
         ) {}
 
-    template<typename D2, typename L2>
-    KMM_HOST_DEVICE basic_view& operator=(const basic_view<T, D2, L2, A>& that) const noexcept {
+    template<typename T2, typename D2, typename L2>
+    KMM_HOST_DEVICE basic_view& operator=(const basic_view<T2, D2, L2, A>& that) const noexcept {
         return *this = basic_view(that);
     }
 
@@ -705,6 +718,15 @@ struct basic_view:
             volume *= domain().size(i);
         }
         return volume;
+    }
+
+    KMM_HOST_DEVICE
+    size_t size_in_bytes() const noexcept {
+        size_t nbytes = sizeof(T);
+        for (size_t i = 0; i < rank; i++) {
+            nbytes *= static_cast<size_t>(domain().size(i));
+        }
+        return nbytes;
     }
 
     KMM_HOST_DEVICE

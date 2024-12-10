@@ -44,7 +44,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include
 set(CXXFLAGS
         $<$<COMPILE_LANGUAGE:CUDA>:-forward-unknown-to-host-compiler>
         -Wall -Wextra -Wconversion -Wno-unused-parameter
-        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Werror>)
+        #$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-Werror>
+)
 target_compile_options(${PROJECT_NAME} PUBLIC ${CXXFLAGS})
 
 # Enable PIC
