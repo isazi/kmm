@@ -206,7 +206,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_access_mapper(builder.chunk, m_handle->array_size());
+        auto access_region = m_access_mapper(builder.chunk, Range<N>(m_handle->array_size()));
         auto data_chunk = m_handle->find_chunk(access_region);
 
         auto buffer_index = builder.add_buffer_requirement(BufferRequirement {
@@ -246,7 +246,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
     void initialize(const TaskInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_access_mapper(builder.chunk, m_builder.sizes());
+        auto access_region = m_access_mapper(builder.chunk, Range<N>(m_builder.sizes()));
         auto buffer_index = builder.add_buffer_requirement(
             m_builder.add_chunk(builder.graph, builder.memory_id, access_region)
         );
@@ -380,7 +380,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
 
     type process_chunk(TaskBuilder& builder) {
         auto private_region = m_private_mapper(builder.chunk);
-        auto access_region = m_access_mapper(builder.chunk, m_builder.sizes());
+        auto access_region = m_access_mapper(builder.chunk, Range<N>(m_builder.sizes()));
         auto rep = private_region.size();
         size_t buffer_index = builder.add_buffer_requirement(
             m_builder.add_chunk(builder.graph, builder.memory_id, access_region, rep)

@@ -10,7 +10,7 @@ template<typename T>
 struct ArgumentHandler;
 
 template<ExecutionSpace, typename T>
-struct ArgumentDeserialize;
+struct ArgumentUnpack;
 
 template<typename T, typename = void>
 struct Argument {
@@ -52,7 +52,7 @@ struct ArgumentHandler {
 };
 
 template<ExecutionSpace Space, typename T>
-struct ArgumentDeserialize<Space, Argument<T>> {
+struct ArgumentUnpack<Space, Argument<T>> {
     static auto unpack(TaskContext& context, Argument<T>& data) {
         return data.template unpack<Space>(context);
     }
@@ -68,10 +68,7 @@ packed_argument_t<T> pack_argument(TaskBuilder& builder, T&& arg) {
 
 template<ExecutionSpace execution_space, typename T>
 auto unpack_argument(TaskContext& builder, T&& arg) {
-    return ArgumentDeserialize<execution_space, std::decay_t<T>>::unpack(
-        builder,
-        std::forward<T>(arg)
-    );
+    return ArgumentUnpack<execution_space, std::decay_t<T>>::unpack(builder, std::forward<T>(arg));
 }
 
 }  // namespace kmm

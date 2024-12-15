@@ -25,7 +25,7 @@ struct ArrayArgument {
 };
 
 template<typename T, typename D, typename L>
-struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<T, D, L>> {
+struct ArgumentUnpack<ExecutionSpace::Host, ArrayArgument<T, D, L>> {
     using type = basic_view<T, D, L, views::host_accessor>;
 
     static type unpack(const TaskContext& context, ArrayArgument<T, D, L> arg) {
@@ -35,7 +35,7 @@ struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<T, D, L>> {
 };
 
 template<typename T, typename D, typename L>
-struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<const T, D, L>> {
+struct ArgumentUnpack<ExecutionSpace::Host, ArrayArgument<const T, D, L>> {
     using type = basic_view<const T, D, L, views::host_accessor>;
 
     static type unpack(const TaskContext& context, ArrayArgument<const T, D, L> arg) {
@@ -45,7 +45,7 @@ struct ArgumentDeserialize<ExecutionSpace::Host, ArrayArgument<const T, D, L>> {
 };
 
 template<typename T, typename D, typename L>
-struct ArgumentDeserialize<ExecutionSpace::Device, ArrayArgument<T, D, L>> {
+struct ArgumentUnpack<ExecutionSpace::Device, ArrayArgument<T, D, L>> {
     using type = basic_view<T, D, L, views::device_accessor>;
 
     static type unpack(const TaskContext& context, ArrayArgument<T, D, L> arg) {
@@ -55,7 +55,7 @@ struct ArgumentDeserialize<ExecutionSpace::Device, ArrayArgument<T, D, L>> {
 };
 
 template<typename T, typename D, typename L>
-struct ArgumentDeserialize<ExecutionSpace::Device, ArrayArgument<const T, D, L>> {
+struct ArgumentUnpack<ExecutionSpace::Device, ArrayArgument<const T, D, L>> {
     using type = basic_view<const T, D, L, views::device_accessor>;
 
     static type unpack(const TaskContext& context, ArrayArgument<const T, D, L> arg) {

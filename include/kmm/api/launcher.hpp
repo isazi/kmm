@@ -97,7 +97,7 @@ class TaskImpl: public Task {
         m_launcher(
             device,
             m_chunk,
-            ArgumentDeserialize<execution_space, Args>::unpack(context, std::get<Is>(m_args))...
+            ArgumentUnpack<execution_space, Args>::unpack(context, std::get<Is>(m_args))...
         );
     }
 
