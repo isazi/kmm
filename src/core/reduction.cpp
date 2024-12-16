@@ -79,11 +79,14 @@ std::vector<uint8_t> reduction_identity_value(DataType dtype, ReductionOp op) {
 }
 
 size_t ReductionDef::minimum_destination_bytes_needed() const {
-    return checked_mul(data_type.size_in_bytes(), num_outputs);
+    return checked_mul(data_type.size_in_bytes(), output_offset_elements + num_outputs);
 }
 
 size_t ReductionDef::minimum_source_bytes_needed() const {
-    return checked_mul(minimum_destination_bytes_needed(), num_inputs_per_output);
+    return checked_mul(
+        data_type.size_in_bytes(),
+        input_offset_elements + checked_mul(num_inputs_per_output, input_stride_elements)
+    );
 }
 
 std::ostream& operator<<(std::ostream& f, ReductionOp p) {

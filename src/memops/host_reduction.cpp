@@ -8,7 +8,8 @@ template<size_t NumRows, typename T, ReductionOp Op>
 KMM_NOINLINE void execute_reduction_few_rows(
     const T* __restrict__ src_buffer,
     T* __restrict__ dst_buffer,
-    size_t num_columns
+    size_t num_columns,
+    size_t row_stride
 ) {
     for (size_t j = 0; j < num_columns; j++) {
         dst_buffer[j] = src_buffer[j];
@@ -16,7 +17,7 @@ KMM_NOINLINE void execute_reduction_few_rows(
 #pragma unroll
         for (size_t i = 1; i < NumRows; i++) {
             dst_buffer[j] =
-                ReductionFunctor<T, Op>::combine(dst_buffer[j], src_buffer[i * num_columns + j]);
+                ReductionFunctor<T, Op>::combine(dst_buffer[j], src_buffer[i * row_stride + j]);
         }
     }
 }
@@ -26,7 +27,8 @@ KMM_NOINLINE void execute_reduction_basic(
     const T* __restrict__ src_buffer,
     T* __restrict__ dst_buffer,
     size_t num_columns,
-    size_t num_rows
+    size_t num_rows,
+    size_t row_stride
 ) {
     for (size_t j = 0; j < num_columns; j++) {
         dst_buffer[j] = src_buffer[j];
@@ -35,7 +37,7 @@ KMM_NOINLINE void execute_reduction_basic(
     for (size_t i = 1; i < num_rows; i++) {
         for (size_t j = 0; j < num_columns; j++) {
             dst_buffer[j] =
-                ReductionFunctor<T, Op>::combine(dst_buffer[j], src_buffer[i * num_columns + j]);
+                ReductionFunctor<T, Op>::combine(dst_buffer[j], src_buffer[i * row_stride + j]);
         }
     }
 }
@@ -45,7 +47,8 @@ KMM_NOINLINE void execute_reduction_impl(
     const T* src_buffer,
     T* dst_buffer,
     size_t num_columns,
-    size_t num_rows
+    size_t num_rows,
+    size_t row_stride
 ) {
     // For zero rows, we just fill with the identity value.
     if (num_rows == 0) {
@@ -53,9 +56,14 @@ KMM_NOINLINE void execute_reduction_impl(
         return;
     }
 
-#define KMM_IMPL_REDUCTION_CASE(N)                                                          \
-    if (num_rows == (N)) {                                                                  \
-        return execute_reduction_few_rows<(N), T, Op>(src_buffer, dst_buffer, num_columns); \
+#define KMM_IMPL_REDUCTION_CASE(N)                     \
+    if (num_rows == (N)) {                             \
+        return execute_reduction_few_rows<(N), T, Op>( \
+            src_buffer,                                \
+            dst_buffer,                                \
+            num_columns,                               \
+            row_stride                                 \
+        );                                             \
     }
 
     // Specialize based on the number of rows
@@ -68,23 +76,30 @@ KMM_NOINLINE void execute_reduction_impl(
     KMM_IMPL_REDUCTION_CASE(7)
     KMM_IMPL_REDUCTION_CASE(8)
 
-    return execute_reduction_basic<T, Op>(src_buffer, dst_buffer, num_columns, num_rows);
+    return execute_reduction_basic<T, Op>(
+        src_buffer,
+        dst_buffer,
+        num_columns,
+        num_rows,
+        row_stride
+    );
 }
 
 // NOLINTNEXTLINE
 void execute_reduction(const void* src_buffer, void* dst_buffer, ReductionDef reduction) {
     // NOLINTNEXTLINE
-#define KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, OP)                                  \
-    if constexpr (ReductionFunctorSupported<T, ReductionOp::OP>()) {               \
-        if (reduction.operation == ReductionOp::OP) {                              \
-            execute_reduction_impl<T, ReductionOp::OP>(                            \
-                static_cast<const T*>(src_buffer) + reduction.src_offset_elements, \
-                static_cast<T*>(dst_buffer) + reduction.dst_offset_elements,       \
-                reduction.num_outputs,                                             \
-                reduction.num_inputs_per_output                                    \
-            );                                                                     \
-            return;                                                                \
-        }                                                                          \
+#define KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, OP)                                    \
+    if constexpr (ReductionFunctorSupported<T, ReductionOp::OP>()) {                 \
+        if (reduction.operation == ReductionOp::OP) {                                \
+            execute_reduction_impl<T, ReductionOp::OP>(                              \
+                static_cast<const T*>(src_buffer) + reduction.input_offset_elements, \
+                static_cast<T*>(dst_buffer) + reduction.output_offset_elements,      \
+                reduction.num_outputs,                                               \
+                reduction.num_inputs_per_output,                                     \
+                reduction.input_stride_elements                                      \
+            );                                                                       \
+            return;                                                                  \
+        }                                                                            \
     }
 
     // NOLINTNEXTLINE

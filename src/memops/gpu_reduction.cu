@@ -17,6 +17,7 @@ __global__ void reduction_kernel(
     T* dst_buffer,
     size_t num_outputs,
     size_t num_inputs_per_output,
+    size_t input_stride,
     size_t items_per_thread
 ) {
     __shared__ T shared_results[total_block_size];
@@ -34,7 +35,7 @@ __global__ void reduction_kernel(
         size_t max_y = min(global_y + items_per_thread * blockDim.y, num_inputs_per_output);
 
         for (size_t y = global_y; y < max_y; y += blockDim.y) {
-            T partial_result = src_buffer[y * num_outputs + x];
+            T partial_result = src_buffer[y * input_stride + x];
             local_result = ReductionFunctor<T, Op>::combine(local_result, partial_result);
         }
 
@@ -63,7 +64,8 @@ void execute_reduction_for_type_and_op(
     GPUdeviceptr src_buffer,
     GPUdeviceptr dst_buffer,
     size_t num_outputs,
-    size_t num_partials_per_output
+    size_t num_partials_per_output,
+    size_t input_stride
 ) {
     size_t block_size_x;
     size_t block_size_y;
@@ -96,7 +98,7 @@ void execute_reduction_for_type_and_op(
     // The minimum items per thread is the number of partials divided by the maximum threads along Y
     size_t min_items_per_thread = div_ceil(num_partials_per_output, max_grid_size_y * block_size_y);
 
-    if (min_items_per_thread > items_per_thread) {
+    if (items_per_thread < min_items_per_thread) {
         items_per_thread = min_items_per_thread;
     }
 
@@ -118,6 +120,7 @@ void execute_reduction_for_type_and_op(
                 reinterpret_cast<T*>(dst_buffer),
                 num_outputs,
                 num_partials_per_output,
+                input_stride,
                 items_per_thread
             );
 
@@ -135,6 +138,7 @@ void execute_reduction_for_type_and_op(
             reinterpret_cast<T*>(dst_buffer),
             num_outputs,
             num_partials_per_output,
+            input_stride,
             items_per_thread
         );
 
@@ -143,6 +147,7 @@ void execute_reduction_for_type_and_op(
     }
 
     // silence unused warnings
+    (void)input_stride;
     (void)stream;
     (void)src_buffer;
     (void)dst_buffer;
@@ -160,7 +165,8 @@ void execute_reduction_for_type(
     GPUdeviceptr src_buffer,
     GPUdeviceptr dst_buffer,
     size_t num_outputs,
-    size_t num_partials_per_output
+    size_t num_partials_per_output,
+    size_t input_stride
 ) {
 #define KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(O) \
     execute_reduction_for_type_and_op<T, O>(  \
@@ -168,7 +174,8 @@ void execute_reduction_for_type(
         src_buffer,                           \
         dst_buffer,                           \
         num_outputs,                          \
-        num_partials_per_output               \
+        num_partials_per_output,              \
+        input_stride                          \
     );
 
     switch (operation) {
@@ -205,14 +212,15 @@ void execute_gpu_reduction_async(
 ) {
     auto element_size = reduction.data_type.size_in_bytes();
 
-#define KMM_CALL_REDUCTION_FOR_TYPE(T)                             \
-    execute_reduction_for_type<T>(                                 \
-        stream,                                                    \
-        reduction.operation,                                       \
-        src_buffer + reduction.src_offset_elements * element_size, \
-        dst_buffer + reduction.dst_offset_elements * element_size, \
-        reduction.num_outputs,                                     \
-        reduction.num_inputs_per_output                            \
+#define KMM_CALL_REDUCTION_FOR_TYPE(T)                                \
+    execute_reduction_for_type<T>(                                    \
+        stream,                                                       \
+        reduction.operation,                                          \
+        src_buffer + reduction.input_offset_elements * element_size,  \
+        dst_buffer + reduction.output_offset_elements * element_size, \
+        reduction.num_outputs,                                        \
+        reduction.num_inputs_per_output,                              \
+        reduction.input_stride_elements                               \
     );
 
     switch (reduction.data_type.get()) {
@@ -245,6 +253,12 @@ void execute_gpu_reduction_async(
             break;
         case ScalarKind::Float64:
             KMM_CALL_REDUCTION_FOR_TYPE(double)
+            break;
+        case ScalarKind::KeyAndInt64:
+            KMM_CALL_REDUCTION_FOR_TYPE(KeyValue<int64_t>)
+            break;
+        case ScalarKind::KeyAndFloat64:
+            KMM_CALL_REDUCTION_FOR_TYPE(KeyValue<double>)
             break;
         default:
             throw std::runtime_error(

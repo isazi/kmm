@@ -243,8 +243,8 @@ EventId TaskGraph::insert_local_reduction(
                 .data_type = dtype,
                 .num_outputs = num_elements,
                 .num_inputs_per_output = input.num_inputs_per_output,
-                .src_offset_elements = 0,
-                .dst_offset_elements = i * num_elements},
+                .input_offset_elements = 0,
+                .output_offset_elements = i * num_elements},
             std::move(deps)
         );
 
@@ -284,8 +284,8 @@ EventId TaskGraph::insert_reduction_event(
 ) {
     if (reduction.num_inputs_per_output == 1) {
         auto dtype = reduction.data_type;
-        auto src_offset = reduction.src_offset_elements;
-        auto dst_offset = reduction.dst_offset_elements;
+        auto src_offset = reduction.input_offset_elements;
+        auto dst_offset = reduction.output_offset_elements;
         size_t num_elements = reduction.num_outputs;
 
         auto copy = CopyDef(dtype.size_in_bytes());
