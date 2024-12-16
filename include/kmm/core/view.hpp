@@ -713,7 +713,7 @@ struct basic_view:
         ) {}
 
     template<typename T2, typename D2, typename L2>
-    KMM_HOST_DEVICE basic_view& operator=(const basic_view<T2, D2, L2, A>& that) const noexcept {
+    KMM_HOST_DEVICE basic_view& operator=(const basic_view<T2, D2, L2, A>& that) noexcept {
         return *this = basic_view(that);
     }
 
@@ -821,6 +821,12 @@ struct basic_view:
         }
 
         return p;
+    }
+
+    template<typename... Indices>
+    KMM_HOST_DEVICE value_type* data_at(Indices... indices) const noexcept {
+        static_assert(sizeof...(Indices) == rank, "invalid number of indices");
+        return data_at(ndindex_type {indices...});
     }
 
     KMM_HOST_DEVICE
