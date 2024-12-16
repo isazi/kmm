@@ -104,6 +104,7 @@ bool MemorySystem::allocate_device(
     auto& device = *m_devices[device_id];
     void* addr;
 
+    GPUContextGuard guard {device.context};
     if (!device.allocator->allocate_async(nbytes, &addr, deps_out)) {
         return false;
     }
@@ -123,6 +124,8 @@ void MemorySystem::deallocate_device(
 
     KMM_ASSERT(m_devices[device_id]);
     auto& device = *m_devices[device_id];
+
+    GPUContextGuard guard {device.context};
     return device.allocator->deallocate_async((void*)ptr, nbytes, std::move(deps));
 }
 
@@ -142,6 +145,7 @@ DeviceEvent MemorySystem::copy_host_to_device(
     auto& device = *m_devices[device_id];
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.h2d_hi_stream : device.h2d_stream;
 
+    GPUContextGuard guard {device.context};
     return m_streams->with_stream(stream, deps, [&](auto stream) {
         KMM_GPU_CHECK(gpuMemcpyHtoDAsync(dst_addr, src_addr, nbytes, stream));
     });
@@ -158,6 +162,7 @@ DeviceEvent MemorySystem::copy_device_to_host(
     auto& device = *m_devices[device_id];
     auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.d2h_hi_stream : device.d2h_stream;
 
+    GPUContextGuard guard {device.context};
     return m_streams->with_stream(stream, deps, [&](auto stream) {
         KMM_GPU_CHECK(gpuMemcpyDtoHAsync(dst_addr, src_addr, nbytes, stream));
     });
