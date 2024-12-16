@@ -51,6 +51,14 @@ struct DataType {
     const char* c_name() const;
     const char* name() const noexcept;
 
+    friend bool operator==(const DataType& a, const DataType& b) {
+        return a.get() == b.get();
+    }
+
+    friend bool operator!=(const DataType& a, const DataType& b) {
+        return !(a == b);
+    }
+
   private:
     ScalarKind m_kind;
 };

@@ -6,6 +6,7 @@
 
 #include "kmm/core/buffer.hpp"
 #include "kmm/core/copy_def.hpp"
+#include "kmm/core/fill_def.hpp"
 #include "kmm/core/identifiers.hpp"
 #include "kmm/core/reduction.hpp"
 #include "kmm/core/task.hpp"
@@ -47,6 +48,12 @@ struct CommandReduction {
     ReductionDef definition;
 };
 
+struct CommandFill {
+    BufferId dst_buffer;
+    MemoryId memory_id;
+    FillDef definition;
+};
+
 struct CommandEmpty {};
 
 using Command = std::variant<
@@ -56,7 +63,8 @@ using Command = std::variant<
     CommandPrefetch,
     CommandCopy,
     CommandExecute,
-    CommandReduction>;
+    CommandReduction,
+    CommandFill>;
 
 inline const char* command_name(const Command& cmd) {
     static constexpr const char* names[] = {
@@ -66,7 +74,8 @@ inline const char* command_name(const Command& cmd) {
         "CommandPrefetch",
         "CommandCopy",
         "CommandExecute",
-        "CommandReduction"};
+        "CommandReduction",
+        "CommandFill"};
 
     return names[cmd.index()];
 }

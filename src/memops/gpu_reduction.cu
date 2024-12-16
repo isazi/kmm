@@ -131,7 +131,7 @@ void execute_reduction_for_type_and_op(
 
     if constexpr (GPUReductionFunctorSupported<T, Op>()) {
         T identity = ReductionFunctor<T, Op>::identity();
-        execute_gpu_fill_async(stream, dst_buffer, num_outputs * sizeof(T), &identity, sizeof(T));
+        execute_gpu_fill_async(stream, dst_buffer, FillDef(sizeof(T), num_outputs, &identity));
 
         reduction_kernel<T, Op><<<grid_size, block_size, 0, stream>>>(
             reinterpret_cast<const T*>(src_buffer),

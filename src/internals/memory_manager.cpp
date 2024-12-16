@@ -858,49 +858,8 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceE
         }
     }
 
-    if (!buffer.layout.fill_pattern.empty()) {
-        auto event = fill_buffer(memory_id, buffer, buffer.layout.fill_pattern);
-        deps_out->insert(event);
-        return;
-    }
-
     entry.is_valid = true;
     deps_out->insert(entry.epoch_event);
-}
-
-DeviceEvent MemoryManager::fill_buffer(
-    MemoryId memory_id,
-    Buffer& buffer,
-    const std::vector<uint8_t>& fill_pattern
-) {
-    auto& entry = buffer.entry(memory_id);
-    KMM_ASSERT(entry.is_allocated && !entry.is_valid);
-    KMM_ASSERT(!fill_pattern.empty());
-
-    DeviceEvent event;
-
-    if (memory_id.is_host()) {
-        event = m_memory->fill_host(
-            buffer.host_entry.data,
-            buffer.layout.size_in_bytes,
-            fill_pattern,
-            entry.access_events
-        );
-    } else {
-        event = m_memory->fill_device(
-            memory_id.as_device(),
-            buffer.device_entry[memory_id.as_device()].data,
-            buffer.layout.size_in_bytes,
-            fill_pattern,
-            entry.access_events
-        );
-    }
-
-    entry.is_valid = true;
-    entry.epoch_event = {event};
-    entry.access_events = {event};
-    entry.write_events = {event};
-    return event;
 }
 
 DeviceEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {

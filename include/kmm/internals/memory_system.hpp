@@ -39,21 +39,6 @@ class MemorySystem {
         DeviceEventSet deps = {}
     );
 
-    DeviceEvent fill_host(
-        void* dst_addr,
-        size_t nbytes,
-        const std::vector<uint8_t>& fill_pattern,
-        DeviceEventSet deps = {}
-    );
-
-    DeviceEvent fill_device(
-        DeviceId device_id,
-        GPUdeviceptr dst_addr,
-        size_t nbytes,
-        const std::vector<uint8_t>& fill_pattern,
-        DeviceEventSet deps = {}
-    );
-
     DeviceEvent copy_host_to_device(
         DeviceId device_id,
         const void* src_addr,

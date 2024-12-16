@@ -312,6 +312,26 @@ EventId TaskGraph::insert_reduction_event(
     }
 }
 
+EventId TaskGraph::insert_fill(
+    MemoryId memory_id,
+    BufferId buffer_id,
+    FillDef fill,
+    EventList deps
+) {
+    pre_access_buffer(buffer_id, AccessMode::ReadWrite, memory_id, deps);
+
+    auto event_id = insert_event(
+        CommandFill {
+            .dst_buffer = buffer_id,
+            .memory_id = memory_id,
+            .definition = std::move(fill)},
+        std::move(deps)
+    );
+
+    post_access_buffer(buffer_id, AccessMode::ReadWrite, memory_id, event_id);
+    return event_id;
+}
+
 EventId TaskGraph::insert_barrier() {
     EventList deps = std::move(m_events_since_last_barrier);
     return insert_event(CommandEmpty {}, std::move(deps));

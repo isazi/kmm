@@ -4,11 +4,15 @@
 
 namespace kmm {
 
-void execute_fill(void* dst_buffer, size_t nbytes, const void* pattern, size_t pattern_nbytes) {
+void execute_fill(void* dst_buffer, const FillDef& fill) {
     // TODO: optimize
-    for (size_t i = 0; i < nbytes; i++) {
-        static_cast<uint8_t*>(dst_buffer)[i] =
-            static_cast<const uint8_t*>(pattern)[i % pattern_nbytes];
+    size_t k = fill.fill_value.size();
+
+    for (size_t i = 0; i < fill.num_elements; i++) {
+        for (size_t j = 0; j < k; j++) {
+            static_cast<uint8_t*>(dst_buffer)[(fill.offset_elements + i) * k + j] =
+                fill.fill_value[j];
+        }
     }
 }
 

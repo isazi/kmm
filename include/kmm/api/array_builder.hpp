@@ -83,6 +83,8 @@ class ArrayReductionBuilder {
         size_t replication_factor = 1
     );
 
+    void add_chunks(ArrayReductionBuilder<N>&& other);
+
     DataDistribution<N> build(TaskGraph& graph);
 
     Size<N> sizes() const {

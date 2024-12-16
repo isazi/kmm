@@ -74,11 +74,6 @@ class MemoryManager {
         DeviceEventSet* deps_out
     );
 
-    DeviceEvent fill_buffer(
-        MemoryId memory_id,
-        Buffer& buffer,
-        const std::vector<uint8_t>& fill_pattern
-    );
     DeviceEvent copy_h2d(DeviceId device_id, Buffer& buffer);
     DeviceEvent copy_d2h(DeviceId device_id, Buffer& buffer);
 

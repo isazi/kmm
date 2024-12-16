@@ -74,6 +74,7 @@ class Executor {
     void execute_command(EventId id, const CommandExecute& command, DeviceEventSet dependencies);
     void execute_command(EventId id, const CommandCopy& command, DeviceEventSet dependencies);
     void execute_command(EventId id, const CommandReduction& command, DeviceEventSet dependencies);
+    void execute_command(EventId id, const CommandFill& command, DeviceEventSet dependencies);
 
     std::unique_ptr<Job> m_jobs_head = nullptr;
     Job* m_jobs_tail = nullptr;

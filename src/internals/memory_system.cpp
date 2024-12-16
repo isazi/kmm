@@ -126,40 +126,10 @@ void MemorySystem::deallocate_device(
     return device.allocator->deallocate_async((void*)ptr, nbytes, std::move(deps));
 }
 
-DeviceEvent MemorySystem::fill_host(
-    void* dst_addr,
-    size_t nbytes,
-    const std::vector<uint8_t>& fill_pattern,
-    DeviceEventSet deps
-) {
-    // FIXME: this should not be synchronously
-    m_streams->wait_until_ready(deps);
-    execute_fill(dst_addr, nbytes, fill_pattern.data(), fill_pattern.size());
-    return DeviceEvent {};
-}
-
 // Copies smaller than this threshold are put onto a high priority stream. This can improve
 // performance since small copy jobs (like copying a single number) are prioritized over large
 // slow copy jobs of several gigabytes.
 static constexpr size_t HIGH_PRIORITY_THRESHOLD = 1024L * 1024;
-
-DeviceEvent MemorySystem::fill_device(
-    DeviceId device_id,
-    GPUdeviceptr dst_addr,
-    size_t nbytes,
-    const std::vector<uint8_t>& fill_pattern,
-    DeviceEventSet deps
-) {
-    KMM_ASSERT(m_devices[device_id]);
-    auto& device = *m_devices[device_id];
-
-    // Should this be done on a custom stream maybe?
-    auto stream = nbytes <= HIGH_PRIORITY_THRESHOLD ? device.h2d_hi_stream : device.h2d_stream;
-
-    return m_streams->with_stream(stream, deps, [&](auto stream) {
-        execute_gpu_fill_async(stream, dst_addr, nbytes, fill_pattern.data(), fill_pattern.size());
-    });
-}
 
 DeviceEvent MemorySystem::copy_host_to_device(
     DeviceId device_id,

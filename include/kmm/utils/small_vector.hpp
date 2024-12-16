@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 
 namespace kmm {
 
@@ -101,11 +103,11 @@ struct small_vector {
     void grow_capacity(size_t k = 1) {
         capacity_type new_capacity = m_capacity;
         do {
-            if (new_capacity > std::numeric_limits<capacity_type>::max() / 2 + 1) {
+            if (new_capacity > std::numeric_limits<capacity_type>::max() - new_capacity) {
                 throw std::overflow_error("small_vector exceeds capacity");
             }
 
-            new_capacity *= 2;
+            new_capacity += new_capacity;
         } while (new_capacity - m_size < k);
 
         if (new_capacity < 16) {
@@ -135,8 +137,8 @@ struct small_vector {
         m_size++;
     }
 
-    template<typename U>
-    void insert_all(const U* begin, const U* end) {
+    template<typename It>
+    void insert_all(It begin, It end) {
         size_t n = static_cast<size_t>(end - begin);
 
         if (m_capacity - m_size < n) {

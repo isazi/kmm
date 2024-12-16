@@ -1,7 +1,9 @@
 #include "kmm/internals/executor.hpp"
 #include "kmm/memops/gpu_copy.hpp"
+#include "kmm/memops/gpu_fill.hpp"
 #include "kmm/memops/gpu_reduction.hpp"
 #include "kmm/memops/host_copy.hpp"
+#include "kmm/memops/host_fill.hpp"
 #include "kmm/memops/host_reduction.hpp"
 
 namespace kmm {
@@ -228,6 +230,24 @@ class ReductionHostJob: public HostJob {
     ReductionDef m_reduction;
 };
 
+class FillHostJob: public HostJob {
+  public:
+    FillHostJob(EventId id, BufferId dst_buffer, FillDef definition, DeviceEventSet dependencies) :
+        HostJob(
+            id,
+            {BufferRequirement {dst_buffer, MemoryId::host(), AccessMode::ReadWrite}},
+            std::move(dependencies)
+        ),
+        m_fill(definition) {}
+
+    std::future<void> submit(Executor& executor, std::vector<BufferAccessor> accessors) override {
+        return std::async(std::launch::async, [=] { execute_fill(accessors[0].address, m_fill); });
+    }
+
+  private:
+    FillDef m_fill;
+};
+
 class ExecuteDeviceJob: public DeviceJob {
   public:
     ExecuteDeviceJob(
@@ -302,19 +322,48 @@ class ReductionDeviceJob: public DeviceJob {
              BufferRequirement {dst_buffer, device_id, AccessMode::ReadWrite}},
             std::move(dependencies)
         ),
-        m_definition(std::move(definition)) {}
+        m_reduction(std::move(definition)) {}
 
     void submit(DeviceContext& device, std::vector<BufferAccessor> accessors) {
         execute_gpu_reduction_async(
             device,
             reinterpret_cast<GPUdeviceptr>(accessors[0].address),
             reinterpret_cast<GPUdeviceptr>(accessors[1].address),
-            m_definition
+            m_reduction
         );
     }
 
   private:
-    ReductionDef m_definition;
+    ReductionDef m_reduction;
+};
+
+class FillDeviceJob: public DeviceJob {
+  public:
+    FillDeviceJob(
+        EventId id,
+        DeviceId device_id,
+        BufferId dst_buffer,
+        FillDef definition,
+        DeviceEventSet dependencies
+    ) :
+        DeviceJob(
+            id,
+            device_id,
+            {BufferRequirement {dst_buffer, device_id, AccessMode::ReadWrite}},
+            std::move(dependencies)
+        ),
+        m_fill(std::move(definition)) {}
+
+    void submit(DeviceContext& device, std::vector<BufferAccessor> accessors) {
+        execute_gpu_fill_async(
+            device,
+            reinterpret_cast<GPUdeviceptr>(accessors[0].address),
+            m_fill
+        );
+    }
+
+  private:
+    FillDef m_fill;
 };
 
 class PrefetchJob: public Executor::Job {
@@ -494,6 +543,9 @@ void Executor::execute_command(EventId id, const Command& command, DeviceEventSe
     } else if (const auto* e = std::get_if<CommandReduction>(&command)) {
         execute_command(id, *e, std::move(dependencies));
 
+    } else if (const auto* e = std::get_if<CommandFill>(&command)) {
+        execute_command(id, *e, std::move(dependencies));
+
     } else {
         KMM_PANIC("could not handle unknown command: ", command);
     }
@@ -567,7 +619,7 @@ void Executor::execute_command(
             memory_id.as_device(),
             command.src_buffer,
             command.dst_buffer,
-            command.definition,
+            std::move(command.definition),
             std::move(dependencies)
         ));
     } else {
@@ -575,7 +627,32 @@ void Executor::execute_command(
             id,
             command.src_buffer,
             command.dst_buffer,
-            command.definition,
+            std::move(command.definition),
+            std::move(dependencies)
+        ));
+    }
+}
+
+void Executor::execute_command(
+    EventId id,
+    const CommandFill& command,
+    DeviceEventSet dependencies
+) {
+    auto memory_id = command.memory_id;
+
+    if (memory_id.is_device()) {
+        insert_job(std::make_unique<FillDeviceJob>(
+            id,
+            memory_id.as_device(),
+            command.dst_buffer,
+            std::move(command.definition),
+            std::move(dependencies)
+        ));
+    } else {
+        insert_job(std::make_unique<FillHostJob>(
+            id,
+            command.dst_buffer,
+            std::move(command.definition),
             std::move(dependencies)
         ));
     }

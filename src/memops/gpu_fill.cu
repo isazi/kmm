@@ -57,31 +57,16 @@ bool is_fill_pattern_repetitive(const void* fill_pattern, size_t fill_pattern_si
     return true;
 }
 
-void execute_gpu_fill_async(
-    stream_t stream,
-    GPUdeviceptr dest_buffer,
-    size_t nbytes,
-    const void* fill_pattern,
-    size_t fill_pattern_size
-) {
-    if (nbytes == 0 || fill_pattern_size == 0) {
+void execute_gpu_fill_async(stream_t stream, GPUdeviceptr dest_buffer, const FillDef& fill) {
+    size_t element_size = fill.fill_value.size();
+    size_t nbytes = fill.num_elements * element_size;
+    const void* fill_pattern = fill.fill_value.data();
+
+    if (nbytes == 0 || element_size == 0) {
         return;
     }
 
-    size_t remainder = nbytes % fill_pattern_size;
-    if (remainder != 0) {
-        execute_gpu_fill_async(
-            stream,
-            dest_buffer + (nbytes - remainder),
-            remainder,
-            fill_pattern,
-            remainder
-        );
-
-        nbytes -= remainder;
-    }
-
-    if (is_fill_pattern_repetitive<1>(fill_pattern, fill_pattern_size)) {
+    if (is_fill_pattern_repetitive<1>(fill_pattern, element_size)) {
         uint8_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint8_t));
         KMM_GPU_CHECK(gpuMemsetD8Async(  //
@@ -91,7 +76,7 @@ void execute_gpu_fill_async(
             stream
         ));
 
-    } else if (is_fill_pattern_repetitive<2>(fill_pattern, fill_pattern_size)) {
+    } else if (is_fill_pattern_repetitive<2>(fill_pattern, element_size)) {
         uint16_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint16_t));
         KMM_GPU_CHECK(gpuMemsetD16Async(  //
@@ -101,7 +86,7 @@ void execute_gpu_fill_async(
             stream
         ));
 
-    } else if (is_fill_pattern_repetitive<4>(fill_pattern, fill_pattern_size)) {
+    } else if (is_fill_pattern_repetitive<4>(fill_pattern, element_size)) {
         uint32_t pattern;
         ::memcpy(&pattern, fill_pattern, sizeof(uint32_t));
         KMM_GPU_CHECK(gpuMemsetD32Async(  //
@@ -111,13 +96,13 @@ void execute_gpu_fill_async(
             stream
         ));
 
-    } else if (is_fill_pattern_repetitive<8>(fill_pattern, fill_pattern_size)) {
+    } else if (is_fill_pattern_repetitive<8>(fill_pattern, element_size)) {
         KMM_ASSERT(dest_buffer % 8 == 0);  // must be aligned?
         submit_fill_kernel<uint64_t>(stream, dest_buffer, nbytes / sizeof(uint64_t), fill_pattern);
     } else {
         throw GPUException(fmt::format(
             "could not fill buffer, value is {} bits, but only 8, 16, 32 or 64 bit is supported",
-            fill_pattern_size * 8
+            element_size * 8
         ));
     }
 }

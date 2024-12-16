@@ -40,9 +40,7 @@ void DeviceContext::fill_bytes(
     execute_gpu_fill_async(
         m_stream,
         (GPUdeviceptr)dest_buffer,
-        nbytes,
-        fill_pattern,
-        fill_pattern_size
+        FillDef(fill_pattern_size, nbytes / fill_pattern_size, fill_pattern)
     );
 }
 

@@ -64,6 +64,8 @@ class TaskGraph {
         std::vector<ReductionInput> inputs
     );
 
+    EventId insert_fill(MemoryId memory_id, BufferId buffer_id, FillDef fill, EventList deps = {});
+
     EventId insert_barrier();
 
     EventId shutdown();
