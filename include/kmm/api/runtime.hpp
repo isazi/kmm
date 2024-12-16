@@ -104,7 +104,7 @@ class Runtime {
 
         auto chunk = DataChunk<N> {buffer_id, memory_id, Index<N>::zero(), shape};
         auto backend =
-            std::make_shared<ArrayHandle<N>>(m_worker, shape, std::vector<DataChunk<N>> {chunk});
+            std::make_shared<ArrayHandle<N>>(m_worker, DataDistribution<N> {shape, {chunk}});
         return Array<T, N> {std::move(backend)};
     }
 
