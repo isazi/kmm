@@ -39,7 +39,7 @@ void DeviceContext::fill_bytes(
     GPUContextGuard guard {m_context};
     execute_gpu_fill_async(
         m_stream,
-        (GPUdeviceptr)dest_buffer,
+        reinterpret_cast<GPUdeviceptr>(dest_buffer),
         FillDef(fill_pattern_size, nbytes / fill_pattern_size, fill_pattern)
     );
 }

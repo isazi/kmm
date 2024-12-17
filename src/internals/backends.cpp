@@ -278,6 +278,10 @@ void execute_gpu_reduction_async(
     return;
 }
 
+void execute_gpu_fill_async(stream_t stream, GPUdeviceptr dst_buffer, const FillDef& fill) {
+    return;
+}
+
 #endif
 
 }  // namespace kmm

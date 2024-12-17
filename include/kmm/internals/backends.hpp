@@ -10,6 +10,7 @@
     #include <hip_runtime_api.h>
 #else
     #include <cstddef>
+    #include "kmm/core/fill_def.hpp"
 #endif
 
 namespace kmm {
