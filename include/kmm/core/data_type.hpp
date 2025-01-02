@@ -6,7 +6,8 @@
 #include <vector>
 
 #include "fmt/ostream.h"
-#include "key_value_pair.hpp"
+
+#include "kmm/utils/key_value_pair.hpp"
 
 namespace kmm {
 
@@ -37,7 +38,7 @@ struct DataTypeMap;
 struct DataType {
     template<typename T>
     static DataType of() {
-        return DataTypeMap<T>::value;
+        return DataTypeMap<T>()();
     }
 
     DataType(ScalarKind ty = ScalarKind::Invalid) : m_kind(ty) {}

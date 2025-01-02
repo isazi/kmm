@@ -1,6 +1,5 @@
 #pragma once
 
-#include "kmm/core/fixed_array.hpp"
 #include "kmm/core/geometry.hpp"
 
 namespace kmm {

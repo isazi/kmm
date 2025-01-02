@@ -1,7 +1,7 @@
 #pragma once
 
 #include "kmm/api/argument.hpp"
-#include "kmm/core/view.hpp"
+#include "kmm/utils/view.hpp"
 
 namespace kmm {
 

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "kmm/api/argument.hpp"
-#include "kmm/core/device_context.hpp"
-#include "kmm/internals/worker.hpp"
+#include "kmm/core/execution_context.hpp"
+#include "kmm/worker/worker.hpp"
 
 namespace kmm {
 
@@ -13,7 +13,7 @@ struct Host {
     Host(F fun) : m_fun(fun) {}
 
     template<typename... Args>
-    void operator()(ExecutionContext& exec, TaskChunk chunk, Args... args) {
+    void operator()(ExecutionContext& exec, WorkChunk chunk, Args... args) {
         auto region = NDRange(chunk.offset, chunk.size);
         m_fun(region, args...);
     }
@@ -29,7 +29,7 @@ struct GPU {
     GPU(F fun) : m_fun(fun) {}
 
     template<typename... Args>
-    void operator()(ExecutionContext& exec, TaskChunk chunk, Args... args) {
+    void operator()(ExecutionContext& exec, WorkChunk chunk, Args... args) {
         auto region = NDRange(chunk.offset, chunk.size);
         m_fun(exec.cast<DeviceContext>(), region, args...);
     }
@@ -51,7 +51,7 @@ struct GPUKernel {
         shared_memory(shared_memory) {}
 
     template<typename... Args>
-    void operator()(ExecutionContext& exec, TaskChunk chunk, Args... args) {
+    void operator()(ExecutionContext& exec, WorkChunk chunk, Args... args) {
         int64_t g[3] = {chunk.size.get(0), chunk.size.get(1), chunk.size.get(2)};
         int64_t b[3] = {elements_per_block.x, elements_per_block.y, elements_per_block.z};
         dim3 grid_dim = {
@@ -81,28 +81,28 @@ struct GPUKernel {
 template<typename Launcher, typename... Args>
 class TaskImpl: public Task {
   public:
-    TaskImpl(TaskChunk chunk, Launcher launcher, Args... args) :
+    TaskImpl(WorkChunk chunk, Launcher launcher, Args... args) :
         m_chunk(chunk),
         m_launcher(std::move(launcher)),
         m_args(std::move(args)...) {}
 
-    void execute(ExecutionContext& device, TaskContext context) override {
-        execute_impl(std::index_sequence_for<Args...>(), device, context);
+    void execute(ExecutionContext& exec, TaskContext context) override {
+        execute_impl(std::index_sequence_for<Args...>(), exec, context);
     }
 
     template<size_t... Is>
-    void execute_impl(std::index_sequence<Is...>, ExecutionContext& device, TaskContext& context) {
+    void execute_impl(std::index_sequence<Is...>, ExecutionContext& exec, TaskContext& context) {
         static constexpr ExecutionSpace execution_space = Launcher::execution_space;
 
         m_launcher(
-            device,
+            exec,
             m_chunk,
             ArgumentUnpack<execution_space, Args>::unpack(context, std::get<Is>(m_args))...
         );
     }
 
   private:
-    TaskChunk m_chunk;
+    WorkChunk m_chunk;
     Launcher m_launcher;
     std::tuple<Args...> m_args;
 };
@@ -111,25 +111,29 @@ namespace detail {
 template<size_t... Is, typename Launcher, typename... Args>
 EventId parallel_submit_impl(
     std::index_sequence<Is...>,
-    std::shared_ptr<Worker> worker,
+    Worker& worker,
     const SystemInfo& system_info,
-    const TaskPartition& partition,
+    const WorkPartition& partition,
     Launcher launcher,
     Args&&... args
 ) {
-    std::tuple<ArgumentHandler<std::decay_t<Args>>...> handlers = {
-        ArgumentHandler<std::decay_t<Args>> {std::forward<Args>(args)}...};
+    std::tuple<ArgumentHandler<Args>...> handlers = {
+        ArgumentHandler<Args> {std::forward<Args>(args)}...};
 
-    return worker->with_task_graph([&](TaskGraph& graph) {
+    return worker.with_task_graph([&](TaskGraph& graph) {
         EventList events;
 
-        TaskInit init {.worker = worker, .graph = graph, .partition = partition};
+        auto init = TaskSetInit {
+            .worker = worker,  //
+            .graph = graph,
+            .partition = partition};
+
         (std::get<Is>(handlers).initialize(init), ...);
 
-        for (const TaskChunk& chunk : partition.chunks) {
+        for (const WorkChunk& chunk : partition.chunks) {
             ProcessorId processor_id = chunk.owner_id;
 
-            TaskBuilder builder {
+            auto builder = TaskBuilder {
                 .worker = worker,
                 .graph = graph,
                 .chunk = chunk,
@@ -137,24 +141,27 @@ EventId parallel_submit_impl(
                 .buffers = {},
                 .dependencies = {}};
 
-            auto task = std::make_shared<
-                TaskImpl<Launcher, typename ArgumentHandler<std::decay_t<Args>>::type...>>(
+            auto task = std::make_shared<TaskImpl<Launcher, packed_argument_t<Args>...>>(
                 chunk,
                 launcher,
                 std::get<Is>(handlers).process_chunk(builder)...
             );
 
-            EventId id = graph.insert_task(
+            EventId event_id = graph.insert_task(
                 processor_id,
                 std::move(task),
                 std::move(builder.buffers),
                 std::move(builder.dependencies)
             );
 
-            events.push_back(id);
+            events.push_back(event_id);
         }
 
-        TaskResult result {.worker = worker, .graph = graph, .events = std::move(events)};
+        auto result = TaskSetResult {
+            .worker = worker,  //
+            .graph = graph,
+            .events = std::move(events)};
+
         (std::get<Is>(handlers).finalize(result), ...);
 
         return graph.join_events(result.events);
@@ -164,9 +171,9 @@ EventId parallel_submit_impl(
 
 template<typename Launcher, typename... Args>
 EventId parallel_submit(
-    std::shared_ptr<Worker> worker,
+    Worker& worker,
     const SystemInfo& system_info,
-    const TaskPartition& partition,
+    const WorkPartition& partition,
     Launcher launcher,
     Args&&... args
 ) {

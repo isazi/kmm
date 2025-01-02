@@ -94,7 +94,7 @@ class SystemInfo {
     size_t num_devices() const;
 
     /**
-     * Return information on the devicve with the given identifier.
+     * Return information on the device with the given identifier.
      */
     const DeviceInfo& device(DeviceId id) const;
 

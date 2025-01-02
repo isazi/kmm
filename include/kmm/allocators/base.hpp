@@ -3,8 +3,8 @@
 #include <deque>
 #include <memory>
 
-#include "kmm/internals/device_stream_manager.hpp"
-#include "kmm/utils/macros.hpp"
+#include "kmm/core/macros.hpp"
+#include "kmm/worker/device_stream_manager.hpp"
 
 namespace kmm {
 

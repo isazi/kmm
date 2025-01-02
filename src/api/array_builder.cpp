@@ -1,5 +1,5 @@
 #include "kmm/api/array_builder.hpp"
-#include "kmm/internals/worker.hpp"
+#include "kmm/worker/worker.hpp"
 
 namespace kmm {
 
@@ -18,7 +18,10 @@ BufferRequirement ArrayBuilder<N>::add_chunk(
         .offset = access_region.offset,
         .size = access_region.sizes});
 
-    return {.buffer_id = buffer_id, .memory_id = memory_id, .access_mode = AccessMode::Exclusive};
+    return {//
+            .buffer_id = buffer_id,
+            .memory_id = memory_id,
+            .access_mode = AccessMode::Exclusive};
 }
 
 template<size_t N>
@@ -34,7 +37,7 @@ BufferRequirement ArrayReductionBuilder<N>::add_chunk(
     size_t replication_factor
 ) {
     auto num_elements = checked_mul(checked_cast<size_t>(access_region.size()), replication_factor);
-    auto layout = BufferLayout {
+    auto layout = DataLayout {
         .size_in_bytes = checked_mul(m_dtype.size_in_bytes(), num_elements),
         .alignment = m_dtype.alignment()};
 
@@ -108,9 +111,9 @@ DataDistribution<N> ArrayReductionBuilder<N>::build(TaskGraph& graph) {
         MemoryId memory_id = inputs[0].memory_id;
         auto num_elements = checked_cast<size_t>(access_region.size());
 
-        auto buffer_id = graph.create_buffer(BufferLayout::for_type(m_dtype).repeat(num_elements));
+        auto buffer_id = graph.create_buffer(DataLayout::for_type(m_dtype).repeat(num_elements));
 
-        auto reduction = Reduction {
+        auto reduction = ReductionOutput {
             .operation = m_reduction,  //
             .data_type = m_dtype,
             .num_outputs = num_elements};
@@ -131,18 +134,16 @@ DataDistribution<N> ArrayReductionBuilder<N>::build(TaskGraph& graph) {
     return DataDistribution<N>(m_sizes, std::move(chunks));
 }
 
-// NOLINTBEGIN
-#define INSTANTIATE_ARRAY_IMPL(NAME) \
-    template class NAME<0>;          \
-    template class NAME<1>;          \
-    template class NAME<2>;          \
-    template class NAME<3>;          \
-    template class NAME<4>;          \
-    template class NAME<5>;          \
-    template class NAME<6>;
+#define INSTANTIATE_ARRAY_IMPL(NAME)     \
+    template class NAME<0>; /* NOLINT */ \
+    template class NAME<1>; /* NOLINT */ \
+    template class NAME<2>; /* NOLINT */ \
+    template class NAME<3>; /* NOLINT */ \
+    template class NAME<4>; /* NOLINT */ \
+    template class NAME<5>; /* NOLINT */ \
+    template class NAME<6>; /* NOLINT */
 
 INSTANTIATE_ARRAY_IMPL(ArrayBuilder)
 INSTANTIATE_ARRAY_IMPL(ArrayReductionBuilder)
-// NOLINTEND
 
 }  // namespace kmm

@@ -8,9 +8,9 @@
 
 #include "kmm/core/domain.hpp"
 #include "kmm/core/system_info.hpp"
-#include "kmm/core/view.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
+#include "kmm/utils/view.hpp"
 
 namespace kmm {
 
@@ -32,15 +32,15 @@ class Runtime {
      */
     template<typename L, typename... Args>
     EventId submit(NDRange index_space, ProcessorId target, L&& launcher, Args&&... args) const {
-        TaskChunk chunk = {
+        WorkChunk chunk = {
             .owner_id = target,  //
             .offset = index_space.begin,
             .size = index_space.sizes()};
 
         return kmm::parallel_submit(
-            m_worker,
+            *m_worker,
             info(),
-            TaskPartition {{chunk}},
+            WorkPartition {{chunk}},
             std::forward<L>(launcher),
             std::forward<Args>(args)...
         );
@@ -55,9 +55,9 @@ class Runtime {
      * @return The event identifier for the submitted task.
      */
     template<typename L, typename... Args>
-    EventId parallel_submit(TaskPartition partition, L&& launcher, Args&&... args) const {
+    EventId parallel_submit(WorkPartition partition, L&& launcher, Args&&... args) const {
         return kmm::parallel_submit(
-            m_worker,
+            *m_worker,
             info(),
             std::move(partition),
             std::forward<L>(launcher),
@@ -68,19 +68,24 @@ class Runtime {
     /**
      * Submit a set of tasks to the runtime systems.
      *
-     * @param index_space The index space defining the loop dimensions.
+     * @param index_space The index space defining the work dimensions.
      * @param partitioner The partitioner describing how the work is split.
      * @param launcher The task launcher.
      * @param args The arguments that are forwarded to the launcher.
      * @return The event identifier for the submitted task.
      */
-    template<typename P = TaskPartitioner, typename L, typename... Args>
+    template<typename P = ChunkPartitioner, typename L, typename... Args>
     EventId parallel_submit(NDRange index_space, P&& partitioner, L&& launcher, Args&&... args)
         const {
         return kmm::parallel_submit(
-            m_worker,
+            *m_worker,
             info(),
-            partitioner(index_space, info(), std::decay_t<L>::execution_space),
+            IntoWorkPartition<P>::call(
+                partitioner,
+                index_space,
+                info(),
+                std::decay_t<L>::execution_space
+            ),
             std::forward<L>(launcher),
             std::forward<Args>(args)...
         );
@@ -99,7 +104,7 @@ class Runtime {
      */
     template<size_t N = 1, typename T>
     Array<T, N> allocate(const T* data, Size<N> shape, MemoryId memory_id) const {
-        auto layout = BufferLayout::for_type<T>().repeat(checked_cast<size_t>(shape.volume()));
+        auto layout = DataLayout::for_type<T>().repeat(checked_cast<size_t>(shape.volume()));
         auto buffer_id = allocate_bytes(data, layout, memory_id);
 
         auto chunk = DataChunk<N> {buffer_id, memory_id, Index<N>::zero(), shape};
@@ -121,7 +126,7 @@ class Runtime {
      * @return The allocated Array object.
      */
     template<size_t N = 1, typename T>
-    Array<T, N> allocate(const T* data, const Size<N>& shape) const {
+    Array<T, N> allocate(const T* data, Size<N> shape) const {
         return allocate(data, shape, memory_affinity_for_address(data));
     }
 
@@ -162,7 +167,7 @@ class Runtime {
      */
     MemoryId memory_affinity_for_address(const void* address) const;
 
-    BufferId allocate_bytes(const void* data, BufferLayout layout, MemoryId memory_id) const;
+    BufferId allocate_bytes(const void* data, DataLayout layout, MemoryId memory_id) const;
 
     /**
      * Returns `true` if the event with the provided identifier has finished, or `false` otherwise.

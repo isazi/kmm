@@ -82,7 +82,7 @@ int main() {
         width,
         height,
         read(images, access(i, j, image_id)),
-        reduce(kmm::ReductionOp::Sum, histogram, privatize(image_id), access(_))
+        reduce(kmm::Reduction::Sum, histogram, privatize(image_id), access(_))
     );
 
     rt.synchronize();

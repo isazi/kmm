@@ -1,6 +1,6 @@
 #include "kmm/api/runtime.hpp"
-#include "kmm/core/device_context.hpp"
-#include "kmm/internals/worker.hpp"
+#include "kmm/core/execution_context.hpp"
+#include "kmm/worker/worker.hpp"
 
 namespace kmm {
 
@@ -43,7 +43,7 @@ MemoryId Runtime::memory_affinity_for_address(const void* address) const {
     }
 }
 
-BufferId Runtime::allocate_bytes(const void* data, BufferLayout layout, MemoryId memory_id) const {
+BufferId Runtime::allocate_bytes(const void* data, DataLayout layout, MemoryId memory_id) const {
     BufferId buffer_id;
     EventId event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
         buffer_id = graph.create_buffer(layout);

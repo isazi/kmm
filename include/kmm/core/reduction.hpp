@@ -5,28 +5,9 @@
 
 namespace kmm {
 
-enum struct ReductionOp : uint8_t { Sum, Product, Min, Max, BitAnd, BitOr };
+enum struct Reduction : uint8_t { Sum, Product, Min, Max, BitAnd, BitOr };
 
-std::vector<uint8_t> reduction_identity_value(DataType dtype, ReductionOp op);
-
-struct ReductionDef {
-    ReductionOp operation;
-    DataType data_type;
-    size_t num_outputs;
-    size_t num_inputs_per_output = 1;
-    size_t input_stride_elements = num_inputs_per_output;
-    size_t input_offset_elements = 0;
-    size_t output_offset_elements = 0;
-
-    size_t minimum_source_bytes_needed() const;
-    size_t minimum_destination_bytes_needed() const;
-};
-
-struct Reduction {
-    ReductionOp operation;
-    DataType data_type;
-    size_t num_outputs;
-};
+std::vector<uint8_t> reduction_identity_value(DataType dtype, Reduction op);
 
 struct ReductionInput {
     BufferId buffer_id;
@@ -35,21 +16,23 @@ struct ReductionInput {
     size_t num_inputs_per_output = 1;
 };
 
-std::ostream& operator<<(std::ostream& f, ReductionOp p);
+struct ReductionOutput {
+    Reduction operation;
+    DataType data_type;
+    size_t num_outputs;
+};
+
 std::ostream& operator<<(std::ostream& f, Reduction p);
-std::ostream& operator<<(std::ostream& f, ReductionDef p);
 std::ostream& operator<<(std::ostream& f, ReductionInput p);
+std::ostream& operator<<(std::ostream& f, ReductionOutput p);
 
 }  // namespace kmm
-
-template<>
-struct fmt::formatter<kmm::ReductionOp>: fmt::ostream_formatter {};
 
 template<>
 struct fmt::formatter<kmm::Reduction>: fmt::ostream_formatter {};
 
 template<>
-struct fmt::formatter<kmm::ReductionDef>: fmt::ostream_formatter {};
+struct fmt::formatter<kmm::ReductionInput>: fmt::ostream_formatter {};
 
 template<>
-struct fmt::formatter<kmm::ReductionInput>: fmt::ostream_formatter {};
+struct fmt::formatter<kmm::ReductionOutput>: fmt::ostream_formatter {};

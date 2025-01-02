@@ -1,0 +1,183 @@
+#pragma once
+
+#include <deque>
+#include <map>
+
+#include "kmm/core/identifiers.hpp"
+#include "kmm/utils/gpu.hpp"
+#include "kmm/utils/notify.hpp"
+#include "kmm/utils/small_vector.hpp"
+
+namespace kmm {
+
+class DeviceStreamManager;
+class DeviceStream;
+class DeviceEvent;
+class DeviceEventSet;
+
+class DeviceStreamManager {
+    KMM_NOT_COPYABLE_OR_MOVABLE(DeviceStreamManager)
+
+  public:
+    DeviceStreamManager();
+    ~DeviceStreamManager();
+
+    bool make_progress();
+
+    DeviceStream create_stream(GPUContextHandle context, bool high_priority = false);
+
+    void wait_until_idle() const;
+    void wait_until_ready(DeviceStream stream) const;
+    void wait_until_ready(DeviceEvent event) const;
+    void wait_until_ready(const DeviceEventSet& events) const;
+
+    bool is_idle() const;
+    bool is_ready(DeviceStream stream) const;
+    bool is_ready(DeviceEvent event) const;
+    bool is_ready(const DeviceEventSet& events) const;
+    bool is_ready(DeviceEventSet& events) const;
+
+    void attach_callback(DeviceEvent event, NotifyHandle callback);
+    void attach_callback(DeviceStream stream, NotifyHandle callback);
+
+    DeviceEvent record_event(DeviceStream stream);
+    void wait_on_default_stream(DeviceStream stream);
+
+    void wait_for_event(DeviceStream stream, DeviceEvent event) const;
+    void wait_for_events(DeviceStream stream, const DeviceEventSet& events) const;
+    void wait_for_events(DeviceStream stream, const DeviceEvent* begin, const DeviceEvent* end)
+        const;
+    void wait_for_events(DeviceStream stream, const std::vector<DeviceEvent>& events) const;
+
+    /**
+     * Check if the given `source` event must occur before the given `target` event. In other words,
+     * if this function returns true, then `source` must be triggered before `target` can trigger.
+     */
+    bool event_happens_before(DeviceEvent source, DeviceEvent target) const;
+
+    GPUContextHandle context(DeviceStream stream) const;
+    GPUstream_t get(DeviceStream stream) const;
+
+    template<typename F>
+    DeviceEvent with_stream(DeviceStream stream, const DeviceEventSet& deps, F fun);
+
+    template<typename F>
+    DeviceEvent with_stream(DeviceStream stream, F fun);
+
+  private:
+    struct StreamState;
+    struct EventPool;
+
+    std::vector<StreamState> m_streams;
+    std::vector<EventPool> m_event_pools;
+};
+
+class DeviceStream {
+  public:
+    DeviceStream(uint8_t i = 0) : m_index(i) {}
+
+    uint8_t get() const {
+        return m_index;
+    }
+
+    operator uint8_t() const {
+        return m_index;
+    }
+
+    friend std::ostream& operator<<(std::ostream&, const DeviceStream& e);
+
+  private:
+    uint8_t m_index;
+};
+
+class DeviceEvent {
+  public:
+    DeviceEvent() = default;
+
+    DeviceEvent(DeviceStream stream, uint64_t index) {
+        KMM_ASSERT(index < (1ULL << 56));
+        m_event_and_stream = (uint64_t(stream.get()) << 56) | index;
+    }
+
+    DeviceStream stream() const {
+        return static_cast<uint8_t>(m_event_and_stream >> 56);
+    }
+
+    uint64_t index() const {
+        return m_event_and_stream & uint64_t(0x00FFFFFFFFFFFFFF);
+    }
+
+    constexpr bool operator==(const DeviceEvent& that) const {
+        return this->m_event_and_stream == that.m_event_and_stream;
+    }
+
+    constexpr bool operator<(const DeviceEvent& that) const {
+        // This is equivalent to tuple(this.stream, this.event) < tuple(that.stream, that.event)
+        return this->m_event_and_stream < that.m_event_and_stream;
+    }
+
+    KMM_IMPL_COMPARISON_OPS(DeviceEvent)
+
+    friend std::ostream& operator<<(std::ostream&, const DeviceEvent& e);
+
+  private:
+    uint64_t m_event_and_stream = 0;
+};
+
+class DeviceEventSet {
+  public:
+    DeviceEventSet() = default;
+    DeviceEventSet(const DeviceEventSet&) = default;
+    DeviceEventSet(DeviceEventSet&&) noexcept = default;
+    DeviceEventSet(std::initializer_list<DeviceEvent>);
+    DeviceEventSet(DeviceEvent);
+
+    DeviceEventSet& operator=(const DeviceEventSet&) = default;
+    DeviceEventSet& operator=(DeviceEventSet&&) noexcept = default;
+    DeviceEventSet& operator=(std::initializer_list<DeviceEvent>);
+
+    void insert(DeviceEvent e) noexcept;
+    void insert(const DeviceEventSet& e) noexcept;
+    void insert(DeviceEventSet&& e) noexcept;
+    void remove_completed(const DeviceStreamManager&);
+    void clear() noexcept;
+
+    bool is_empty() const noexcept;
+    const DeviceEvent* begin() const noexcept;
+    const DeviceEvent* end() const noexcept;
+
+    friend std::ostream& operator<<(std::ostream&, const DeviceEventSet& e);
+
+  private:
+    small_vector<DeviceEvent, 2> m_events;
+};
+
+template<typename F>
+DeviceEvent DeviceStreamManager::with_stream(
+    DeviceStream stream,
+    const DeviceEventSet& deps,
+    F fun
+) {
+    wait_for_events(stream, deps);
+    return with_stream(stream, std::move(fun));
+}
+
+template<typename F>
+DeviceEvent DeviceStreamManager::with_stream(DeviceStream stream, F fun) {
+    try {
+        fun(get(stream));
+        return record_event(stream);
+    } catch (...) {
+        wait_until_ready(stream);
+        throw;
+    }
+}
+
+}  // namespace kmm
+
+template<>
+struct fmt::formatter<kmm::DeviceStream>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::DeviceEvent>: fmt::ostream_formatter {};
+template<>
+struct fmt::formatter<kmm::DeviceEventSet>: fmt::ostream_formatter {};

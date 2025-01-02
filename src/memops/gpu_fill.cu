@@ -20,7 +20,7 @@ __global__ void fill_kernel(size_t nelements, T* dest_buffer, T fill_value) {
 
 template<typename T>
 void submit_fill_kernel(
-    stream_t stream,
+    GPUstream_t stream,
     GPUdeviceptr dest_buffer,
     size_t nelements,
     const void* fill_pattern
@@ -57,7 +57,7 @@ bool is_fill_pattern_repetitive(const void* fill_pattern, size_t fill_pattern_si
     return true;
 }
 
-void execute_gpu_fill_async(stream_t stream, GPUdeviceptr dest_buffer, const FillDef& fill) {
+void execute_gpu_fill_async(GPUstream_t stream, GPUdeviceptr dest_buffer, const FillDef& fill) {
     size_t element_size = fill.fill_value.size();
     size_t nbytes = fill.num_elements * element_size;
     const void* fill_pattern = fill.fill_value.data();

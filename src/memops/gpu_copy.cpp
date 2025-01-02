@@ -17,7 +17,7 @@ void throw_unsupported_dimension_exception(size_t dim) {
 }
 
 void execute_gpu_h2d_copy_impl(
-    std::optional<stream_t> stream,
+    std::optional<GPUstream_t> stream,
     const void* src_buffer,
     GPUdeviceptr dst_buffer,
     CopyDef copy_description
@@ -67,7 +67,7 @@ void execute_gpu_h2d_copy_impl(
 }
 
 void execute_gpu_d2h_copy_impl(
-    std::optional<stream_t> stream,
+    std::optional<GPUstream_t> stream,
     GPUdeviceptr src_buffer,
     void* dst_buffer,
     CopyDef copy_description
@@ -117,7 +117,7 @@ void execute_gpu_d2h_copy_impl(
 }
 
 void execute_gpu_d2d_copy_impl(
-    std::optional<stream_t> stream,
+    std::optional<GPUstream_t> stream,
     GPUdeviceptr src_buffer,
     GPUdeviceptr dst_buffer,
     CopyDef copy_description
@@ -175,7 +175,7 @@ void execute_gpu_h2d_copy(
 }
 
 void execute_gpu_h2d_copy_async(
-    stream_t stream,
+    GPUstream_t stream,
     const void* src_buffer,
     GPUdeviceptr dst_buffer,
     CopyDef copy_description
@@ -188,7 +188,7 @@ void execute_gpu_d2h_copy(GPUdeviceptr src_buffer, void* dst_buffer, CopyDef cop
 }
 
 void execute_gpu_d2h_copy_async(
-    stream_t stream,
+    GPUstream_t stream,
     GPUdeviceptr src_buffer,
     void* dst_buffer,
     CopyDef copy_description
@@ -205,7 +205,7 @@ void execute_gpu_d2d_copy(
 }
 
 void execute_gpu_d2d_copy_async(
-    stream_t stream,
+    GPUstream_t stream,
     GPUdeviceptr src_buffer,
     GPUdeviceptr dst_buffer,
     CopyDef copy_description

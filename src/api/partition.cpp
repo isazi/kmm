@@ -5,7 +5,7 @@
 
 namespace kmm {
 
-TaskPartition TaskPartitioner::operator()(
+WorkPartition ChunkPartitioner::operator()(
     NDRange index_space,
     const SystemInfo& info,
     ExecutionSpace space
@@ -24,7 +24,7 @@ TaskPartition TaskPartitioner::operator()(
         }
     }
 
-    std::vector<TaskChunk> chunks;
+    std::vector<WorkChunk> chunks;
 
     if (index_space.is_empty()) {
         return {chunks};

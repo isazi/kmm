@@ -4,9 +4,8 @@
 #include <cstdint>
 #include <type_traits>
 
-#include "fixed_array.hpp"
-
-#include "kmm/utils/macros.hpp"
+#include "kmm/core/macros.hpp"
+#include "kmm/utils/fixed_array.hpp"
 
 namespace kmm {
 

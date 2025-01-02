@@ -1,6 +1,6 @@
 #include <cstddef>
 
-#include "kmm/core/fill_def.hpp"
+#include "kmm/memops/types.hpp"
 
 namespace kmm {
 

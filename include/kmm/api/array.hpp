@@ -131,7 +131,7 @@ struct ArgumentHandler<Read<Array<T, N>>> {
         m_handle(arg.argument.handle().shared_from_this()),
         m_chunk(m_handle->find_chunk(m_handle->array_size())) {}
 
-    void initialize(const TaskInit& init) {}
+    void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto buffer_index = builder.add_buffer_requirement(BufferRequirement {
@@ -143,7 +143,7 @@ struct ArgumentHandler<Read<Array<T, N>>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {}
+    void finalize(const TaskSetResult& result) {}
 
   private:
     std::shared_ptr<const ArrayHandle<N>> m_handle;
@@ -156,13 +156,13 @@ struct ArgumentHandler<Write<Array<T, N>>> {
 
     ArgumentHandler(Write<Array<T, N>> arg) :
         m_array(arg.argument),
-        m_builder(arg.argument.sizes(), BufferLayout::for_type<T>()) {
+        m_builder(arg.argument.sizes(), DataLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
 
-    void initialize(const TaskInit& init) {}
+    void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_builder.sizes();
@@ -174,7 +174,7 @@ struct ArgumentHandler<Write<Array<T, N>>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {
+    void finalize(const TaskSetResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
@@ -203,7 +203,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
         m_handle(arg.argument.handle().shared_from_this()),
         m_access_mapper(arg.access_mapper) {}
 
-    void initialize(const TaskInit& init) {}
+    void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_access_mapper(builder.chunk, Range<N>(m_handle->array_size()));
@@ -218,7 +218,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {}
+    void finalize(const TaskSetResult& result) {}
 
   private:
     std::shared_ptr<const ArrayHandle<N>> m_handle;
@@ -237,13 +237,13 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
     ArgumentHandler(Write<Array<T, N>, A> arg) :
         m_array(arg.argument),
         m_access_mapper(arg.access_mapper),
-        m_builder(arg.argument.sizes(), BufferLayout::for_type<T>()) {
+        m_builder(arg.argument.sizes(), DataLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
     }
 
-    void initialize(const TaskInit& init) {}
+    void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_access_mapper(builder.chunk, Range<N>(m_builder.sizes()));
@@ -255,7 +255,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {
+    void finalize(const TaskSetResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
@@ -279,7 +279,7 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
         }
     }
 
-    void initialize(const TaskInit& init) {}
+    void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = m_builder.sizes();
@@ -291,7 +291,7 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {
+    void finalize(const TaskSetResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
@@ -321,7 +321,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
         }
     }
 
-    void initialize(const TaskInit& init) {}
+    void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto access_region = Range<N>(m_builder.sizes());
@@ -339,7 +339,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {
+    void finalize(const TaskSetResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
@@ -376,7 +376,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
         }
     }
 
-    void initialize(const TaskInit& init) {}
+    void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto private_region = m_private_mapper(builder.chunk);
@@ -394,7 +394,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskResult& result) {
+    void finalize(const TaskSetResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);

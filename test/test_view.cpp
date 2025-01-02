@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "kmm/core/geometry.hpp"
-#include "kmm/core/view.hpp"
+#include "kmm/utils/view.hpp"
 
 using namespace kmm;
 

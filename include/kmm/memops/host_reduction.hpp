@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kmm/core/reduction.hpp"
+#include "kmm/memops/types.hpp"
 
 namespace kmm {
 

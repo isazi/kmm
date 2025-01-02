@@ -299,7 +299,7 @@ bool in_range(const T& value) {
 }
 
 /**
- * Returns `true` if the given value of integral type `T` is in the range `0` to `length` (not
+ * Returns `true` if the given value of integral type `T` is in the range `0`...`length` (not
  * inclusive). Useful for checking if an value can be used to index into an array of size `length`.
  */
 template<typename U, typename T>

@@ -1,10 +1,10 @@
-#include "kmm/memops/host_reducers.hpp"
+#include "host_operators.hpp"
+
 #include "kmm/memops/host_reduction.hpp"
-#include "kmm/utils/macros.hpp"
 
 namespace kmm {
 
-template<size_t NumRows, typename T, ReductionOp Op>
+template<size_t NumRows, typename T, Reduction Op>
 KMM_NOINLINE void execute_reduction_few_rows(
     const T* __restrict__ src_buffer,
     T* __restrict__ dst_buffer,
@@ -14,15 +14,14 @@ KMM_NOINLINE void execute_reduction_few_rows(
     for (size_t j = 0; j < num_columns; j++) {
         dst_buffer[j] = src_buffer[j];
 
-#pragma unroll
         for (size_t i = 1; i < NumRows; i++) {
             dst_buffer[j] =
-                ReductionFunctor<T, Op>::combine(dst_buffer[j], src_buffer[i * row_stride + j]);
+                ReductionOperator<T, Op>()(dst_buffer[j], src_buffer[i * row_stride + j]);
         }
     }
 }
 
-template<typename T, ReductionOp Op>
+template<typename T, Reduction Op>
 KMM_NOINLINE void execute_reduction_basic(
     const T* __restrict__ src_buffer,
     T* __restrict__ dst_buffer,
@@ -37,12 +36,12 @@ KMM_NOINLINE void execute_reduction_basic(
     for (size_t i = 1; i < num_rows; i++) {
         for (size_t j = 0; j < num_columns; j++) {
             dst_buffer[j] =
-                ReductionFunctor<T, Op>::combine(dst_buffer[j], src_buffer[i * row_stride + j]);
+                ReductionOperator<T, Op>()(dst_buffer[j], src_buffer[i * row_stride + j]);
         }
     }
 }
 
-template<typename T, ReductionOp Op>
+template<typename T, Reduction Op>
 KMM_NOINLINE void execute_reduction_impl(
     const T* src_buffer,
     T* dst_buffer,
@@ -52,7 +51,7 @@ KMM_NOINLINE void execute_reduction_impl(
 ) {
     // For zero rows, we just fill with the identity value.
     if (num_rows == 0) {
-        std::fill_n(dst_buffer, num_columns, ReductionFunctor<T, Op>::identity());
+        std::fill_n(dst_buffer, num_columns, ReductionOperator<T, Op>::identity());
         return;
     }
 
@@ -85,24 +84,24 @@ KMM_NOINLINE void execute_reduction_impl(
     );
 }
 
-// NOLINTNEXTLINE
 void execute_reduction(const void* src_buffer, void* dst_buffer, ReductionDef reduction) {
-    // NOLINTNEXTLINE
-#define KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, OP)                                    \
-    if constexpr (ReductionFunctorSupported<T, ReductionOp::OP>()) {                 \
-        if (reduction.operation == ReductionOp::OP) {                                \
-            execute_reduction_impl<T, ReductionOp::OP>(                              \
-                static_cast<const T*>(src_buffer) + reduction.input_offset_elements, \
-                static_cast<T*>(dst_buffer) + reduction.output_offset_elements,      \
-                reduction.num_outputs,                                               \
-                reduction.num_inputs_per_output,                                     \
-                reduction.input_stride_elements                                      \
-            );                                                                       \
-            return;                                                                  \
-        }                                                                            \
+#define KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, OP)                                              \
+    if constexpr (IsReductionSupported<T, Reduction::OP>()) {                                  \
+        if (reduction.operation == Reduction::OP) {                                            \
+            execute_reduction_impl<                                                            \
+                T,                                                                             \
+                Reduction::OP>(/* NOLINTNEXTLINE */                                            \
+                               static_cast<const T*>(src_buffer)                               \
+                                   + reduction.input_offset_elements, /* NOLINTNEXTLINE */     \
+                               static_cast<T*>(dst_buffer) + reduction.output_offset_elements, \
+                               reduction.num_outputs,                                          \
+                               reduction.num_inputs_per_output,                                \
+                               reduction.input_stride_elements                                 \
+            );                                                                                 \
+            return;                                                                            \
+        }                                                                                      \
     }
 
-    // NOLINTNEXTLINE
 #define KMM_CALL_REDUCTION_FOR_TYPE(T)             \
     KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, Sum)     \
     KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, Product) \
@@ -111,7 +110,6 @@ void execute_reduction(const void* src_buffer, void* dst_buffer, ReductionDef re
     KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, BitAnd)  \
     KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(T, BitOr)
 
-    // NOLINTNEXTLINE
     switch (reduction.data_type.get()) {
         case ScalarKind::Int8:
             KMM_CALL_REDUCTION_FOR_TYPE(int8_t)

@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "kmm/internals/backends.hpp"
-#include "kmm/utils/macros.hpp"
+#include "kmm/core/backends.hpp"
+#include "kmm/core/macros.hpp"
 
 #define KMM_GPU_CHECK(...)                                                        \
     do {                                                                          \

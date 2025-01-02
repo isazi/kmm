@@ -1,10 +1,10 @@
 #pragma once
 
-#include "kmm/core/fill_def.hpp"
-#include "kmm/internals/backends.hpp"
+#include "kmm/core/backends.hpp"
+#include "kmm/memops/types.hpp"
 
 namespace kmm {
 
-void execute_gpu_fill_async(stream_t stream, GPUdeviceptr dst_buffer, const FillDef& fill);
+void execute_gpu_fill_async(GPUstream_t stream, GPUdeviceptr dst_buffer, const FillDef& fill);
 
 }

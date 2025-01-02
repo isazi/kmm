@@ -66,7 +66,7 @@ T round_up_to_multiple(T input, T multiple) {
     } else if (input < zero) {
         return input - remainder;
     } else {
-        return input + (multiple - remainder);
+        return input - remainder + multiple;
     }
 }
 

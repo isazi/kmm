@@ -72,31 +72,31 @@ struct small_vector {
         }
     }
 
-    size_t capacity() const {
+    size_t capacity() const noexcept {
         return m_capacity;
     }
 
-    size_t size() const {
+    size_t size() const noexcept {
         return m_size;
     }
 
-    bool is_empty() const {
+    bool is_empty() const noexcept {
         return m_size == 0;
     }
 
-    void clear() {
+    void clear() noexcept {
         m_size = 0;
     }
 
-    bool is_heap_allocated() const {
+    bool is_heap_allocated() const noexcept {
         return m_capacity > InlineSize;
     }
 
-    T* data() {
+    T* data() noexcept {
         return m_data;
     }
 
-    const T* data() const {
+    const T* data() const noexcept {
         return m_data;
     }
 
@@ -176,31 +176,31 @@ struct small_vector {
         m_size = static_cast<capacity_type>(n);
     }
 
-    T& operator[](size_t i) {
+    T& operator[](size_t i) noexcept {
         return *(data() + i);
     }
 
-    T* begin() {
+    T* begin() noexcept {
         return data();
     }
 
-    T* end() {
+    T* end() noexcept {
         return data() + size();
     }
 
-    const T& operator[](size_t i) const {
+    const T& operator[](size_t i) const noexcept {
         return *(data() + i);
     }
 
-    const T* begin() const {
+    const T* begin() const noexcept {
         return data();
     }
 
-    const T* end() const {
+    const T* end() const noexcept {
         return data() + size();
     }
 
-    bool remove(const T& item) {
+    bool remove(const T& item) noexcept {
         T* p = data();
 
         size_t i = 0;
@@ -255,5 +255,7 @@ struct small_vector {
     T m_inline_data[InlineSize];
     T* m_data = m_inline_data;
 };
+
+using small_buffer = small_vector<uint8_t, sizeof(uint64_t)>;
 
 }  // namespace kmm

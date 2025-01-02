@@ -94,7 +94,7 @@ int main() {
             n,
             m,
             k,
-            reduce(kmm::ReductionOp::Sum, C, access(_1, _2)),
+            reduce(kmm::Reduction::Sum, C, access(_1, _2)),
             read(A, access(_1, _0)),
             read(B, access(_0, _2))
         );

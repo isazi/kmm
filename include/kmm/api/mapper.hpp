@@ -11,7 +11,7 @@ namespace kmm {
 
 struct All {
     template<size_t N>
-    Range<N> operator()(TaskChunk chunk, Range<N> bounds) const {
+    Range<N> operator()(WorkChunk chunk, Range<N> bounds) const {
         return bounds;
     }
 };
@@ -20,11 +20,11 @@ struct Axis {
     constexpr Axis() : m_axis(0) {}
     explicit constexpr Axis(size_t axis) : m_axis(axis) {}
 
-    Range<1> operator()(TaskChunk chunk) const {
+    Range<1> operator()(WorkChunk chunk) const {
         return Range<1> {chunk.offset.get(m_axis), chunk.size.get(m_axis)};
     }
 
-    Range<1> operator()(TaskChunk chunk, Range<1> bounds) const {
+    Range<1> operator()(WorkChunk chunk, Range<1> bounds) const {
         return (*this)(chunk).intersection(bounds);
     }
 
@@ -42,7 +42,7 @@ struct Axis {
 
 struct IdentityMap {
     template<size_t N>
-    Range<N> operator()(TaskChunk chunk, Range<N> bounds) const {
+    Range<N> operator()(WorkChunk chunk, Range<N> bounds) const {
         return {Index<N>::from(chunk.offset), Size<N>::from(chunk.size)};
     }
 };
@@ -81,13 +81,13 @@ struct IndexMap {
     IndexMap scale_by(int64_t factor) const;
     IndexMap divide_by(int64_t divisor) const;
     IndexMap negate() const;
-    Range<1> apply(TaskChunk chunk) const;
+    Range<1> apply(WorkChunk chunk) const;
 
-    Range<1> operator()(TaskChunk chunk) const {
+    Range<1> operator()(WorkChunk chunk) const {
         return apply(chunk);
     }
 
-    Range<1> operator()(TaskChunk chunk, Range<1> bounds) const {
+    Range<1> operator()(WorkChunk chunk, Range<1> bounds) const {
         return apply(chunk).intersection(bounds);
     }
 
@@ -151,7 +151,7 @@ inline IndexMap operator/(IndexMap a, int64_t b) {
 
 template<size_t N>
 struct MultiIndexMap {
-    Range<N> operator()(TaskChunk chunk) const {
+    Range<N> operator()(WorkChunk chunk) const {
         Range<N> result;
 
         for (size_t i = 0; i < N; i++) {
@@ -163,7 +163,7 @@ struct MultiIndexMap {
         return result;
     }
 
-    Range<N> operator()(TaskChunk chunk, Range<N> bounds) const {
+    Range<N> operator()(WorkChunk chunk, Range<N> bounds) const {
         Range<N> result;
 
         for (size_t i = 0; i < N; i++) {
@@ -180,7 +180,7 @@ struct MultiIndexMap {
 
 template<>
 struct MultiIndexMap<0> {
-    Range<0> operator()(TaskChunk chunk, Range<0> bounds = {}) const {
+    Range<0> operator()(WorkChunk chunk, Range<0> bounds = {}) const {
         return {};
     }
 };
@@ -227,11 +227,11 @@ struct RangeDim<Range<N>>: std::integral_constant<size_t, N> {};
 
 template<typename F>
 static constexpr size_t mapper_dimensionality =
-    detail::RangeDim<std::invoke_result_t<F, TaskChunk>>::value;
+    detail::RangeDim<std::invoke_result_t<F, WorkChunk>>::value;
 
 template<typename F, size_t N>
 static constexpr bool is_dimensionality_accepted_by_mapper =
-    detail::RangeDim<std::invoke_result_t<F, TaskChunk, Range<N>>>::value == N;
+    detail::RangeDim<std::invoke_result_t<F, WorkChunk, Range<N>>>::value == N;
 
 }  // namespace kmm
 

@@ -1,9 +1,10 @@
 #include "spdlog/spdlog.h"
 
 #include "kmm/api/array.hpp"
-#include "kmm/internals/worker.hpp"
+#include "kmm/memops/gpu_copy.hpp"
 #include "kmm/memops/host_copy.hpp"
 #include "kmm/utils/integer_fun.hpp"
+#include "kmm/worker/worker.hpp"
 
 namespace kmm {
 
@@ -182,52 +183,53 @@ template<size_t N>
 class CopyOutTask: public Task {
   public:
     CopyOutTask(void* data, size_t element_size, Size<N> array_size, Range<N> region) :
-        m_dst_addr(data),
-        m_element_size(element_size),
-        m_array_size(array_size),
-        m_region(region) {}
-
-    void execute(ExecutionContext& proc, TaskContext context) override {
-        KMM_ASSERT(context.accessors.size() == 1);
-        const void* src_addr = context.accessors[0].address;
+        m_dst_addr(data) {
         size_t src_stride = 1;
         size_t dst_stride = 1;
 
-        CopyDef copy(m_element_size);
+        CopyDef copy(element_size);
 
         for (size_t j = 0; compare_less(j, N); j++) {
             size_t i = N - j - 1;
 
             copy.add_dimension(
-                checked_cast<size_t>(m_region.size(i)),
+                checked_cast<size_t>(region.size(i)),
                 checked_cast<size_t>(0),
-                checked_cast<size_t>(m_region.begin(i)),
+                checked_cast<size_t>(region.begin(i)),
                 src_stride,
                 dst_stride
             );
 
-            src_stride *= checked_cast<size_t>(m_region.size(i));
-            dst_stride *= checked_cast<size_t>(m_array_size.get(i));
+            src_stride *= checked_cast<size_t>(region.size(i));
+            dst_stride *= checked_cast<size_t>(array_size.get(i));
         }
+    }
 
-        execute_copy(src_addr, m_dst_addr, copy);
+    void execute(ExecutionContext& proc, TaskContext context) override {
+        KMM_ASSERT(context.accessors.size() == 1);
+        const void* src_addr = context.accessors[0].address;
+        execute_copy(src_addr, m_dst_addr, m_copy);
     }
 
   private:
     void* m_dst_addr;
-    size_t m_element_size;
-    Size<N> m_array_size;
-    Range<N> m_region;
+    CopyDef m_copy;
 };
 
 template<size_t N>
 void ArrayHandle<N>::copy_bytes(void* dest_addr, size_t element_size) const {
+    auto dest_mem = MemoryId::host();
+
+    if (auto ordinal = get_gpu_device_by_address(dest_addr)) {
+        dest_mem = m_worker->system_info().device_by_ordinal(*ordinal).memory_id();
+    }
+
     auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
         EventList deps;
 
         for (size_t i = 0; i < this->m_chunks.size(); i++) {
-            auto region =
-                index2region(i, this->m_chunks_count, this->m_chunk_size, this->m_array_size);
+            auto& chunk = this->m_chunks[i];
+            auto region = Range<N> {chunk.offset, chunk.size};
 
             auto task = std::make_shared<CopyOutTask<N>>(
                 dest_addr,
@@ -235,40 +237,38 @@ void ArrayHandle<N>::copy_bytes(void* dest_addr, size_t element_size) const {
                 this->m_array_size,
                 region
             );
+
             auto buffer = BufferRequirement {
-                .buffer_id = this->m_chunks[i].buffer_id,
+                .buffer_id = chunk.buffer_id,
                 .memory_id = MemoryId::host(),
                 .access_mode = AccessMode::Read,
             };
 
             auto event_id = graph.insert_task(ProcessorId::host(), std::move(task), {buffer});
-
             deps.push_back(event_id);
         }
 
-        return graph.join_events(deps);
+        return graph.join_events(std::move(deps));
     });
 
     m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
 }
 
 template<size_t N>
-ArrayHandle<N>::ArrayHandle(std::shared_ptr<Worker> worker, DataDistribution<N> distribution) :
+ArrayHandle<N>::ArrayHandle(Worker& worker, DataDistribution<N> distribution) :
     DataDistribution<N>(std::move(distribution)),
-    m_worker(worker) {}
+    m_worker(worker.shared_from_this()) {}
 
-// NOLINTBEGIN
-#define INSTANTIATE_ARRAY_IMPL(NAME) \
-    template class NAME<0>;          \
-    template class NAME<1>;          \
-    template class NAME<2>;          \
-    template class NAME<3>;          \
-    template class NAME<4>;          \
-    template class NAME<5>;          \
-    template class NAME<6>;
+#define INSTANTIATE_ARRAY_IMPL(NAME)     \
+    template class NAME<0>; /* NOLINT */ \
+    template class NAME<1>; /* NOLINT */ \
+    template class NAME<2>; /* NOLINT */ \
+    template class NAME<3>; /* NOLINT */ \
+    template class NAME<4>; /* NOLINT */ \
+    template class NAME<5>; /* NOLINT */ \
+    template class NAME<6>; /* NOLINT */
 
 INSTANTIATE_ARRAY_IMPL(DataDistribution)
 INSTANTIATE_ARRAY_IMPL(ArrayHandle)
-// NOLINTEND
 
 }  // namespace kmm

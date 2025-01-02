@@ -107,15 +107,15 @@ struct MemoryId {
         return MemoryId {HOST_ID};
     }
 
-    constexpr bool is_host() const {
+    constexpr bool is_host() const noexcept {
         return m_value == HOST_ID;
     }
 
-    constexpr bool is_device() const {
+    constexpr bool is_device() const noexcept  {
         return m_value != HOST_ID;
     }
 
-    constexpr DeviceId as_device() const {
+    constexpr DeviceId as_device() const noexcept {
         KMM_ASSERT(is_device());
         return DeviceId(m_value);
     }
@@ -125,7 +125,7 @@ struct MemoryId {
     }
 
     constexpr bool operator<(const MemoryId& that) const {
-        // We assume the order Host, DeviceContext(0), DeviceContext(1), DeviceContext(2), ...
+        // We assume the order: Host, Device 0, Device 1, Device 2, ...
         if (is_host() || that.is_host()) {
             return that.is_device();
         } else {

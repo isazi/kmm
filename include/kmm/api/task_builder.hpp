@@ -5,19 +5,19 @@
 
 namespace kmm {
 
-class TaskGraph;
 class Worker;
+class TaskGraph;
 
-struct TaskInit {
-    std::shared_ptr<Worker>& worker;
+struct TaskSetInit {
+    Worker& worker;
     TaskGraph& graph;
-    const TaskPartition& partition;
+    const WorkPartition& partition;
 };
 
 struct TaskBuilder {
-    std::shared_ptr<Worker>& worker;
+    Worker& worker;
     TaskGraph& graph;
-    TaskChunk chunk;
+    WorkChunk chunk;
     MemoryId memory_id;
     std::vector<BufferRequirement> buffers;
     EventList dependencies;
@@ -29,8 +29,8 @@ struct TaskBuilder {
     }
 };
 
-struct TaskResult {
-    std::shared_ptr<Worker>& worker;
+struct TaskSetResult {
+    Worker& worker;
     TaskGraph& graph;
     EventList events;
 };

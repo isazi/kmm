@@ -1,7 +1,8 @@
 #include <float.h>
 
+#include "gpu_operators.cuh"
+
 #include "kmm/memops/gpu_fill.hpp"
-#include "kmm/memops/gpu_reducers.hpp"
 #include "kmm/memops/gpu_reduction.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/gpu.hpp"
@@ -11,7 +12,7 @@ namespace kmm {
 
 static constexpr size_t total_block_size = 256;
 
-template<typename T, ReductionOp Op, bool UseAtomics = true>
+template<typename T, Reduction Op, bool UseAtomics = true, bool UseSmem = true>
 __global__ void reduction_kernel(
     const T* src_buffer,
     T* dst_buffer,
@@ -28,7 +29,8 @@ __global__ void reduction_kernel(
     uint64_t global_x = blockIdx.x * uint64_t(blockDim.x) + thread_x;
     uint64_t global_y = blockIdx.y * uint64_t(blockDim.y) * items_per_thread + thread_y;
 
-    T local_result = ReductionFunctor<T, Op>::identity();
+    ReductionOperator<T, Op> reduce;
+    T local_result = reduce.identity();
 
     if (global_x < num_outputs && global_y < num_inputs_per_output) {
         size_t x = global_x;
@@ -36,31 +38,38 @@ __global__ void reduction_kernel(
 
         for (size_t y = global_y; y < max_y; y += blockDim.y) {
             T partial_result = src_buffer[y * input_stride + x];
-            local_result = ReductionFunctor<T, Op>::combine(local_result, partial_result);
+            local_result = reduce(local_result, partial_result);
         }
-
-        shared_results[thread_y * blockDim.x + thread_x] = local_result;
     }
 
-    __syncthreads();
+    if constexpr (UseSmem) {
+        shared_results[thread_y * blockDim.x + thread_x] = local_result;
+
+        __syncthreads();
+
+        if (thread_y == 0) {
+            for (unsigned int y = 1; y < blockDim.y; y++) {
+                T partial_result = shared_results[y * blockDim.x + thread_x];
+                local_result = reduce(local_result, partial_result);
+            }
+        }
+    }
 
     if (global_x < num_outputs && thread_y == 0) {
-        for (unsigned int y = 1; y < blockDim.y; y++) {
-            T partial_result = shared_results[y * blockDim.x + thread_x];
-            local_result = ReductionFunctor<T, Op>::combine(local_result, partial_result);
-        }
-
         if constexpr (UseAtomics) {
-            GPUReductionFunctor<T, Op>::atomic_combine(&dst_buffer[global_x], local_result);
+            GPUAtomic<ReductionOperator<T, Op>>::atomic_combine(
+                &dst_buffer[global_x],
+                local_result
+            );
         } else {
             dst_buffer[global_x] = local_result;
         }
     }
 }
 
-template<typename T, ReductionOp Op>
+template<typename T, Reduction Op>
 void execute_reduction_for_type_and_op(
-    stream_t stream,
+    GPUstream_t stream,
     GPUdeviceptr src_buffer,
     GPUdeviceptr dst_buffer,
     size_t num_outputs,
@@ -91,7 +100,7 @@ void execute_reduction_for_type_and_op(
     size_t max_grid_size_y = div_ceil(max_blocks_per_gpu, div_ceil(num_outputs, block_size_x));
 
     // If we do not have atomics, we can only have 1 block in the y-direction
-    if (!GPUReductionFunctorSupported<T, Op>()) {
+    if (!IsGPUAtomicSupported<ReductionOperator<T, Op>>()) {
         max_grid_size_y = 1;
     }
 
@@ -113,8 +122,22 @@ void execute_reduction_for_type_and_op(
             div_ceil(num_partials_per_output, block_size_y * items_per_thread)
         )};
 
-    if (grid_size.y == 1) {
-        if constexpr (ReductionFunctorSupported<T, Op>()) {
+    if constexpr (IsReductionSupported<T, Op>()) {
+        if (grid_size.y == 1 && block_size_y == 1) {
+            reduction_kernel<T, Op, false, false><<<grid_size, block_size, 0, stream>>>(
+                reinterpret_cast<const T*>(src_buffer),
+                reinterpret_cast<T*>(dst_buffer),
+                num_outputs,
+                num_partials_per_output,
+                input_stride,
+                items_per_thread
+            );
+
+            KMM_GPU_CHECK(gpuGetLastError());
+            return;
+        }
+
+        if (grid_size.y == 1) {
             reduction_kernel<T, Op, false><<<grid_size, block_size, 0, stream>>>(
                 reinterpret_cast<const T*>(src_buffer),
                 reinterpret_cast<T*>(dst_buffer),
@@ -127,23 +150,23 @@ void execute_reduction_for_type_and_op(
             KMM_GPU_CHECK(gpuGetLastError());
             return;
         }
-    }
 
-    if constexpr (GPUReductionFunctorSupported<T, Op>()) {
-        T identity = ReductionFunctor<T, Op>::identity();
-        execute_gpu_fill_async(stream, dst_buffer, FillDef(sizeof(T), num_outputs, &identity));
+        if constexpr (IsGPUAtomicSupported<ReductionOperator<T, Op>>()) {
+            T identity = ReductionOperator<T, Op>::identity();
+            execute_gpu_fill_async(stream, dst_buffer, FillDef::with_value(identity, num_outputs));
 
-        reduction_kernel<T, Op><<<grid_size, block_size, 0, stream>>>(
-            reinterpret_cast<const T*>(src_buffer),
-            reinterpret_cast<T*>(dst_buffer),
-            num_outputs,
-            num_partials_per_output,
-            input_stride,
-            items_per_thread
-        );
+            reduction_kernel<T, Op><<<grid_size, block_size, 0, stream>>>(
+                reinterpret_cast<const T*>(src_buffer),
+                reinterpret_cast<T*>(dst_buffer),
+                num_outputs,
+                num_partials_per_output,
+                input_stride,
+                items_per_thread
+            );
 
-        KMM_GPU_CHECK(gpuGetLastError());
-        return;
+            KMM_GPU_CHECK(gpuGetLastError());
+            return;
+        }
     }
 
     // silence unused warnings
@@ -160,8 +183,8 @@ void execute_reduction_for_type_and_op(
 
 template<typename T>
 void execute_reduction_for_type(
-    stream_t stream,
-    ReductionOp operation,
+    GPUstream_t stream,
+    Reduction operation,
     GPUdeviceptr src_buffer,
     GPUdeviceptr dst_buffer,
     size_t num_outputs,
@@ -179,23 +202,23 @@ void execute_reduction_for_type(
     );
 
     switch (operation) {
-        case ReductionOp::Sum:
-            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(ReductionOp::Sum)
+        case Reduction::Sum:
+            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(Reduction::Sum)
             break;
-        case ReductionOp::Product:
-            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(ReductionOp::Product)
+        case Reduction::Product:
+            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(Reduction::Product)
             break;
-        case ReductionOp::Min:
-            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(ReductionOp::Min)
+        case Reduction::Min:
+            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(Reduction::Min)
             break;
-        case ReductionOp::Max:
-            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(ReductionOp::Max)
+        case Reduction::Max:
+            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(Reduction::Max)
             break;
-        case ReductionOp::BitAnd:
-            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(ReductionOp::BitAnd)
+        case Reduction::BitAnd:
+            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(Reduction::BitAnd)
             break;
-        case ReductionOp::BitOr:
-            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(ReductionOp::BitOr)
+        case Reduction::BitOr:
+            KMM_CALL_REDUCTION_FOR_TYPE_AND_OP(Reduction::BitOr)
             break;
         default:
             throw std::runtime_error(
@@ -205,7 +228,7 @@ void execute_reduction_for_type(
 }
 
 void execute_gpu_reduction_async(
-    stream_t stream,
+    GPUstream_t stream,
     GPUdeviceptr src_buffer,
     GPUdeviceptr dst_buffer,
     ReductionDef reduction

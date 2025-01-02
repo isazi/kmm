@@ -12,7 +12,7 @@ class ArrayHandle: public std::enable_shared_from_this<ArrayHandle<N>>, public D
     KMM_NOT_COPYABLE_OR_MOVABLE(ArrayHandle)
 
   public:
-    ArrayHandle(std::shared_ptr<Worker> worker, DataDistribution<N> distribution);
+    ArrayHandle(Worker& worker, DataDistribution<N> distribution);
     ~ArrayHandle();
 
     void copy_bytes(void* dest_addr, size_t element_size) const;

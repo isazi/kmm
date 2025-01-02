@@ -4,32 +4,32 @@
 #include <memory>
 #include <vector>
 
-#include "data_type.hpp"
-#include "identifiers.hpp"
+#include "kmm/core/data_type.hpp"
+#include "kmm/core/identifiers.hpp"
 
 namespace kmm {
 
 /**
  * Represents the layout of a buffer, including its size and alignment.
  */
-struct BufferLayout {
-    size_t size_in_bytes;
-    size_t alignment;
-
-    BufferLayout repeat(size_t n) {
+struct DataLayout {
+    DataLayout repeat(size_t n) {
         size_t remainder = size_in_bytes % alignment;
         size_t padding = remainder != 0 ? alignment - remainder : 0;
         return {(size_in_bytes + padding) * n, alignment};
     }
 
     template<typename T>
-    static BufferLayout for_type() {
-        return BufferLayout {sizeof(T), alignof(T)};
+    static DataLayout for_type() {
+        return DataLayout {sizeof(T), alignof(T)};
     }
 
-    static BufferLayout for_type(DataType dtype) {
-        return BufferLayout {dtype.size_in_bytes(), dtype.alignment()};
+    static DataLayout for_type(DataType dtype) {
+        return DataLayout {dtype.size_in_bytes(), dtype.alignment()};
     }
+
+    size_t size_in_bytes;
+    size_t alignment;
 };
 
 /**
@@ -55,7 +55,7 @@ struct BufferRequirement {
  */
 struct BufferAccessor {
     MemoryId memory_id;
-    BufferLayout layout;
+    DataLayout layout;
     bool is_writable;
     void* address;
 };

@@ -3,7 +3,7 @@
 #include <memory>
 #include <unordered_map>
 
-#include "base.hpp"
+#include "kmm/allocators/base.hpp"
 
 namespace kmm {
 

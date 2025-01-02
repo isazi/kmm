@@ -3,7 +3,7 @@
 #include "kmm/core/buffer.hpp"
 #include "kmm/core/geometry.hpp"
 #include "kmm/core/reduction.hpp"
-#include "kmm/core/view.hpp"
+#include "kmm/utils/view.hpp"
 
 namespace kmm {
 
@@ -51,7 +51,7 @@ class DataDistribution {
 template<size_t N>
 class ArrayBuilder {
   public:
-    ArrayBuilder(Size<N> sizes, BufferLayout element_layout) :
+    ArrayBuilder(Size<N> sizes, DataLayout element_layout) :
         m_sizes(sizes),
         m_element_layout(element_layout) {}
 
@@ -64,14 +64,14 @@ class ArrayBuilder {
 
   private:
     Size<N> m_sizes;
-    BufferLayout m_element_layout;
+    DataLayout m_element_layout;
     std::vector<DataChunk<N>> m_chunks;
 };
 
 template<size_t N>
 class ArrayReductionBuilder {
   public:
-    ArrayReductionBuilder(Size<N> sizes, DataType data_type, ReductionOp operation) :
+    ArrayReductionBuilder(Size<N> sizes, DataType data_type, Reduction operation) :
         m_sizes(sizes),
         m_dtype(data_type),
         m_reduction(operation) {}
@@ -94,7 +94,7 @@ class ArrayReductionBuilder {
   private:
     Size<N> m_sizes;
     DataType m_dtype;
-    ReductionOp m_reduction;
+    Reduction m_reduction;
     std::unordered_map<Range<N>, std::vector<ReductionInput>> m_partial_inputs;
 };
 

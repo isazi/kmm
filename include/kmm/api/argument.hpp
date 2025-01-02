@@ -33,9 +33,9 @@ template<typename T>
 struct ArgumentHandler {
     using type = Argument<T>;
 
-    ArgumentHandler(T value) : m_value(value) {}
+    ArgumentHandler(T value) : m_value(std::move(value)) {}
 
-    void initialize(const TaskInit& init) {
+    void initialize(const TaskSetInit& init) {
         // Nothing to do
     }
 
@@ -43,13 +43,22 @@ struct ArgumentHandler {
         return Argument<T>::pack(builder, m_value);
     }
 
-    void finalize(const TaskResult& result) {
+    void finalize(const TaskSetResult& result) {
         // Nothing to do
     }
 
   private:
     T m_value;
 };
+
+template<typename T>
+struct ArgumentHandler<T&>: ArgumentHandler<T> {};
+
+template<typename T>
+struct ArgumentHandler<const T&>: ArgumentHandler<T> {};
+
+template<typename T>
+struct ArgumentHandler<T&&>: ArgumentHandler<T> {};
 
 template<ExecutionSpace Space, typename T>
 struct ArgumentUnpack<Space, Argument<T>> {
@@ -59,16 +68,16 @@ struct ArgumentUnpack<Space, Argument<T>> {
 };
 
 template<typename T>
-using packed_argument_t = typename ArgumentHandler<std::decay_t<T>>::type;
+using packed_argument_t = typename ArgumentHandler<T>::type;
 
 template<typename T>
 packed_argument_t<T> pack_argument(TaskBuilder& builder, T&& arg) {
-    return ArgumentHandler<std::decay_t<T>>(std::forward<T>(arg)).process_chunk(builder);
+    return ArgumentHandler<T>(std::forward<T>(arg)).process_chunk(builder);
 }
 
 template<ExecutionSpace execution_space, typename T>
 auto unpack_argument(TaskContext& builder, T&& arg) {
-    return ArgumentUnpack<execution_space, std::decay_t<T>>::unpack(builder, std::forward<T>(arg));
+    return ArgumentUnpack<execution_space, T>::unpack(builder, std::forward<T>(arg));
 }
 
 }  // namespace kmm

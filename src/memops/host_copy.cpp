@@ -1,8 +1,6 @@
 #include <cstdint>
 #include <cstring>
-#include <functional>
 
-#include "kmm/core/reduction.hpp"
 #include "kmm/memops/host_copy.hpp"
 
 namespace kmm {
