@@ -2,18 +2,27 @@
 
 #include <ostream>
 
-#define KMM_PANIC(...)                                           \
-    do {                                                         \
-        kmm::panic_format_args(__FILE__, __LINE__, __VA_ARGS__); \
-        while (1)                                                \
-            ;                                                    \
+#define KMM_PANIC(...)                                             \
+    do {                                                           \
+        ::kmm::panic_format_args(__FILE__, __LINE__, __VA_ARGS__); \
+        while (1)                                                  \
+            ;                                                      \
     } while (0);
 
-#define KMM_ASSERT(...)                                   \
-    do {                                                  \
-        if (!static_cast<bool>(__VA_ARGS__)) {            \
-            KMM_PANIC("assertion failed: " #__VA_ARGS__); \
-        }                                                 \
+#define KMM_PANIC_MSG_IMPL(FILE, LINE, MESSAGE)  KMM_PANIC_MSG_IMPL2(FILE, LINE, MESSAGE)
+#define KMM_PANIC_MSG_IMPL2(FILE, LINE, MESSAGE) ::kmm::panic(FILE ":" #LINE ": " MESSAGE);
+#define KMM_PANIC_MSG(MESSAGE)                          \
+    do {                                                \
+        KMM_PANIC_MSG_IMPL(__FILE__, __LINE__, MESSAGE) \
+        while (1)                                       \
+            ;                                           \
+    } while (0);
+
+#define KMM_ASSERT(...)                                       \
+    do {                                                      \
+        if (!static_cast<bool>(__VA_ARGS__)) {                \
+            KMM_PANIC_MSG("assertion failed: " #__VA_ARGS__); \
+        }                                                     \
     } while (0);
 
 #define KMM_TODO()            KMM_PANIC("not implemented")
