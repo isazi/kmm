@@ -61,7 +61,7 @@ int main() {
     int chunk_height = height / 8;
 
     auto rt = kmm::make_runtime();
-    auto matrix = kmm::Array<float, 2>{{height, width}};
+    auto matrix = kmm::Array<float, 2> {{height, width}};
 
     rt.parallel_submit(
         {width, height},

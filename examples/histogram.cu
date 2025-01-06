@@ -58,7 +58,7 @@ int main() {
     dim3 block_size = 256;
 
     auto histogram = kmm::Array<int> {{256}};
-    auto images = kmm::Array<uint8_t, 3>{{num_images, height, width}};
+    auto images = kmm::Array<uint8_t, 3> {{num_images, height, width}};
 
     rt.parallel_submit(
         {num_images},

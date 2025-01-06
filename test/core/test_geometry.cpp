@@ -1,10 +1,11 @@
-#include <gtest/gtest.h>
+#include "catch2/catch_all.hpp"
 
 #include "kmm/core/geometry.hpp"
+#define ASSERT_EQ(A, B) REQUIRE((A) == (B))
 
 using namespace kmm;
 
-TEST(Geometry, index_basics) {
+TEST_CASE("geometry index basics") {
     Index<3> x = {};
     ASSERT_EQ(x, Index(0, 0, 0));
 
@@ -26,13 +27,13 @@ TEST(Geometry, index_basics) {
     one[0] = 42;
     ASSERT_EQ(one, Index(42, 1, 1));
 
-    ASSERT_FALSE(one == zero);
-    ASSERT_FALSE(zero == one);
-    ASSERT_TRUE(zero == zero);
-    ASSERT_TRUE(one == one);
+    REQUIRE_FALSE(one == zero);
+    REQUIRE_FALSE(zero == one);
+    REQUIRE(zero == zero);
+    REQUIRE(one == one);
 }
 
-TEST(Geometry, dim_basics) {
+TEST_CASE("geometry dim basics") {
     Size<3> x = {};
     ASSERT_EQ(x, Size(1, 1, 1));
     ASSERT_EQ(x.is_empty(), false);
@@ -69,7 +70,7 @@ TEST(Geometry, dim_basics) {
     ASSERT_EQ(one.volume(), 42);
 }
 
-TEST(Geometry, dim_intersection) {
+TEST_CASE("geometry dim intersection") {
     Size<3> x = {5, 42, 1};
     Size<3> y = {1, 2, 3};
     Size<3> z = {1, 1, 1};
@@ -156,7 +157,7 @@ TEST(Geometry, dim_intersection) {
     ASSERT_EQ(w.contains(c), false);
 }
 
-TEST(Geometry, range_basics) {
+TEST_CASE("geometry range basics") {
     Range<3> a = {{0, 0, 0}, {42, 2, 1}};
     ASSERT_EQ(a.offset, Index(0, 0, 0));
     ASSERT_EQ(a.sizes, Size(42, 2, 1));
@@ -190,7 +191,7 @@ TEST(Geometry, range_basics) {
     ASSERT_EQ(d.is_empty(), true);
 }
 
-TEST(Geometry, range_intersection) {
+TEST_CASE("geometry range intersection") {
     Range<3> a = {{0, 0, 0}, {42, 2, 5}};
     Range<3> b = {{1, 1, 1}, {3, 1, 1}};
     Range<3> c = {{1, -5, 1}, {2, 20, 2}};

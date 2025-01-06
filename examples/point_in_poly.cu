@@ -16,28 +16,26 @@ __global__ void cn_pnpoly(
         int c = 0;
         float2 p = points[i];
 
-        int k = nvertices-1;
+        int k = nvertices - 1;
 
-        for (int j=0; j<nvertices; k = j++) {    // edge from v to vp
+        for (int j = 0; j < nvertices; k = j++) {  // edge from v to vp
             float2 vj = vertices[j];
             float2 vk = vertices[k];
 
-            float slope = (vk.x-vj.x) / (vk.y-vj.y);
+            float slope = (vk.x - vj.x) / (vk.y - vj.y);
 
-            if ( (  (vj.y>p.y) != (vk.y>p.y)) &&            //if p is between vj and vk vertically
-                (p.x < slope * (p.y-vj.y) + vj.x) ) {   //if p.x crosses the line vj-vk when moved in positive x-direction
+            if (((vj.y > p.y) != (vk.y > p.y)) &&  //if p is between vj and vk vertically
+                (p.x < slope * (p.y - vj.y) + vj.x
+                )) {  //if p.x crosses the line vj-vk when moved in positive x-direction
                 c = !c;
             }
         }
 
-        bitmap[i] = c; // 0 if even (out), and 1 if odd (in)
+        bitmap[i] = c;  // 0 if even (out), and 1 if odd (in)
     }
 }
 
-__global__ void init_points(
-    kmm::NDRange chunk,
-    kmm::gpu_subview_mut<float2> points
-) {
+__global__ void init_points(kmm::NDRange chunk, kmm::gpu_subview_mut<float2> points) {
     int i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin(0);
 
     if (i < chunk.end(0)) {
@@ -47,11 +45,7 @@ __global__ void init_points(
     }
 }
 
-void init_polygon(
-    kmm::NDRange chunk,
-    int nvertices,
-    kmm::view_mut<float2> vertices
-) {
+void init_polygon(kmm::NDRange chunk, int nvertices, kmm::view_mut<float2> vertices) {
     for (int64_t i = chunk.begin(); i < chunk.end(); i++) {
         float angle = float(i) / float(nvertices) * float(2.0F * M_PI);
         vertices[i] = {cosf(angle), sinf(angle)};

@@ -1,11 +1,8 @@
 #include "kmm/api/mapper.hpp"
 #include "kmm/api/runtime.hpp"
 
-__global__ void initialize_range(
-    kmm::NDRange chunk,
-    kmm::gpu_subview_mut<float> output
-) {
-    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
+__global__ void initialize_range(kmm::NDRange chunk, kmm::gpu_subview_mut<float> output) {
+    int64_t i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin();
     if (i >= chunk.end()) {
         return;
     }
@@ -13,12 +10,8 @@ __global__ void initialize_range(
     output[i] = float(i);
 }
 
-__global__ void fill_range(
-    kmm::NDRange chunk,
-    float value,
-    kmm::gpu_subview_mut<float> output
-) {
-    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + chunk.begin();
+__global__ void fill_range(kmm::NDRange chunk, float value, kmm::gpu_subview_mut<float> output) {
+    int64_t i = blockIdx.x * blockDim.x + threadIdx.x + chunk.begin();
     if (i >= chunk.end()) {
         return;
     }
@@ -32,7 +25,7 @@ __global__ void vector_add(
     kmm::gpu_subview<float> left,
     kmm::gpu_subview<float> right
 ) {
-    int64_t i = blockIdx.x * blockDim.x +  threadIdx.x + range.begin();
+    int64_t i = blockIdx.x * blockDim.x + threadIdx.x + range.begin();
     if (i >= range.end()) {
         return;
     }
@@ -49,9 +42,9 @@ int main() {
     int chunk_size = n / 10;
     dim3 block_size = 256;
 
-    auto A = kmm::Array<float>{n};
-    auto B = kmm::Array<float>{n};
-    auto C = kmm::Array<float>{n};
+    auto A = kmm::Array<float> {n};
+    auto B = kmm::Array<float> {n};
+    auto C = kmm::Array<float> {n};
 
     rt.parallel_submit(
         {n},

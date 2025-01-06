@@ -1,10 +1,6 @@
 #include "kmm/kmm.hpp"
 
-void fill_array(
-    kmm::NDRange region,
-    kmm::subview_mut<float, 2> array,
-    float value
-) {
+void fill_array(kmm::NDRange region, kmm::subview_mut<float, 2> array, float value) {
     for (auto i = region.begin(0); i < region.end(0); i++) {
         for (auto j = region.begin(1); j < region.end(1); j++) {
             array[i][j] = value;
@@ -64,9 +60,9 @@ int main() {
     int k = 50000;
     int chunk_size = n / 5;
 
-    auto A = kmm::Array<float, 2>{{n, k}};
-    auto B = kmm::Array<float, 2>{{k, m}};
-    auto C = kmm::Array<float, 2>{{n, m}};
+    auto A = kmm::Array<float, 2> {{n, k}};
+    auto B = kmm::Array<float, 2> {{k, m}};
+    auto C = kmm::Array<float, 2> {{n, m}};
 
     rt.parallel_submit(
         {n, k},

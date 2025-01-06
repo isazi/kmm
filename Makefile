@@ -1,7 +1,10 @@
+CLANG_FORMAT=clang-format-16 --verbose
+
 pretty:
-	clang-format-16 --verbose -i include/kmm/*.hpp include/kmm/*/*.hpp src/*.cpp src/*/*.cpp src/*/*.cu src/*/*/*.cpp src/*/*.cuh
-	clang-format-16 --verbose -i test/*.cpp
-	clang-format-16 --verbose -i examples/*.cu
+	${CLANG_FORMAT} -i include/kmm/*.hpp include/kmm/*/*.hpp
+	$(CLANG_FORMAT) -i src/*/*.cpp src/*/*.cu src/*/*.cuh
+	${CLANG_FORMAT} -i test/*/*.cpp
+	${CLANG_FORMAT} -i examples/*.cu
 
 all: pretty
 
