@@ -31,7 +31,7 @@ class Array: public ArrayBase {
 
     explicit Array(std::shared_ptr<ArrayHandle<N>> b) :
         m_handle(b),
-        m_shape(m_handle->array_size()) {}
+        m_shape(m_handle->distribution().array_size()) {}
 
     const std::type_info& type_info() const final {
         return typeid(T);
@@ -66,12 +66,16 @@ class Array: public ArrayBase {
         return *m_handle;
     }
 
+    const DataDistribution<N>& distribution() const {
+        return handle().worker();
+    }
+
     Size<N> chunk_size() const {
-        return handle().chunk_size();
+        return distribution().chunk_size();
     }
 
     int64_t chunk_size(size_t axis) const {
-        return handle().chunk_size().get(axis);
+        return chunk_size().get(axis);
     }
 
     const Worker& worker() const {
@@ -80,7 +84,7 @@ class Array: public ArrayBase {
 
     void synchronize() const {
         if (m_handle) {
-            m_handle->synchronize();
+            m_handle->distribution().synchronize();
         }
     }
 
@@ -116,7 +120,7 @@ class Array: public ArrayBase {
 
   private:
     std::shared_ptr<ArrayHandle<N>> m_handle;
-    Index<N> m_offset;  // Unused for now
+    Index<N> m_offset;  // Unused for now, always zero
     Size<N> m_shape;
 };
 
@@ -129,14 +133,17 @@ struct ArgumentHandler<Read<Array<T, N>>> {
 
     ArgumentHandler(Read<Array<T, N>> arg) :
         m_handle(arg.argument.handle().shared_from_this()),
-        m_chunk(m_handle->find_chunk(m_handle->array_size())) {}
+        m_chunk(m_handle->distribution().chunk(0)) {
+        m_handle->distribution().region_to_chunk_index(arg.argument.size()
+        );  // Check if it is in-bounds
+    }
 
     void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
         auto buffer_index = builder.add_buffer_requirement(BufferRequirement {
-            .buffer_id = m_chunk.buffer_id,
-            .memory_id = builder.memory_id,
+            .buffer_id = m_handle->buffer(0),
+            .memory_id = m_chunk.owner_id,
             .access_mode = AccessMode::Read});
 
         auto domain = views::dynamic_domain<N> {m_chunk.size};
@@ -206,15 +213,17 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
     void initialize(const TaskSetInit& init) {}
 
     type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_access_mapper(builder.chunk, Range<N>(m_handle->array_size()));
-        auto data_chunk = m_handle->find_chunk(access_region);
+        auto array_size = m_handle->distribution().array_size();
+        auto access_region = m_access_mapper(builder.chunk, Range<N>(array_size));
+        auto index = m_handle->distribution().region_to_chunk_index(access_region);
 
         auto buffer_index = builder.add_buffer_requirement(BufferRequirement {
-            .buffer_id = data_chunk.buffer_id,
+            .buffer_id = m_handle->buffer(index),
             .memory_id = builder.memory_id,
             .access_mode = AccessMode::Read});
 
-        auto domain = views::dynamic_subdomain<N> {data_chunk.offset, data_chunk.size};
+        auto chunk = m_handle->distribution().chunk(index);
+        auto domain = views::dynamic_subdomain<N> {chunk.offset, chunk.size};
         return {buffer_index, domain};
     }
 

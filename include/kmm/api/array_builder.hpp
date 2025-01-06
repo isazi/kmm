@@ -11,7 +11,6 @@ class TaskGraph;
 
 template<size_t N>
 struct DataChunk {
-    BufferId buffer_id;
     MemoryId owner_id;
     Index<N> offset;
     Size<N> size;
@@ -22,7 +21,8 @@ class DataDistribution {
   public:
     DataDistribution(Size<N> array_size, std::vector<DataChunk<N>> chunks);
 
-    DataChunk<N> find_chunk(Range<N> region) const;
+    size_t region_to_chunk_index(Range<N> region) const;
+
     DataChunk<N> chunk(size_t index) const;
 
     size_t num_chunks() const {
@@ -43,6 +43,7 @@ class DataDistribution {
 
   protected:
     std::vector<DataChunk<N>> m_chunks;
+    std::vector<size_t> m_mapping;
     std::array<size_t, N> m_chunks_count;
     Size<N> m_array_size = Size<N>::zero();
     Size<N> m_chunk_size = Size<N>::zero();
@@ -56,7 +57,7 @@ class ArrayBuilder {
         m_element_layout(element_layout) {}
 
     BufferRequirement add_chunk(TaskGraph& graph, MemoryId memory_id, Range<N> access_region);
-    DataDistribution<N> build(TaskGraph& graph);
+    std::pair<DataDistribution<N>, std::vector<BufferId>> build(TaskGraph& graph);
 
     Size<N> sizes() const {
         return m_sizes;
@@ -66,6 +67,7 @@ class ArrayBuilder {
     Size<N> m_sizes;
     DataLayout m_element_layout;
     std::vector<DataChunk<N>> m_chunks;
+    std::vector<BufferId> m_buffers;
 };
 
 template<size_t N>
@@ -85,7 +87,7 @@ class ArrayReductionBuilder {
 
     void add_chunks(ArrayReductionBuilder<N>&& other);
 
-    DataDistribution<N> build(TaskGraph& graph);
+    std::pair<DataDistribution<N>, std::vector<BufferId>> build(TaskGraph& graph);
 
     Size<N> sizes() const {
         return m_sizes;

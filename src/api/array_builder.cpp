@@ -12,8 +12,8 @@ BufferRequirement ArrayBuilder<N>::add_chunk(
     auto num_elements = checked_cast<size_t>(access_region.size());
     auto buffer_id = graph.create_buffer(m_element_layout.repeat(num_elements));
 
+    m_buffers.push_back(buffer_id);
     m_chunks.push_back(DataChunk<N> {
-        .buffer_id = buffer_id,
         .owner_id = memory_id,
         .offset = access_region.offset,
         .size = access_region.sizes});
@@ -25,8 +25,8 @@ BufferRequirement ArrayBuilder<N>::add_chunk(
 }
 
 template<size_t N>
-DataDistribution<N> ArrayBuilder<N>::build(TaskGraph& graph) {
-    return DataDistribution<N>(m_sizes, std::move(m_chunks));
+std::pair<DataDistribution<N>, std::vector<BufferId>> ArrayBuilder<N>::build(TaskGraph& graph) {
+    return {{m_sizes, std::move(m_chunks)}, std::move(m_buffers)};
 }
 
 template<size_t N>
@@ -101,8 +101,11 @@ void ArrayReductionBuilder<N>::add_chunks(ArrayReductionBuilder<N>&& other) {
 }
 
 template<size_t N>
-DataDistribution<N> ArrayReductionBuilder<N>::build(TaskGraph& graph) {
+std::pair<DataDistribution<N>, std::vector<BufferId>> ArrayReductionBuilder<N>::build(
+    TaskGraph& graph
+) {
     std::vector<DataChunk<N>> chunks;
+    std::vector<BufferId> buffers;
 
     for (auto& p : m_partial_inputs) {
         auto access_region = p.first;
@@ -120,8 +123,8 @@ DataDistribution<N> ArrayReductionBuilder<N>::build(TaskGraph& graph) {
 
         auto event_id = graph.insert_multilevel_reduction(buffer_id, memory_id, reduction, inputs);
 
+        buffers.push_back(buffer_id);
         chunks.push_back(DataChunk<N> {
-            .buffer_id = buffer_id,
             .owner_id = memory_id,
             .offset = access_region.offset,
             .size = access_region.sizes});
@@ -131,7 +134,7 @@ DataDistribution<N> ArrayReductionBuilder<N>::build(TaskGraph& graph) {
         }
     }
 
-    return DataDistribution<N>(m_sizes, std::move(chunks));
+    return {{m_sizes, std::move(chunks)}, std::move(buffers)};
 }
 
 #define INSTANTIATE_ARRAY_IMPL(NAME)     \

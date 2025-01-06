@@ -32,8 +32,9 @@ Range<N> index2region(
 
 template<size_t N>
 DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<N>> chunks) :
+    m_chunks(std::move(chunks)),
     m_array_size(array_size) {
-    for (const auto& chunk : chunks) {
+    for (const auto& chunk : m_chunks) {
         if (chunk.offset == Index<N>::zero()) {
             m_chunk_size = chunk.size;
         }
@@ -47,13 +48,12 @@ DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<
         m_chunks_count[i] = checked_cast<size_t>(div_ceil(array_size[i], m_chunk_size[i]));
     }
 
-    size_t num_total_chunks = checked_product(m_chunks_count.begin(), m_chunks_count.end());
-
     static constexpr size_t INVALID_INDEX = static_cast<size_t>(-1);
-    std::vector<size_t> buffer_locs(num_total_chunks, INVALID_INDEX);
+    m_mapping = std::vector<size_t>(m_chunks.size(), INVALID_INDEX);
 
-    for (const auto& chunk : chunks) {
-        size_t buffer_index = 0;
+    for (size_t index = 0; index < m_chunks.size(); index++) {
+        const auto chunk = m_chunks[index];
+        size_t linear_index = 0;
         Index<N> expected_offset;
         Size<N> expected_size;
 
@@ -63,7 +63,7 @@ DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<
             expected_offset[i] = k * m_chunk_size[i];
             expected_size[i] = std::min(m_chunk_size[i], array_size[i] - expected_offset[i]);
 
-            buffer_index = buffer_index * m_chunks_count[i] + static_cast<size_t>(k);
+            linear_index = linear_index * m_chunks_count[i] + static_cast<size_t>(k);
         }
 
         if (chunk.offset != expected_offset || chunk.size != expected_size) {
@@ -74,17 +74,17 @@ DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<
             ));
         }
 
-        if (buffer_locs[buffer_index] != INVALID_INDEX) {
+        if (m_mapping[linear_index] != INVALID_INDEX) {
             throw std::runtime_error(fmt::format(
                 "invalid write access pattern, the region {} is written to by more one task",
                 Range<N>(expected_offset, expected_size)
             ));
         }
 
-        buffer_locs[buffer_index] = buffer_index;
+        m_mapping[linear_index] = index;
     }
 
-    for (size_t index : buffer_locs) {
+    for (size_t index : m_mapping) {
         if (index == INVALID_INDEX) {
             auto region = index2region(index, m_chunks_count, m_chunk_size, m_array_size);
             throw std::runtime_error(
@@ -92,26 +92,20 @@ DataDistribution<N>::DataDistribution(Size<N> array_size, std::vector<DataChunk<
             );
         }
     }
-
-    for (size_t index : buffer_locs) {
-        m_chunks.push_back(chunks[index]);
-    }
 }
 
 template<size_t N>
 ArrayHandle<N>::~ArrayHandle() {
     m_worker->with_task_graph([&](auto& builder) {
-        for (const auto& chunk : this->m_chunks) {
-            builder.delete_buffer(chunk.buffer_id);
+        for (const auto& buffer_id : this->m_buffers) {
+            builder.delete_buffer(buffer_id);
         }
     });
 }
 
 template<size_t N>
-DataChunk<N> DataDistribution<N>::find_chunk(Range<N> region) const {
+size_t DataDistribution<N>::region_to_chunk_index(Range<N> region) const {
     size_t index = 0;
-    Index<N> offset;
-    Size<N> sizes;
 
     for (size_t i = 0; compare_less(i, N); i++) {
         auto k = div_floor(region.offset[i], m_chunk_size[i]);
@@ -134,14 +128,9 @@ DataChunk<N> DataDistribution<N>::find_chunk(Range<N> region) const {
         }
 
         index = index * m_chunks_count[i] + static_cast<size_t>(k);
-        offset[i] = k * m_chunk_size[i];
-        sizes[i] = m_chunk_size[i];
     }
 
-    // TODO?
-    MemoryId memory_id = MemoryId::host();
-
-    return {m_chunks[index].buffer_id, memory_id, offset, sizes};
+    return index;
 }
 
 template<size_t N>
@@ -158,12 +147,17 @@ DataChunk<N> DataDistribution<N>::chunk(size_t index) const {
 }
 
 template<size_t N>
+BufferId ArrayHandle<N>::buffer(size_t index) const {
+    return m_buffers.at(index);
+}
+
+template<size_t N>
 void ArrayHandle<N>::synchronize() const {
     auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
         auto deps = EventList {};
 
-        for (const auto& chunk : this->m_chunks) {
-            deps.insert_all(graph.extract_buffer_dependencies(chunk.buffer_id));
+        for (const auto& buffer_id : m_buffers) {
+            deps.insert_all(graph.extract_buffer_dependencies(buffer_id));
         }
 
         return graph.join_events(deps);
@@ -172,7 +166,7 @@ void ArrayHandle<N>::synchronize() const {
     m_worker->query_event(event_id, std::chrono::system_clock::time_point::max());
 
     // Access each buffer once to check for errors.
-    for (size_t i = 0; i < this->m_chunks.size(); i++) {
+    for (size_t i = 0; i < m_buffers.size(); i++) {
         //        auto memory_id = this->chunk(i).owner_id;
         //        m_worker->access_buffer(m_buffers[i], memory_id, AccessMode::Read);
         //        KMM_TODO();
@@ -227,19 +221,20 @@ void ArrayHandle<N>::copy_bytes(void* dest_addr, size_t element_size) const {
     auto event_id = m_worker->with_task_graph([&](TaskGraph& graph) {
         EventList deps;
 
-        for (size_t i = 0; i < this->m_chunks.size(); i++) {
-            auto& chunk = this->m_chunks[i];
+        for (size_t i = 0; i < m_buffers.size(); i++) {
+            auto chunk = m_distribution.chunk(i);
             auto region = Range<N> {chunk.offset, chunk.size};
 
             auto task = std::make_shared<CopyOutTask<N>>(
                 dest_addr,
                 element_size,
-                this->m_array_size,
+                m_distribution.array_size(),
                 region
             );
 
+            auto buffer_id = m_buffers[i];
             auto buffer = BufferRequirement {
-                .buffer_id = chunk.buffer_id,
+                .buffer_id = buffer_id,
                 .memory_id = MemoryId::host(),
                 .access_mode = AccessMode::Read,
             };
@@ -255,9 +250,13 @@ void ArrayHandle<N>::copy_bytes(void* dest_addr, size_t element_size) const {
 }
 
 template<size_t N>
-ArrayHandle<N>::ArrayHandle(Worker& worker, DataDistribution<N> distribution) :
-    DataDistribution<N>(std::move(distribution)),
-    m_worker(worker.shared_from_this()) {}
+ArrayHandle<N>::ArrayHandle(
+    Worker& worker,
+    std::pair<DataDistribution<N>, std::vector<BufferId>> distribution
+) :
+    m_distribution(std::move(distribution.first)),
+    m_worker(worker.shared_from_this()),
+    m_buffers(std::move(distribution.second)) {}
 
 #define INSTANTIATE_ARRAY_IMPL(NAME)     \
     template class NAME<0>; /* NOLINT */ \
