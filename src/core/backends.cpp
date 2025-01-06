@@ -1,28 +1,10 @@
 
 #include "kmm/core/backends.hpp"
-#include "kmm/core/reduction.hpp"
+#include "kmm/memops/types.hpp"
 
 namespace kmm {
 
 #if !defined(KMM_USE_CUDA) && !defined(KMM_USE_HIP)
-
-dim3::dim3(unsigned int x) {
-    this->x = x;
-    this->y = 1;
-    this->z = 1;
-}
-
-dim3::dim3(unsigned int x, unsigned int y) {
-    this->x = x;
-    this->y = y;
-    this->z = 1;
-}
-
-dim3::dim3(unsigned int x, unsigned int y, unsigned int z) {
-    this->x = x;
-    this->y = y;
-    this->z = z;
-}
 
 GPUresult gpuCtxGetDevice(GPUdevice*) {
     return GPUresult(GPU_ERROR_UNKNOWN);
@@ -40,31 +22,31 @@ GPUresult gpuMemGetInfo(size_t*, size_t*) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemcpyHtoDAsync(GPUdeviceptr, const void*, size_t, stream_t) {
+GPUresult gpuMemcpyHtoDAsync(GPUdeviceptr, const void*, size_t, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemcpyDtoHAsync(void*, GPUdeviceptr, size_t, stream_t) {
+GPUresult gpuMemcpyDtoHAsync(void*, GPUdeviceptr, size_t, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuStreamSynchronize(stream_t) {
+GPUresult gpuStreamSynchronize(GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemsetD8Async(GPUdeviceptr, unsigned char, size_t, stream_t) {
+GPUresult gpuMemsetD8Async(GPUdeviceptr, unsigned char, size_t, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemsetD16Async(GPUdeviceptr, unsigned short, size_t, stream_t) {
+GPUresult gpuMemsetD16Async(GPUdeviceptr, unsigned short, size_t, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemsetD32Async(GPUdeviceptr, unsigned int, size_t, stream_t) {
+GPUresult gpuMemsetD32Async(GPUdeviceptr, unsigned int, size_t, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemcpyAsync(GPUdeviceptr, GPUdeviceptr, size_t, stream_t) {
+GPUresult gpuMemcpyAsync(GPUdeviceptr, GPUdeviceptr, size_t, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -92,11 +74,11 @@ GPUresult gpuMemPoolDestroy(GPUmemoryPool) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemAllocFromPoolAsync(GPUdeviceptr*, size_t, GPUmemoryPool, stream_t) {
+GPUresult gpuMemAllocFromPoolAsync(GPUdeviceptr*, size_t, GPUmemoryPool, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemFreeAsync(GPUdeviceptr, stream_t) {
+GPUresult gpuMemFreeAsync(GPUdeviceptr, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -104,43 +86,43 @@ GPUresult gpuCtxGetStreamPriorityRange(int*, int*) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuStreamCreateWithPriority(stream_t*, unsigned int, int) {
+GPUresult gpuStreamCreateWithPriority(GPUstream_t*, unsigned int, int) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuStreamQuery(stream_t) {
+GPUresult gpuStreamQuery(GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuStreamDestroy(stream_t) {
+GPUresult gpuStreamDestroy(GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult cuStreamDestroy(stream_t) {
+GPUresult cuStreamDestroy(GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuEventSynchronize(event_t) {
+GPUresult gpuEventSynchronize(GPUevent_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuEventRecord(event_t, stream_t) {
+GPUresult gpuEventRecord(GPUevent_t, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuStreamWaitEvent(stream_t, event_t, unsigned int) {
+GPUresult gpuStreamWaitEvent(GPUstream_t, GPUevent_t, unsigned int) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuEventQuery(event_t) {
+GPUresult gpuEventQuery(GPUevent_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuEventDestroy(event_t) {
+GPUresult gpuEventDestroy(GPUevent_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuEventCreate(event_t, unsigned int) {
+GPUresult gpuEventCreate(GPUevent_t, unsigned int) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -148,7 +130,7 @@ GPUresult gpuMemcpyHtoD(GPUdeviceptr, const void*, size_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemcpy2DAsync(const GPU_MEMCPY2D*, stream_t) {
+GPUresult gpuMemcpy2DAsync(const GPU_MEMCPY2D*, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -160,7 +142,7 @@ GPUresult gpuMemcpyDtoH(void*, GPUdeviceptr, size_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
-GPUresult gpuMemcpyDtoDAsync(GPUdeviceptr, GPUdeviceptr, size_t, stream_t) {
+GPUresult gpuMemcpyDtoDAsync(GPUdeviceptr, GPUdeviceptr, size_t, GPUstream_t) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
 
@@ -227,7 +209,7 @@ GPUresult gpuCtxPushCurrent(GPUcontext) {
 GPUresult gpuCtxPopCurrent(GPUcontext*) {
     return GPUresult(GPU_ERROR_UNKNOWN);
 }
-gpuError_t GPUrtLaunchKernel(const void*, dim3, dim3, void**, size_t, stream_t) {
+gpuError_t GPUrtLaunchKernel(const void*, dim3, dim3, void**, size_t, GPUstream_t) {
     return gpuError_t(GPU_ERROR_UNKNOWN);
 }
 
@@ -243,7 +225,7 @@ blasStatus_t blasCreate(blasHandle_t) {
     return blasStatus_t(1);
 }
 
-blasStatus_t blasSetStream(blasHandle_t, stream_t) {
+blasStatus_t blasSetStream(blasHandle_t, GPUstream_t) {
     return blasStatus_t(1);
 }
 
@@ -260,7 +242,7 @@ const char* blasGetStatusString(blasStatus_t) {
 }
 
 void execute_gpu_fill_async(
-    stream_t stream,
+    GPUstream_t stream,
     GPUdeviceptr dst_buffer,
     size_t nbytes,
     const void* pattern,
@@ -270,7 +252,7 @@ void execute_gpu_fill_async(
 }
 
 void execute_gpu_reduction_async(
-    stream_t stream,
+    GPUstream_t stream,
     GPUdeviceptr src_buffer,
     GPUdeviceptr dst_buffer,
     ReductionDef reduction
@@ -278,7 +260,7 @@ void execute_gpu_reduction_async(
     return;
 }
 
-void execute_gpu_fill_async(stream_t stream, GPUdeviceptr dst_buffer, const FillDef& fill) {
+void execute_gpu_fill_async(GPUstream_t stream, GPUdeviceptr dst_buffer, const FillDef& fill) {
     return;
 }
 
