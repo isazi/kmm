@@ -354,8 +354,8 @@ DeviceEventSet& DeviceEventSet::operator=(std::initializer_list<DeviceEvent> e) 
 }
 
 void DeviceEventSet::insert(DeviceEvent e) noexcept {
-    bool found = false;
-    size_t found_index;
+    static constexpr size_t INVALID_INDEX = std::numeric_limits<size_t>::max();
+    size_t found_index = INVALID_INDEX;
 
     if (e == DeviceEvent {}) {
         return;
@@ -363,58 +363,56 @@ void DeviceEventSet::insert(DeviceEvent e) noexcept {
 
     for (size_t i = 0; i < m_events.size(); i++) {
         if (m_events[i].stream() == e.stream()) {
-            found = true;
             found_index = i;
         }
     }
 
-    if (found) {
+    if (found_index != INVALID_INDEX) {
         m_events[found_index] = std::max(m_events[found_index], e);
     } else {
-        m_events.push_back(e);
+        KMM_ASSERT(m_events.try_push_back(e));
     }
 }
 
-void DeviceEventSet::insert(const DeviceEventSet& events) noexcept {
-    size_t n = m_events.size();
+void DeviceEventSet::insert(const DeviceEventSet& that) noexcept {
+    static constexpr size_t INVALID_INDEX = std::numeric_limits<size_t>::max();
+    size_t num_old_events = m_events.size();
 
-    for (DeviceEvent e : events) {
-        bool found = false;
-        size_t found_index;
+    for (auto e : that.m_events) {
+        size_t found_index = INVALID_INDEX;
 
-        for (size_t i = 0; i < n; i++) {
+        for (size_t i = 0; i < num_old_events; i++) {
             if (m_events[i].stream() == e.stream()) {
-                found = true;
                 found_index = i;
             }
         }
 
-        if (found) {
+        if (found_index != INVALID_INDEX) {
             m_events[found_index] = std::max(m_events[found_index], e);
         } else {
-            m_events.push_back(e);
+            KMM_ASSERT(m_events.try_push_back(e));
         }
     }
 }
 
-void DeviceEventSet::insert(DeviceEventSet&& events) noexcept {
+void DeviceEventSet::insert(DeviceEventSet&& that) noexcept {
     if (m_events.is_empty()) {
-        m_events = std::move(events.m_events);
+        m_events = std::move(that.m_events);
     } else {
-        insert(events);
+        insert(that);
     }
 }
 
 void DeviceEventSet::remove_completed(const DeviceStreamManager& m) {
-    size_t index = 0;
-    size_t new_size = m_events.size();
+    size_t old_size = m_events.size();
+    size_t new_size = 0;
 
-    while (index < new_size) {
-        if (m.is_ready(m_events[index])) {
-            m_events[index] = m_events[new_size - 1];
-            new_size--;
-        } else {
-            index++;
+    for (size_t index = 0; index < old_size; index++) {
+        auto event = m_events[index];
+
+        if (!m.is_ready(event)) {
+            m_events[new_size] = event;
+            new_size++;
         }
     }
 
@@ -435,6 +433,12 @@ const DeviceEvent* DeviceEventSet::begin() const noexcept {
 
 const DeviceEvent* DeviceEventSet::end() const noexcept {
     return m_events.end();
+}
+
+DeviceEventSet operator|(const DeviceEventSet& a, const DeviceEventSet& b) {
+    DeviceEventSet result = a;
+    result.insert(b);
+    return result;
 }
 
 std::ostream& operator<<(std::ostream& f, const DeviceStream& e) {

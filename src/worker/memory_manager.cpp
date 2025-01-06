@@ -10,6 +10,11 @@
 namespace kmm {
 
 struct BufferEntry {
+    KMM_NOT_COPYABLE_OR_MOVABLE(BufferEntry)
+
+  public:
+    BufferEntry() = default;
+
     bool is_allocated = false;
     bool is_valid = false;
 
@@ -32,36 +37,6 @@ struct DeviceEntry: public BufferEntry {
 
     MemoryManager::Buffer* lru_older = nullptr;
     MemoryManager::Buffer* lru_newer = nullptr;
-};
-
-struct MemoryManager::Buffer {
-    KMM_NOT_COPYABLE_OR_MOVABLE(Buffer);
-
-  public:
-    Buffer(std::string name, DataLayout layout) : name(std::move(name)), layout(layout) {
-        if (this->name.empty()) {
-            this->name = std::to_string(std::intptr_t(this));
-        }
-    }
-
-    std::string name;
-    DataLayout layout;
-    HostEntry host_entry;
-    DeviceEntry device_entry[MAX_DEVICES];
-    size_t num_requests_active = 0;
-    bool is_deleted = false;
-
-    Request* access_head = nullptr;
-    Request* access_first_pending = nullptr;
-    Request* access_tail = nullptr;
-
-    KMM_INLINE BufferEntry& entry(MemoryId memory_id) noexcept {
-        if (memory_id.is_host()) {
-            return host_entry;
-        } else {
-            return device_entry[memory_id.as_device()];
-        }
-    }
 };
 
 struct MemoryManager::Transaction {
@@ -110,10 +85,138 @@ struct MemoryManager::Request {
     Request* access_prev = nullptr;
 };
 
+struct MemoryManager::Buffer {
+    KMM_NOT_COPYABLE_OR_MOVABLE(Buffer);
+
+  public:
+    Buffer(std::string name, DataLayout layout) : name(std::move(name)), layout(layout) {
+        if (this->name.empty()) {
+            this->name = std::to_string(std::intptr_t(this));
+        }
+    }
+
+    std::string name;
+    DataLayout layout;
+    HostEntry host_entry;
+    DeviceEntry device_entry[MAX_DEVICES];
+    size_t num_requests_active = 0;
+    bool is_deleted = false;
+
+    Request* access_head = nullptr;
+    Request* access_first_pending = nullptr;
+    Request* access_tail = nullptr;
+
+    KMM_INLINE BufferEntry& entry(MemoryId memory_id) noexcept {
+        if (memory_id.is_host()) {
+            return host_entry;
+        } else {
+            return device_entry[memory_id.as_device()];
+        }
+    }
+
+    void add_to_access_queue(Request& req) noexcept {
+        this->num_requests_active++;
+
+        if (this->access_tail == nullptr) {
+            this->access_head = &req;
+            this->access_tail = &req;
+        } else {
+            auto* prev = this->access_tail;
+            prev->access_next = &req;
+            req.access_prev = prev;
+
+            this->access_tail = &req;
+        }
+
+        if (this->access_first_pending == nullptr) {
+            this->access_first_pending = &req;
+        }
+    }
+
+    void remove_from_access_queue(Request& req) noexcept {
+        this->num_requests_active--;
+        auto* prev = std::exchange(req.access_prev, nullptr);
+        auto* next = std::exchange(req.access_next, nullptr);
+
+        if (prev != nullptr) {
+            prev->access_next = next;
+        } else {
+            KMM_ASSERT(this->access_head == &req);
+            this->access_head = next;
+        }
+
+        if (next != nullptr) {
+            next->access_prev = prev;
+        } else {
+            KMM_ASSERT(this->access_tail == &req);
+            this->access_tail = prev;
+        }
+
+        if (this->access_first_pending == &req) {
+            this->access_first_pending = next;
+        }
+
+        if (req.access_acquired) {
+            req.access_acquired = false;
+
+            // Poll queue, releasing the lock might allow another request to gain access
+            poll_access_queue();
+        }
+    }
+
+    bool is_access_allowed(const Request& req) const noexcept {
+        auto mode = req.mode;
+
+        for (auto* it = this->access_head; it != this->access_first_pending; it = it->access_next) {
+            // Two exclusive requests can never be granted access simultaneously
+            if (mode == AccessMode::Exclusive || it->mode == AccessMode::Exclusive) {
+                return false;
+            }
+
+            // Two non-read requests can only be granted simultaneously if operating on the same memory.
+            if (mode != AccessMode::Read || it->mode != AccessMode::Read) {
+                if (req.memory_id != it->memory_id) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    void poll_access_queue() noexcept {
+        while (this->access_first_pending != nullptr) {
+            auto* req = this->access_first_pending;
+
+            if (!is_access_allowed(*req)) {
+                return;
+            }
+
+            req->access_acquired = true;
+            spdlog::trace(
+                "access to buffer {} was granted to request {} (memory={}, mode={})",
+                this->name,
+                req->identifier,
+                req->memory_id,
+                req->mode
+            );
+
+            this->access_first_pending = this->access_first_pending->access_next;
+        }
+    }
+
+    bool request_has_access(const Request& req) {
+        poll_access_queue();
+        return req.access_acquired;
+    }
+};
+
 struct MemoryManager::Device {
     KMM_NOT_COPYABLE_OR_MOVABLE(Device);
 
   public:
+    DeviceId device_id;
+
     Buffer* lru_oldest = nullptr;
     Buffer* lru_newest = nullptr;
 
@@ -121,19 +224,131 @@ struct MemoryManager::Device {
     Request* allocation_first_pending = nullptr;
     Request* allocation_tail = nullptr;
 
-    Device() = default;
+    Device(DeviceId id) : device_id(id) {}
+
+    void add_to_allocation_queue(Request& req) noexcept {
+        auto* tail = this->allocation_tail;
+
+        if (tail == nullptr) {
+            this->allocation_head = &req;
+        } else {
+            tail->allocation_next = &req;
+            req.allocation_prev = tail;
+        }
+
+        this->allocation_tail = &req;
+
+        if (this->allocation_first_pending == nullptr) {
+            this->allocation_first_pending = &req;
+        }
+    }
+
+    void remove_from_allocation_queue(Request& req) noexcept {
+        auto* prev = std::exchange(req.allocation_prev, nullptr);
+        auto* next = std::exchange(req.allocation_next, nullptr);
+
+        if (prev != nullptr) {
+            prev->allocation_next = next;
+        } else {
+            KMM_ASSERT(this->allocation_head == &req);
+            this->allocation_head = next;
+        }
+
+        if (next != nullptr) {
+            next->allocation_prev = prev;
+        } else {
+            KMM_ASSERT(this->allocation_tail == &req);
+            this->allocation_tail = prev;
+        }
+
+        if (this->allocation_first_pending == &req) {
+            this->allocation_first_pending = next;
+        }
+    }
+
+    void add_to_lru(Buffer& buffer) noexcept {
+        auto& device_entry = buffer.device_entry[device_id];
+        auto& device = *this;
+
+        KMM_ASSERT(device_entry.is_allocated);
+        KMM_ASSERT(device_entry.num_allocation_locks == 0);
+
+        auto* prev = device.lru_newest;
+        if (prev != nullptr) {
+            prev->device_entry[device_id].lru_newer = &buffer;
+        } else {
+            device.lru_oldest = &buffer;
+        }
+
+        device_entry.lru_older = prev;
+        device_entry.lru_newer = nullptr;
+        device.lru_newest = &buffer;
+    }
+
+    void remove_from_lru(Buffer& buffer) noexcept {
+        auto& device_entry = buffer.device_entry[device_id];
+        auto& device = *this;
+
+        KMM_ASSERT(device_entry.is_allocated);
+        KMM_ASSERT(device_entry.num_allocation_locks == 0);
+
+        auto* prev = std::exchange(device_entry.lru_newer, nullptr);
+        auto* next = std::exchange(device_entry.lru_older, nullptr);
+
+        if (prev != nullptr) {
+            prev->device_entry[device_id].lru_older = next;
+        } else {
+            device.lru_newest = next;
+        }
+
+        if (next != nullptr) {
+            next->device_entry[device_id].lru_newer = prev;
+        } else {
+            device.lru_oldest = prev;
+        }
+    }
+
+    void increment_allocation_locks(Buffer& buffer, Request& req) {
+        KMM_ASSERT(req.allocation_acquired == false);
+        KMM_ASSERT(allocation_first_pending == &req);
+
+        auto& device_entry = buffer.device_entry[device_id];
+        KMM_ASSERT(device_entry.is_allocated);
+
+        if (device_entry.num_allocation_locks == 0) {
+            remove_from_lru(buffer);
+        }
+
+        device_entry.num_allocation_locks++;
+
+        req.allocation_acquired = true;
+        this->allocation_first_pending = req.allocation_next;
+    }
+
+    void decrement_allocation_locks(Buffer& buffer) {
+        auto& device_entry = buffer.device_entry[device_id];
+        KMM_ASSERT(device_entry.is_allocated);
+        KMM_ASSERT(device_entry.num_allocation_locks > 0);
+
+        device_entry.num_allocation_locks--;
+
+        if (device_entry.num_allocation_locks == 0) {
+            add_to_lru(buffer);
+        }
+    }
 };
 
-MemoryManager::MemoryManager(std::shared_ptr<MemorySystem> memory_system) :
+template<size_t... Id>
+static auto make_devices(std::index_sequence<Id...> /*unused*/) {
+    return new MemoryManager::Device[MAX_DEVICES] {DeviceId(Id)...};
+}
+
+MemoryManager::MemoryManager(std::shared_ptr<MemorySystemBase> memory_system) :
     m_memory(std::move(memory_system)),
-    m_devices(std::make_unique<Device[]>(MAX_DEVICES)) {}
+    m_devices(make_devices(std::make_index_sequence<MAX_DEVICES>())) {}
 
 MemoryManager::~MemoryManager() {
     KMM_ASSERT(m_buffers.empty());
-}
-
-void MemoryManager::make_progress() {
-    m_memory->make_progress();
 }
 
 bool MemoryManager::is_idle(DeviceStreamManager& streams) const {
@@ -153,6 +368,13 @@ bool MemoryManager::is_idle(DeviceStreamManager& streams) const {
     }
 
     return result;
+}
+
+std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
+    std::shared_ptr<Transaction> parent
+) {
+    auto id = m_next_transaction_id++;
+    return std::make_shared<Transaction>(id, parent);
 }
 
 std::shared_ptr<MemoryManager::Buffer> MemoryManager::create_buffer(
@@ -195,13 +417,6 @@ void MemoryManager::delete_buffer(std::shared_ptr<Buffer> buffer) {
     check_consistency();
 }
 
-std::shared_ptr<MemoryManager::Transaction> MemoryManager::create_transaction(
-    std::shared_ptr<Transaction> parent
-) {
-    auto id = m_next_transaction_id++;
-    return std::make_shared<Transaction>(id, parent);
-}
-
 std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     std::shared_ptr<Buffer> buffer,
     MemoryId memory_id,
@@ -209,16 +424,15 @@ std::shared_ptr<MemoryManager::Request> MemoryManager::create_request(
     std::shared_ptr<Transaction> parent
 ) {
     KMM_ASSERT(!buffer->is_deleted);
-    buffer->num_requests_active++;
-
     auto req = std::make_shared<Request>(m_next_request_id++, buffer, memory_id, mode, parent);
+
     m_active_requests.insert(req);
+    buffer->add_to_access_queue(*req);
 
     if (memory_id.is_device()) {
-        add_to_allocation_queue(memory_id.as_device(), *req);
+        device_at(memory_id.as_device()).add_to_allocation_queue(*req);
     }
 
-    add_to_buffer_access_queue(*buffer, *req);
     return req;
 }
 
@@ -230,20 +444,24 @@ Poll MemoryManager::poll_request(Request& req, DeviceEventSet* deps_out) {
         if (memory_id.is_host()) {
             lock_allocation_host(buffer, req);
         } else {
-            if (!lock_allocation_device(memory_id.as_device(), buffer, req)) {
+            if (!try_lock_allocation_device(memory_id.as_device(), buffer, req)) {
                 return Poll::Pending;
             }
         }
 
-        deps_out->insert(buffer.entry(memory_id).epoch_event);
         req.status = Request::Status::Allocated;
     }
 
     if (req.status == Request::Status::Allocated) {
-        if (!try_lock_access(memory_id, buffer, req, deps_out)) {
+        if (!buffer.request_has_access(req)) {
             return Poll::Pending;
         }
 
+        req.status = Request::Status::Locked;
+    }
+
+    if (req.status == Request::Status::Locked) {
+        prepare_access_to_buffer(memory_id, buffer, req.mode, deps_out);
         req.status = Request::Status::Ready;
     }
 
@@ -264,7 +482,16 @@ void MemoryManager::release_request(std::shared_ptr<Request> req, DeviceEvent ev
     }
 
     if (status == Request::Status::Locked) {
-        unlock_access(memory_id, buffer, *req, event);
+        spdlog::trace(
+            "access to buffer {} was revoked from request {} (memory={}, mode={}, GPU event={})",
+            buffer.name,
+            req->identifier,
+            req->memory_id,
+            req->mode,
+            event
+        );
+
+        finalize_access_to_buffer(memory_id, buffer, req->mode, event);
         status = Request::Status::Allocated;
     }
 
@@ -279,102 +506,12 @@ void MemoryManager::release_request(std::shared_ptr<Request> req, DeviceEvent ev
     }
 
     if (status == Request::Status::Init) {
-        remove_from_buffer_access_queue(buffer, *req);
-
         if (memory_id.is_device()) {
-            remove_from_allocation_queue(memory_id.as_device(), *req);
+            device_at(memory_id.as_device()).remove_from_allocation_queue(*req);
         }
 
-        buffer.num_requests_active--;
+        buffer.remove_from_access_queue(*req);
         m_active_requests.erase(req);
-    }
-}
-
-void MemoryManager::add_to_allocation_queue(DeviceId device_id, Request& req) const noexcept {
-    auto& device = m_devices[device_id];
-    auto* tail = device.allocation_tail;
-
-    if (tail == nullptr) {
-        device.allocation_head = &req;
-    } else {
-        tail->allocation_next = &req;
-        req.allocation_prev = tail;
-    }
-
-    device.allocation_tail = &req;
-
-    if (device.allocation_first_pending == nullptr) {
-        device.allocation_first_pending = &req;
-    }
-}
-
-void MemoryManager::remove_from_allocation_queue(DeviceId device_id, Request& req) const noexcept {
-    auto& device = m_devices[device_id];
-    auto* prev = std::exchange(req.allocation_prev, nullptr);
-    auto* next = std::exchange(req.allocation_next, nullptr);
-
-    if (prev != nullptr) {
-        prev->allocation_next = next;
-    } else {
-        KMM_ASSERT(device.allocation_head == &req);
-        device.allocation_head = next;
-    }
-
-    if (next != nullptr) {
-        next->allocation_prev = prev;
-    } else {
-        KMM_ASSERT(device.allocation_tail == &req);
-        device.allocation_tail = prev;
-    }
-
-    if (device.allocation_first_pending == &req) {
-        device.allocation_first_pending = next;
-    }
-}
-
-void MemoryManager::add_to_buffer_access_queue(Buffer& buffer, Request& req) noexcept {
-    auto* old_tail = buffer.access_tail;
-
-    if (old_tail == nullptr) {
-        buffer.access_head = &req;
-    } else {
-        old_tail->access_next = &req;
-        req.access_prev = old_tail;
-    }
-
-    buffer.access_tail = &req;
-
-    if (buffer.access_first_pending == nullptr) {
-        buffer.access_first_pending = &req;
-    }
-}
-
-void MemoryManager::remove_from_buffer_access_queue(Buffer& buffer, Request& req) noexcept {
-    auto* prev = std::exchange(req.access_prev, nullptr);
-    auto* next = std::exchange(req.access_next, nullptr);
-
-    if (prev != nullptr) {
-        prev->access_next = next;
-    } else {
-        KMM_ASSERT(buffer.access_head == &req);
-        buffer.access_head = next;
-    }
-
-    if (next != nullptr) {
-        next->access_prev = prev;
-    } else {
-        KMM_ASSERT(buffer.access_tail == &req);
-        buffer.access_tail = prev;
-    }
-
-    if (buffer.access_first_pending == &req) {
-        buffer.access_first_pending = next;
-    }
-
-    // Poll queue, release the lock might allow another request to gain access
-    if (req.access_acquired) {
-        req.access_acquired = false;
-        poll_access_queue(buffer);
     }
 }
 
@@ -394,156 +531,6 @@ BufferAccessor MemoryManager::get_accessor(Request& req) {
         .layout = buffer.layout,
         .is_writable = req.mode != AccessMode::Read,
         .address = address};
-}
-
-void MemoryManager::insert_into_lru(DeviceId device_id, Buffer& buffer) noexcept {
-    auto& device_entry = buffer.device_entry[device_id];
-    auto& device = m_devices[device_id];
-
-    KMM_ASSERT(device_entry.is_allocated);
-    KMM_ASSERT(device_entry.num_allocation_locks == 0);
-
-    auto* prev = device.lru_newest;
-    if (prev != nullptr) {
-        prev->device_entry[device_id].lru_newer = &buffer;
-    } else {
-        device.lru_oldest = &buffer;
-    }
-
-    device_entry.lru_older = prev;
-    device_entry.lru_newer = nullptr;
-    device.lru_newest = &buffer;
-
-    check_consistency();
-}
-
-void MemoryManager::remove_from_lru(DeviceId device_id, Buffer& buffer) noexcept  {
-    auto& device_entry = buffer.device_entry[device_id];
-    auto& device = m_devices[device_id];
-
-    KMM_ASSERT(device_entry.is_allocated);
-    KMM_ASSERT(device_entry.num_allocation_locks == 0);
-
-    auto* prev = std::exchange(device_entry.lru_newer, nullptr);
-    auto* next = std::exchange(device_entry.lru_older, nullptr);
-
-    if (prev != nullptr) {
-        prev->device_entry[device_id].lru_older = next;
-    } else {
-        device.lru_newest = next;
-    }
-
-    if (next != nullptr) {
-        next->device_entry[device_id].lru_newer = prev;
-    } else {
-        device.lru_oldest = prev;
-    }
-}
-
-bool MemoryManager::try_free_device_memory(DeviceId device_id) {
-    auto& device = m_devices[device_id];
-
-    if (device.lru_oldest == nullptr) {
-        return false;
-    }
-
-    auto& victim = *device.lru_oldest;
-
-    if (victim.device_entry[device_id].is_valid) {
-        bool valid_anywhere = victim.host_entry.is_valid;
-
-        for (size_t i = 0; i < MAX_DEVICES; i++) {
-            if (i != device_id) {
-                valid_anywhere |= victim.device_entry[i].is_valid;
-            }
-        }
-
-        if (!valid_anywhere) {
-            if (!victim.host_entry.is_allocated) {
-                allocate_host(victim);
-            }
-
-            copy_d2h(device_id, victim);
-        }
-    }
-
-    spdlog::debug(
-        "evict buffer {} from GPU {}, frees {} bytes",
-        victim.name,
-        device_id,
-        victim.layout.size_in_bytes
-    );
-
-    deallocate_device_async(device_id, victim);
-    return true;
-}
-
-bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer) {
-    auto& device_entry = buffer.device_entry[device_id];
-
-    if (device_entry.is_allocated) {
-        return true;
-    }
-
-    KMM_ASSERT(device_entry.num_allocation_locks == 0);
-    spdlog::trace(
-        "allocate {} bytes on GPU {} for buffer {}",
-        buffer.layout.size_in_bytes,
-        device_id,
-        buffer.name
-    );
-
-    GPUdeviceptr ptr_out;
-    DeviceEventSet events;
-    auto success =
-        m_memory->allocate_device(device_id, buffer.layout.size_in_bytes, &ptr_out, &events);
-
-    if (!success) {
-        return false;
-    }
-
-    device_entry.data = ptr_out;
-    device_entry.is_allocated = true;
-    device_entry.is_valid = false;
-    device_entry.epoch_event = events;
-    device_entry.access_events = events;
-    device_entry.write_events = std::move(events);
-    return true;
-}
-
-void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) {
-    auto& device_entry = buffer.device_entry[device_id];
-    KMM_ASSERT(device_entry.num_allocation_locks == 0);
-
-    if (!device_entry.is_allocated) {
-        return;
-    }
-
-    size_t size_in_bytes = buffer.layout.size_in_bytes;
-    spdlog::trace(
-        "free {} bytes for buffer {} on GPU {} (dependencies={})",
-        size_in_bytes,
-        buffer.name,
-        device_id,
-        device_entry.access_events
-    );
-
-    m_memory->deallocate_device(
-        device_id,
-        device_entry.data,
-        size_in_bytes,
-        std::move(device_entry.access_events)
-    );
-    remove_from_lru(device_id, buffer);
-
-    device_entry.is_allocated = false;
-    device_entry.is_valid = false;
-    device_entry.epoch_event.clear();
-    device_entry.write_events.clear();
-    device_entry.access_events.clear();
-    device_entry.data = 0;
-
-    check_consistency();
 }
 
 void MemoryManager::allocate_host(Buffer& buffer) {
@@ -601,6 +588,113 @@ void MemoryManager::deallocate_host(Buffer& buffer) {
     host_entry.data = nullptr;
 }
 
+bool MemoryManager::try_free_device_memory(DeviceId device_id) {
+    auto* victim = device_at(device_id).lru_oldest;
+
+    if (victim == nullptr) {
+        return false;
+    }
+
+    if (victim->device_entry[device_id].is_valid) {
+        bool valid_anywhere = victim->host_entry.is_valid;
+
+        for (size_t i = 0; i < MAX_DEVICES; i++) {
+            if (i != device_id) {
+                valid_anywhere |= victim->device_entry[i].is_valid;
+            }
+        }
+
+        if (!valid_anywhere) {
+            if (!victim->host_entry.is_allocated) {
+                allocate_host(*victim);
+            }
+
+            copy_d2h(device_id, *victim);
+        }
+    }
+
+    spdlog::debug(
+        "evict buffer {} from GPU {}, frees {} bytes",
+        victim->name,
+        device_id,
+        victim->layout.size_in_bytes
+    );
+
+    deallocate_device_async(device_id, *victim);
+    return true;
+}
+
+bool MemoryManager::try_allocate_device_async(DeviceId device_id, Buffer& buffer) {
+    auto& device_entry = buffer.device_entry[device_id];
+
+    if (device_entry.is_allocated) {
+        return true;
+    }
+
+    KMM_ASSERT(device_entry.num_allocation_locks == 0);
+    spdlog::trace(
+        "allocate {} bytes on GPU {} for buffer {}",
+        buffer.layout.size_in_bytes,
+        device_id,
+        buffer.name
+    );
+
+    GPUdeviceptr ptr_out;
+    DeviceEventSet events;
+    auto success =
+        m_memory->allocate_device(device_id, buffer.layout.size_in_bytes, &ptr_out, &events);
+
+    if (!success) {
+        return false;
+    }
+
+    device_entry.data = ptr_out;
+    device_entry.is_allocated = true;
+    device_entry.is_valid = false;
+    device_entry.epoch_event = events;
+    device_entry.access_events = events;
+    device_entry.write_events = std::move(events);
+
+    device_at(device_id).add_to_lru(buffer);
+    check_consistency();
+    return true;
+}
+
+void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) {
+    auto& device_entry = buffer.device_entry[device_id];
+    KMM_ASSERT(device_entry.num_allocation_locks == 0);
+
+    if (!device_entry.is_allocated) {
+        return;
+    }
+
+    size_t size_in_bytes = buffer.layout.size_in_bytes;
+    spdlog::trace(
+        "free {} bytes for buffer {} on GPU {} (dependencies={})",
+        size_in_bytes,
+        buffer.name,
+        device_id,
+        device_entry.access_events
+    );
+
+    m_memory->deallocate_device(
+        device_id,
+        device_entry.data,
+        size_in_bytes,
+        std::move(device_entry.access_events)
+    );
+
+    device_entry.is_allocated = false;
+    device_entry.is_valid = false;
+    device_entry.epoch_event.clear();
+    device_entry.write_events.clear();
+    device_entry.access_events.clear();
+    device_entry.data = 0;
+
+    device_at(device_id).remove_from_lru(buffer);
+    check_consistency();
+}
+
 void MemoryManager::lock_allocation_host(Buffer& buffer, Request& req) {
     auto& host_entry = buffer.host_entry;
 
@@ -614,60 +708,6 @@ void MemoryManager::lock_allocation_host(Buffer& buffer, Request& req) {
         buffer.name,
         req.identifier
     );
-}
-
-bool MemoryManager::lock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req) {
-    auto& device = m_devices[device_id];
-
-    if (device.allocation_first_pending != &req) {
-        return false;
-    }
-
-    KMM_ASSERT(req.allocation_acquired == false);
-    KMM_ASSERT(device.allocation_first_pending == &req);
-
-    auto& device_entry = buffer.device_entry[device_id];
-
-    if (!device_entry.is_allocated) {
-        while (true) {
-            // Try to allocate
-            if (try_allocate_device_async(device_id, buffer)) {
-                break;
-            }
-
-            // No memory available, try to free memory
-            if (try_free_device_memory(device_id)) {
-                continue;
-            }
-
-            if (is_out_of_memory(device_id, req)) {
-                throw std::runtime_error(fmt::format(
-                    "cannot allocate {} bytes on GPU {}, out of memory",
-                    buffer.layout.size_in_bytes,
-                    device_id.get()
-                ));
-            }
-
-            return false;
-        }
-    } else {
-        if (device_entry.num_allocation_locks == 0) {
-            remove_from_lru(device_id, buffer);
-        }
-    }
-
-    req.allocation_acquired = true;
-    device.allocation_first_pending = req.allocation_next;
-    device_entry.num_allocation_locks++;
-
-    spdlog::trace(
-        "lock allocation on GPU {} of buffer {} for request {}",
-        device_id,
-        buffer.name,
-        req.identifier
-    );
-
-    return true;
 }
 
 void MemoryManager::unlock_allocation_host(Buffer& buffer, Request& req) {
@@ -685,14 +725,51 @@ void MemoryManager::unlock_allocation_host(Buffer& buffer, Request& req) {
     );
 }
 
-void MemoryManager::unlock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req) noexcept {
-    auto& device_entry = buffer.device_entry[device_id];
+bool MemoryManager::try_lock_allocation_device(DeviceId device_id, Buffer& buffer, Request& req) {
+    KMM_ASSERT(req.allocation_acquired == false);
 
-    KMM_ASSERT(device_entry.is_allocated);
-    KMM_ASSERT(device_entry.is_valid);
-    KMM_ASSERT(device_entry.num_allocation_locks > 0);
+    if (device_at(device_id).allocation_first_pending != &req) {
+        return false;
+    }
 
-    device_entry.num_allocation_locks--;
+    while (true) {
+        // Try to allocate
+        if (try_allocate_device_async(device_id, buffer)) {
+            break;
+        }
+
+        // No memory available, try to free memory
+        if (try_free_device_memory(device_id)) {
+            continue;
+        }
+
+        if (is_out_of_memory(device_id, req)) {
+            throw std::runtime_error(fmt::format(
+                "cannot allocate {} bytes on GPU {}, out of memory",
+                buffer.layout.size_in_bytes,
+                device_id
+            ));
+        }
+
+        return false;
+    }
+
+    spdlog::trace(
+        "lock allocation on GPU {} of buffer {} for request {}",
+        device_id,
+        buffer.name,
+        req.identifier
+    );
+
+    device_at(device_id).increment_allocation_locks(buffer, req);
+    return true;
+}
+
+void MemoryManager::unlock_allocation_device(
+    DeviceId device_id,
+    Buffer& buffer,
+    Request& req
+) noexcept {
     spdlog::trace(
         "unlock allocation on GPU {} of buffer {} for request {}",
         device_id,
@@ -700,8 +777,49 @@ void MemoryManager::unlock_allocation_device(DeviceId device_id, Buffer& buffer,
         req.identifier
     );
 
-    if (device_entry.num_allocation_locks == 0) {
-        insert_into_lru(device_id, buffer);
+    device_at(device_id).decrement_allocation_locks(buffer);
+    check_consistency();
+}
+
+void MemoryManager::prepare_access_to_buffer(
+    MemoryId memory_id,
+    Buffer& buffer,
+    AccessMode mode,
+    DeviceEventSet* deps_out
+) {
+    bool is_writer = mode != AccessMode::Read;
+    bool is_exclusive = mode == AccessMode::Exclusive;
+    auto& entry = buffer.entry(memory_id);
+
+    make_entry_valid(memory_id, buffer, deps_out);
+
+    if (is_writer) {
+        invalidate_other_entries(memory_id, buffer, deps_out);
+    }
+
+    if (is_exclusive) {
+        deps_out->insert(entry.access_events);
+    }
+}
+
+void MemoryManager::finalize_access_to_buffer(
+    MemoryId memory_id,
+    Buffer& buffer,
+    AccessMode mode,
+    DeviceEvent event
+) noexcept {
+    bool is_writer = mode != AccessMode::Read;
+    bool is_exclusive = mode == AccessMode::Exclusive;
+    auto& entry = buffer.entry(memory_id);
+
+    entry.access_events.insert(event);
+
+    if (is_writer) {
+        entry.write_events.insert(event);
+    }
+
+    if (is_exclusive) {
+        entry.epoch_event.insert(event);
     }
 }
 
@@ -715,126 +833,13 @@ std::optional<DeviceId> MemoryManager::find_valid_device_entry(const Buffer& buf
     return std::nullopt;
 }
 
-bool MemoryManager::is_access_allowed(const Buffer& buffer, const Request& req) noexcept {
-    auto mode = req.mode;
-
-    for (auto* it = buffer.access_head; it != buffer.access_first_pending; it = it->access_next) {
-        // Two exclusive requests can never be granted access simultaneously
-        if (mode == AccessMode::Exclusive || it->mode == AccessMode::Exclusive) {
-            return false;
-        }
-
-        // Two non-read requests can only be granted simultaneously if operating on the same memory.
-        if (mode != AccessMode::Read || it->mode != AccessMode::Read) {
-            if (req.memory_id != it->memory_id) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-void MemoryManager::poll_access_queue(Buffer& buffer) noexcept {
-    while (buffer.access_first_pending != nullptr) {
-        auto* req = buffer.access_first_pending;
-
-        if (!is_access_allowed(buffer, *req)) {
-            return;
-        }
-
-        req->access_acquired = true;
-        spdlog::trace(
-            "access to buffer {} was granted to request {} (memory={}, mode={})",
-            buffer.name,
-            req->identifier,
-            req->memory_id,
-            req->mode
-        );
-
-        buffer.access_first_pending = buffer.access_first_pending->access_next;
-    }
-}
-
-void MemoryManager::unlock_access(
-    MemoryId memory_id,
-    Buffer& buffer,
-    Request& req,
-    DeviceEvent event
-) noexcept {
-    spdlog::trace(
-        "access to buffer {} was revoked from request {} (memory={}, mode={}, GPU event={})",
-        buffer.name,
-        req.identifier,
-        req.memory_id,
-        req.mode,
-        event
-    );
-
-    bool is_writer = req.mode != AccessMode::Read;
-    bool is_exclusive = req.mode == AccessMode::Exclusive;
-
-    BufferEntry& entry = buffer.entry(memory_id);
-    entry.access_events.insert(event);
-
-    if (is_writer) {
-        entry.write_events.insert(event);
-
-        if (is_exclusive) {
-            entry.epoch_event.insert(event);
-        }
-    }
-}
-
-bool MemoryManager::try_lock_access(
-    MemoryId memory_id,
-    Buffer& buffer,
-    Request& req,
-    DeviceEventSet* deps_out
-) {
-    if (!req.access_acquired) {
-        poll_access_queue(buffer);
-
-        if (!req.access_acquired) {
-            return false;
-        }
-    }
-
-    bool is_writer = req.mode != AccessMode::Read;
-    bool is_exclusive = req.mode == AccessMode::Exclusive;
-    auto& entry = buffer.entry(memory_id);
-
-    make_entry_valid(memory_id, buffer, deps_out);
-
-    if (is_writer) {
-        if (!memory_id.is_host()) {
-            buffer.host_entry.is_valid = false;
-            deps_out->insert(buffer.host_entry.access_events);
-        }
-
-        // Invalidate all _other_ device entries
-        for (auto& peer_entry : buffer.device_entry) {
-            if (&peer_entry != &entry) {
-                peer_entry.is_valid = false;
-                deps_out->insert(peer_entry.access_events);
-            }
-        }
-
-        if (is_exclusive) {
-            deps_out->insert(entry.access_events);
-        }
-    }
-
-    return true;
-}
-
 void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceEventSet* deps_out) {
     auto& entry = buffer.entry(memory_id);
 
     KMM_ASSERT(entry.is_allocated);
+    deps_out->insert(entry.epoch_event);
 
     if (entry.is_valid) {
-        deps_out->insert(entry.epoch_event);
         return;
     }
 
@@ -863,7 +868,27 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceE
     }
 
     entry.is_valid = true;
-    deps_out->insert(entry.epoch_event);
+}
+
+void MemoryManager::invalidate_other_entries(
+    MemoryId memory_id,
+    Buffer& buffer,
+    DeviceEventSet* deps_out
+) {
+    if (memory_id != MemoryId::host()) {
+        buffer.host_entry.is_valid = false;
+        deps_out->insert(buffer.host_entry.access_events);
+    }
+
+    // Invalidate all _other_ device entries
+    for (size_t i = 0; i < MAX_DEVICES; i++) {
+        auto& peer_entry = buffer.device_entry[i];
+
+        if (memory_id != MemoryId(DeviceId(i))) {
+            peer_entry.is_valid = false;
+            deps_out->insert(peer_entry.access_events);
+        }
+    }
 }
 
 DeviceEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
@@ -880,9 +905,7 @@ DeviceEvent MemoryManager::copy_h2d(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated && device_entry.is_allocated);
     KMM_ASSERT(host_entry.is_valid && !device_entry.is_valid);
 
-    DeviceEventSet deps;
-    deps.insert(device_entry.access_events);
-    deps.insert(host_entry.write_events);
+    DeviceEventSet deps = device_entry.access_events | host_entry.write_events;
 
     auto event = m_memory->copy_host_to_device(
         device_id,
@@ -915,9 +938,7 @@ DeviceEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     KMM_ASSERT(host_entry.is_allocated && device_entry.is_allocated);
     KMM_ASSERT(!host_entry.is_valid && device_entry.is_valid);
 
-    DeviceEventSet deps;
-    deps.insert(device_entry.write_events);
-    deps.insert(host_entry.access_events);
+    DeviceEventSet deps = device_entry.write_events | host_entry.access_events;
 
     auto event = m_memory->copy_device_to_host(
         device_id,
@@ -936,9 +957,14 @@ DeviceEvent MemoryManager::copy_d2h(DeviceId device_id, Buffer& buffer) {
     return event;
 }
 
+MemoryManager::Device& MemoryManager::device_at(DeviceId id) noexcept {
+    KMM_ASSERT(id < MAX_DEVICES);
+    return m_devices[id];
+}
+
 bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
     std::unordered_set<const Transaction*> waiting_transactions;
-    auto& device = m_devices[device_id];
+    auto& device = device_at(device_id);
 
     // First, iterate over the requests that are waiting for allocation. Mark all the
     // related transactions as `waiting` by adding them to `waiting_transactions`
@@ -974,7 +1000,7 @@ bool MemoryManager::is_out_of_memory(DeviceId device_id, Request& req) {
     spdlog::error("following buffers are currently allocated: ");
 
     for (const auto& buffer : m_buffers) {
-        auto entry = buffer->entry(device_id);
+        auto& entry = buffer->entry(device_id);
 
         if (entry.is_allocated) {
             spdlog::error(

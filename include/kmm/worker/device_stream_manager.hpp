@@ -94,24 +94,24 @@ class DeviceEvent {
   public:
     DeviceEvent() = default;
 
-    DeviceEvent(DeviceStream stream, uint64_t index) {
+    DeviceEvent(DeviceStream stream, uint64_t index) noexcept {
         KMM_ASSERT(index < (1ULL << 56));
         m_event_and_stream = (uint64_t(stream.get()) << 56) | index;
     }
 
-    DeviceStream stream() const {
+    DeviceStream stream() const noexcept {
         return static_cast<uint8_t>(m_event_and_stream >> 56);
     }
 
-    uint64_t index() const {
+    uint64_t index() const noexcept {
         return m_event_and_stream & uint64_t(0x00FFFFFFFFFFFFFF);
     }
 
-    constexpr bool operator==(const DeviceEvent& that) const {
+    constexpr bool operator==(const DeviceEvent& that) const noexcept {
         return this->m_event_and_stream == that.m_event_and_stream;
     }
 
-    constexpr bool operator<(const DeviceEvent& that) const {
+    constexpr bool operator<(const DeviceEvent& that) const noexcept {
         // This is equivalent to tuple(this.stream, this.event) < tuple(that.stream, that.event)
         return this->m_event_and_stream < that.m_event_and_stream;
     }
@@ -137,8 +137,8 @@ class DeviceEventSet {
     DeviceEventSet& operator=(std::initializer_list<DeviceEvent>);
 
     void insert(DeviceEvent e) noexcept;
-    void insert(const DeviceEventSet& e) noexcept;
-    void insert(DeviceEventSet&& e) noexcept;
+    void insert(const DeviceEventSet& that) noexcept;
+    void insert(DeviceEventSet&& that) noexcept;
     void remove_completed(const DeviceStreamManager&);
     void clear() noexcept;
 
@@ -146,6 +146,7 @@ class DeviceEventSet {
     const DeviceEvent* begin() const noexcept;
     const DeviceEvent* end() const noexcept;
 
+    friend DeviceEventSet operator|(const DeviceEventSet& a, const DeviceEventSet& b);
     friend std::ostream& operator<<(std::ostream&, const DeviceEventSet& e);
 
   private:

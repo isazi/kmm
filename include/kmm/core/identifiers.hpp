@@ -5,22 +5,23 @@
 
 #include "fmt/ostream.h"
 
+#include "kmm/core/macros.hpp"
 #include "kmm/utils/checked_math.hpp"
 #include "kmm/utils/panic.hpp"
 #include "kmm/utils/small_vector.hpp"
 
-#define KMM_IMPL_COMPARISON_OPS(T)                   \
-    constexpr bool operator!=(const T& that) const { \
-        return !(*this == that);                     \
-    }                                                \
-    constexpr bool operator<=(const T& that) const { \
-        return !(*this > that);                      \
-    }                                                \
-    constexpr bool operator>(const T& that) const {  \
-        return that < *this;                         \
-    }                                                \
-    constexpr bool operator>=(const T& that) const { \
-        return that <= *this;                        \
+#define KMM_IMPL_COMPARISON_OPS(T)                              \
+    KMM_INLINE constexpr bool operator!=(const T& that) const { \
+        return !(*this == that);                                \
+    }                                                           \
+    KMM_INLINE constexpr bool operator<=(const T& that) const { \
+        return !(*this > that);                                 \
+    }                                                           \
+    KMM_INLINE constexpr bool operator>(const T& that) const {  \
+        return that < *this;                                    \
+    }                                                           \
+    KMM_INLINE constexpr bool operator>=(const T& that) const { \
+        return that <= *this;                                   \
     }
 
 namespace kmm {
@@ -31,19 +32,19 @@ struct NodeId {
     explicit constexpr NodeId(uint8_t v) : m_value(v) {}
     explicit constexpr NodeId(size_t v) : m_value(checked_cast<uint8_t>(v)) {}
 
-    constexpr uint8_t get() const {
+    KMM_INLINE constexpr uint8_t get() const {
         return m_value;
     }
 
-    operator uint8_t() const {
+    KMM_INLINE operator uint8_t() const {
         return get();
     }
 
-    constexpr bool operator==(const NodeId& that) const {
+    KMM_INLINE constexpr bool operator==(const NodeId& that) const {
         return m_value == that.m_value;
     }
 
-    constexpr bool operator<(const NodeId& that) const {
+    KMM_INLINE constexpr bool operator<(const NodeId& that) const {
         return m_value < that.m_value;
     }
 
@@ -59,8 +60,6 @@ struct NodeId {
 static constexpr size_t MAX_DEVICES = 4;
 
 struct DeviceId {
-    explicit constexpr DeviceId(uint8_t v) : m_value(v) {}
-
     template<typename T>
     explicit constexpr DeviceId(T v) : m_value(static_cast<uint8_t>(v)) {
         if (!in_range(v, MAX_DEVICES)) {
@@ -68,7 +67,7 @@ struct DeviceId {
         }
     }
 
-    constexpr uint8_t get() const {
+    KMM_INLINE constexpr uint8_t get() const {
         if (m_value >= MAX_DEVICES) {
             __builtin_unreachable();
         }
@@ -76,15 +75,15 @@ struct DeviceId {
         return m_value;
     }
 
-    operator uint8_t() const {
+    KMM_INLINE operator uint8_t() const {
         return get();
     }
 
-    constexpr bool operator==(const DeviceId& that) const {
+    KMM_INLINE constexpr bool operator==(const DeviceId& that) const {
         return m_value == that.m_value;
     }
 
-    constexpr bool operator<(const DeviceId& that) const {
+    KMM_INLINE constexpr bool operator<(const DeviceId& that) const {
         return m_value < that.m_value;
     }
 
@@ -101,30 +100,30 @@ struct MemoryId {
     constexpr MemoryId(uint8_t v) : m_value(v) {}
 
   public:
-    constexpr MemoryId(DeviceId device) : MemoryId(device.get()) {}
+    KMM_INLINE constexpr MemoryId(DeviceId device) : MemoryId(device.get()) {}
 
-    static constexpr MemoryId host() {
+    KMM_INLINE static constexpr MemoryId host() {
         return MemoryId {HOST_ID};
     }
 
-    constexpr bool is_host() const noexcept {
+    KMM_INLINE constexpr bool is_host() const noexcept {
         return m_value == HOST_ID;
     }
 
-    constexpr bool is_device() const noexcept  {
+    KMM_INLINE constexpr bool is_device() const noexcept {
         return m_value != HOST_ID;
     }
 
-    constexpr DeviceId as_device() const noexcept {
+    KMM_INLINE constexpr DeviceId as_device() const noexcept {
         KMM_ASSERT(is_device());
         return DeviceId(m_value);
     }
 
-    constexpr bool operator==(const MemoryId& that) const {
+    KMM_INLINE constexpr bool operator==(const MemoryId& that) const {
         return m_value == that.m_value;
     }
 
-    constexpr bool operator<(const MemoryId& that) const {
+    KMM_INLINE constexpr bool operator<(const MemoryId& that) const {
         // We assume the order: Host, Device 0, Device 1, Device 2, ...
         if (is_host() || that.is_host()) {
             return that.is_device();
@@ -146,36 +145,36 @@ class ProcessorId {
   public:
     enum struct Type : uint8_t { Host, Cuda };
 
-    constexpr ProcessorId(Type type, uint8_t id = 0) : m_type(type), m_value(id) {}
+    KMM_INLINE constexpr ProcessorId(Type type, uint8_t id = 0) : m_type(type), m_value(id) {}
 
-    constexpr ProcessorId(DeviceId device) : ProcessorId(Type::Cuda, device.get()) {}
+    KMM_INLINE constexpr ProcessorId(DeviceId device) : ProcessorId(Type::Cuda, device.get()) {}
 
-    static constexpr ProcessorId host() {
+    KMM_INLINE static constexpr ProcessorId host() {
         return ProcessorId {Type::Host};
     }
 
-    constexpr bool is_host() const {
+    KMM_INLINE constexpr bool is_host() const {
         return m_type == Type::Host;
     }
 
-    constexpr bool is_device() const {
+    KMM_INLINE constexpr bool is_device() const {
         return m_type == Type::Cuda;
     }
 
-    constexpr DeviceId as_device() const {
+    KMM_INLINE constexpr DeviceId as_device() const {
         KMM_ASSERT(is_device());
         return DeviceId(m_value);
     }
 
-    constexpr MemoryId as_memory() const {
+    KMM_INLINE constexpr MemoryId as_memory() const {
         return is_host() ? MemoryId::host() : MemoryId(DeviceId(m_value));
     }
 
-    constexpr bool operator==(const ProcessorId& that) const {
+    KMM_INLINE constexpr bool operator==(const ProcessorId& that) const {
         return m_type == that.m_type && m_value == that.m_value;
     }
 
-    constexpr bool operator<(const ProcessorId& that) const {
+    KMM_INLINE constexpr bool operator<(const ProcessorId& that) const {
         if (m_type != that.m_type) {
             return m_type < that.m_type;
         } else {
@@ -193,21 +192,21 @@ class ProcessorId {
 };
 
 struct BufferId {
-    explicit constexpr BufferId(uint64_t v = ~uint64_t(0)) : m_value(v) {}
+    KMM_INLINE explicit constexpr BufferId(uint64_t v = ~uint64_t(0)) : m_value(v) {}
 
-    constexpr uint64_t get() const {
+    KMM_INLINE constexpr uint64_t get() const {
         return m_value;
     }
 
-    operator uint64_t() const {
+    KMM_INLINE operator uint64_t() const {
         return get();
     }
 
-    constexpr bool operator==(const BufferId& that) const {
+    KMM_INLINE constexpr bool operator==(const BufferId& that) const {
         return m_value == that.m_value;
     }
 
-    constexpr bool operator<(const BufferId& that) const {
+    KMM_INLINE constexpr bool operator<(const BufferId& that) const {
         return m_value < that.m_value;
     }
 
@@ -220,21 +219,21 @@ struct BufferId {
 };
 
 struct EventId {
-    explicit constexpr EventId(uint64_t v = 0) : m_value(v) {}
+    KMM_INLINE explicit constexpr EventId(uint64_t v = 0) : m_value(v) {}
 
-    constexpr uint64_t get() const {
+    KMM_INLINE constexpr uint64_t get() const {
         return m_value;
     }
 
-    operator uint64_t() const {
+    KMM_INLINE operator uint64_t() const {
         return get();
     }
 
-    constexpr bool operator==(const EventId& that) const {
+    KMM_INLINE constexpr bool operator==(const EventId& that) const {
         return m_value == that.m_value;
     }
 
-    constexpr bool operator<(const EventId& that) const {
+    KMM_INLINE constexpr bool operator<(const EventId& that) const {
         return m_value < that.m_value;
     }
 
