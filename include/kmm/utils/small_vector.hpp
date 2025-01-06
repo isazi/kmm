@@ -7,6 +7,10 @@
 
 namespace kmm {
 
+[[noreturn]] __attribute__((noinline)) inline void throw_small_vector_out_of_capacity() {
+    throw std::overflow_error("small_vector exceeds capacity");
+}
+
 template<typename T, size_t InlineSize>
 struct small_vector {
     using capacity_type = uint32_t;
@@ -100,11 +104,11 @@ struct small_vector {
         return m_data;
     }
 
-    void grow_capacity(size_t k = 1) {
+    bool try_grow_capacity(size_t k = 1) {
         capacity_type new_capacity = m_capacity;
         do {
             if (new_capacity > std::numeric_limits<capacity_type>::max() - new_capacity) {
-                throw std::overflow_error("small_vector exceeds capacity");
+                return false;
             }
 
             new_capacity += new_capacity;
@@ -114,7 +118,11 @@ struct small_vector {
             new_capacity = 16;
         }
 
-        auto new_data = std::make_unique<T[]>(new_capacity);
+        auto new_data = std::unique_ptr<T[]>(new (std::nothrow_t {}) T[new_capacity]);
+
+        if (new_data == nullptr) {
+            return false;
+        }
 
         for (size_t i = 0; i < m_size; i++) {
             new_data[i] = std::move(m_data[i]);
@@ -126,15 +134,23 @@ struct small_vector {
 
         m_capacity = new_capacity;
         m_data = new_data.release();
+        return true;
     }
 
-    void push_back(T item) {
-        if (m_capacity <= m_size) {
-            grow_capacity();
+    bool try_push_back(T item) {
+        if (m_capacity <= m_size && !try_grow_capacity(1)) {
+            return false;
         }
 
         m_data[m_size] = std::move(item);
         m_size++;
+        return true;
+    }
+
+    void push_back(T item) {
+        if (!try_push_back(std::move(item))) {
+            throw_small_vector_out_of_capacity();
+        }
     }
 
     template<typename It>
@@ -142,7 +158,9 @@ struct small_vector {
         size_t n = static_cast<size_t>(end - begin);
 
         if (m_capacity - m_size < n) {
-            grow_capacity(n);
+            if (!try_grow_capacity(n)) {
+                throw_small_vector_out_of_capacity();
+            }
         }
 
         for (size_t i = 0; i < n; i++) {
@@ -169,7 +187,9 @@ struct small_vector {
 
     void resize(size_t n) {
         if (m_capacity < n) {
-            grow_capacity(n - m_size);
+            if (!try_grow_capacity(n - m_size)) {
+                throw_small_vector_out_of_capacity();
+            }
         }
 
         // Safe since `n <= m_capacity`
