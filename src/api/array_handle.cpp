@@ -181,12 +181,12 @@ class CopyOutTask: public Task {
         size_t src_stride = 1;
         size_t dst_stride = 1;
 
-        CopyDef copy(element_size);
+        m_copy = CopyDef(element_size);
 
         for (size_t j = 0; compare_less(j, N); j++) {
             size_t i = N - j - 1;
 
-            copy.add_dimension(
+            m_copy.add_dimension(
                 checked_cast<size_t>(region.size(i)),
                 checked_cast<size_t>(0),
                 checked_cast<size_t>(region.begin(i)),
