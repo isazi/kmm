@@ -372,9 +372,11 @@ class Range {
     Range(Size<N, T> sizes) : Range(Index<N, T>::zero(), sizes) {}
 
     template<typename... Ts, typename = typename std::enable_if<(sizeof...(Ts) < N)>::type>
-    KMM_HOST_DEVICE Range(T first, Ts&&... args) :
-        offset(Index<N, T>::zero()),
-        sizes(first, args...) {}
+    KMM_HOST_DEVICE Range(T first, Ts&&... args) {
+        // GCC segfaults when doing this as part of initialization, do it in the body instead
+        this->offset = Index<N, T>::zero();
+        this->sizes = {first, args...};
+    }
 
     KMM_HOST_DEVICE
     Range() : Range(Size<N, T>::zero()) {}
