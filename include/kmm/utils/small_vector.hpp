@@ -196,6 +196,15 @@ struct small_vector {
         m_size = static_cast<capacity_type>(n);
     }
 
+    void truncate(size_t new_size) {
+        if (new_size > m_size) {
+            return;
+        }
+
+        // Safe since `new_size < m_size`
+        m_size = static_cast<capacity_type>(new_size);
+    }
+
     T& operator[](size_t i) noexcept {
         return *(data() + i);
     }
@@ -218,31 +227,6 @@ struct small_vector {
 
     const T* end() const noexcept {
         return data() + size();
-    }
-
-    bool remove(const T& item) noexcept {
-        T* p = data();
-
-        size_t i = 0;
-        bool found = false;
-
-        for (; i < size(); i++) {
-            if (p[i] == item) {
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            return false;
-        }
-
-        for (; i < size(); i++) {
-            p[i - 1] = p[i];
-        }
-
-        m_size--;
-        return true;
     }
 
     template<typename F>
