@@ -42,7 +42,7 @@ void BufferRegistry::poison(BufferId id, EventId event_id, const std::exception&
         return;
     }
 
-    spdlog::debug("buffer {} was poisoned: {}", id, error.what());
+    spdlog::debug("buffer {} was poisoned (task {}): {}", id, event_id, error.what());
 
     if (const auto* p = dynamic_cast<const PoisonException*>(&error)) {
         meta.poison_reason = *p;

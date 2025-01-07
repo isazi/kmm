@@ -57,7 +57,7 @@ int main() {
         {n},
         {chunk_size},
         kmm::GPUKernel(fill_range, block_size),
-        float(M_PI),
+        float(1.0),
         write(B, access(_x))
     );
 
@@ -71,7 +71,7 @@ int main() {
     );
 
     std::vector<float> result(n);
-    C.copy_to(result.data());
+    C.copy_to(result.data(), n);
 
     return 0;
 }

@@ -1,3 +1,5 @@
+#include "spdlog/spdlog.h"
+
 #include "kmm/memops/gpu_copy.hpp"
 #include "kmm/memops/gpu_fill.hpp"
 #include "kmm/memops/gpu_reduction.hpp"
@@ -140,7 +142,12 @@ class DeviceJob: public Executor::Job {
                     submit(state.device, executor.access_requests(m_requests));
                     m_event = executor.stream_manager().record_event(state.stream);
                 } catch (const std::exception& e) {
-                    executor.stream_manager().wait_until_ready(state.stream);
+                    try {
+                        executor.stream_manager().wait_until_ready(state.stream);
+                    } catch (...) {
+                        KMM_PANIC("fatal error: ", e.what());
+                    }
+
                     throw;
                 }
 
