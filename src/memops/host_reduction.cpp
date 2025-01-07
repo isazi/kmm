@@ -141,6 +141,12 @@ void execute_reduction(const void* src_buffer, void* dst_buffer, ReductionDef re
         case ScalarKind::Float64:
             KMM_CALL_REDUCTION_FOR_TYPE(double)
             break;
+        case ScalarKind::Complex32:
+            KMM_CALL_REDUCTION_FOR_TYPE(std::complex<float>)
+            break;
+        case ScalarKind::Complex64:
+            KMM_CALL_REDUCTION_FOR_TYPE(std::complex<double>)
+            break;
         case ScalarKind::KeyAndInt64:
             KMM_CALL_REDUCTION_FOR_TYPE(KeyValue<int64_t>)
             break;

@@ -233,56 +233,71 @@ void execute_gpu_reduction_async(
     GPUdeviceptr dst_buffer,
     ReductionDef reduction
 ) {
-    auto element_size = reduction.data_type.size_in_bytes();
+#define KMM_CALL_REDUCTION_FOR_TYPE(T)                             \
+    execute_reduction_for_type<T>(                                 \
+        stream,                                                    \
+        reduction.operation,                                       \
+        src_buffer + reduction.input_offset_elements * sizeof(T),  \
+        dst_buffer + reduction.output_offset_elements * sizeof(T), \
+        reduction.num_outputs,                                     \
+        reduction.num_inputs_per_output,                           \
+        reduction.input_stride_elements                            \
+    );
 
-#define KMM_CALL_REDUCTION_FOR_TYPE(T)                                \
-    execute_reduction_for_type<T>(                                    \
-        stream,                                                       \
-        reduction.operation,                                          \
-        src_buffer + reduction.input_offset_elements * element_size,  \
-        dst_buffer + reduction.output_offset_elements * element_size, \
-        reduction.num_outputs,                                        \
-        reduction.num_inputs_per_output,                              \
-        reduction.input_stride_elements                               \
+#define KMM_CALL_REDUCTION_FOR_COMPLEX(T)                              \
+    execute_reduction_for_type<T>(                                     \
+        stream,                                                        \
+        reduction.operation,                                           \
+        src_buffer + reduction.input_offset_elements * 2 * sizeof(T),  \
+        dst_buffer + reduction.output_offset_elements * 2 * sizeof(T), \
+        2 * reduction.num_outputs,                                     \
+        reduction.num_inputs_per_output,                               \
+        2 * reduction.input_stride_elements                            \
     );
 
     switch (reduction.data_type.get()) {
         case ScalarKind::Int8:
             KMM_CALL_REDUCTION_FOR_TYPE(int8_t)
-            break;
+            return;
         case ScalarKind::Int16:
             KMM_CALL_REDUCTION_FOR_TYPE(int16_t)
-            break;
+            return;
         case ScalarKind::Int32:
             KMM_CALL_REDUCTION_FOR_TYPE(int32_t)
-            break;
+            return;
         case ScalarKind::Int64:
             KMM_CALL_REDUCTION_FOR_TYPE(int64_t)
-            break;
+            return;
         case ScalarKind::Uint8:
             KMM_CALL_REDUCTION_FOR_TYPE(uint8_t)
-            break;
+            return;
         case ScalarKind::Uint16:
             KMM_CALL_REDUCTION_FOR_TYPE(uint16_t)
-            break;
+            return;
         case ScalarKind::Uint32:
             KMM_CALL_REDUCTION_FOR_TYPE(uint32_t)
-            break;
+            return;
         case ScalarKind::Uint64:
             KMM_CALL_REDUCTION_FOR_TYPE(uint64_t)
-            break;
+            return;
         case ScalarKind::Float32:
             KMM_CALL_REDUCTION_FOR_TYPE(float)
-            break;
+            return;
         case ScalarKind::Float64:
             KMM_CALL_REDUCTION_FOR_TYPE(double)
-            break;
+            return;
         case ScalarKind::KeyAndInt64:
             KMM_CALL_REDUCTION_FOR_TYPE(KeyValue<int64_t>)
-            break;
+            return;
         case ScalarKind::KeyAndFloat64:
             KMM_CALL_REDUCTION_FOR_TYPE(KeyValue<double>)
-            break;
+            return;
+        case ScalarKind::Complex32:
+            KMM_CALL_REDUCTION_FOR_COMPLEX(float)
+            return;
+        case ScalarKind::Complex64:
+            KMM_CALL_REDUCTION_FOR_COMPLEX(double)
+            return;
         default:
             throw std::runtime_error(
                 fmt::format("reductions on data type {} are not yet supported", reduction.data_type)

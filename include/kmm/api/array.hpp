@@ -134,7 +134,7 @@ struct ArgumentHandler<Read<Array<T, N>>> {
     ArgumentHandler(Read<Array<T, N>> arg) :
         m_handle(arg.argument.handle().shared_from_this()),
         m_chunk(m_handle->distribution().chunk(0)) {
-        m_handle->distribution().region_to_chunk_index(arg.argument.size()
+        m_handle->distribution().region_to_chunk_index(arg.argument.sizes()
         );  // Check if it is in-bounds
     }
 
