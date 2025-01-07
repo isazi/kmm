@@ -72,7 +72,7 @@ class MemoryManager {
 
     static std::optional<DeviceId> find_valid_device_entry(const Buffer& buffer);
     void make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceEventSet* deps_out);
-    void invalidate_other_entries(MemoryId memory_id, Buffer& buffer, DeviceEventSet* deps_out);
+    void make_entry_exclusive(MemoryId memory_id, Buffer& buffer, DeviceEventSet* deps_out);
 
     DeviceEvent copy_h2d(DeviceId device_id, Buffer& buffer);
     DeviceEvent copy_d2h(DeviceId device_id, Buffer& buffer);

@@ -77,12 +77,12 @@ bool MemorySystem::allocate_host(size_t nbytes, void** ptr_out, DeviceEventSet* 
         return false;
     }
 
-    deps_out->remove_completed(*m_streams);
+    deps_out->remove_ready(*m_streams);
     return true;
 }
 
 void MemorySystem::deallocate_host(void* ptr, size_t nbytes, DeviceEventSet deps) {
-    deps.remove_completed(*m_streams);
+    deps.remove_ready(*m_streams);
     return m_host->deallocate_async(ptr, nbytes, std::move(deps));
 }
 
@@ -109,7 +109,7 @@ bool MemorySystem::allocate_device(
         return false;
     }
 
-    deps_out->remove_completed(*m_streams);
+    deps_out->remove_ready(*m_streams);
     *ptr_out = (GPUdeviceptr)addr;
     return true;
 }
@@ -120,7 +120,7 @@ void MemorySystem::deallocate_device(
     size_t nbytes,
     DeviceEventSet deps
 ) {
-    deps.remove_completed(*m_streams);
+    deps.remove_ready(*m_streams);
 
     KMM_ASSERT(m_devices[device_id]);
     auto& device = *m_devices[device_id];

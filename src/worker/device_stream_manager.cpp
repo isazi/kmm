@@ -76,7 +76,7 @@ DeviceStream DeviceStreamManager::create_stream(GPUContextHandle context, bool h
     KMM_GPU_CHECK(gpuStreamCreateWithPriority(&gpu_stream, GPU_STREAM_NON_BLOCKING, priority));
     m_streams.emplace_back(pool_index, context, gpu_stream);
 
-    return DeviceStream(static_cast<uint8_t>(index));
+    return DeviceStream(checked_cast<uint8_t>(index));
 }
 
 DeviceStreamManager::~DeviceStreamManager() {
@@ -130,7 +130,11 @@ void DeviceStreamManager::wait_until_ready(const DeviceEventSet& events) const {
 
 bool DeviceStreamManager::is_idle() const {
     for (const auto& stream : m_streams) {
-        if (!stream.pending_events.empty() || !stream.callbacks_heap.empty()) {
+        if (!stream.pending_events.empty()) {
+            return false;
+        }
+
+        if (!stream.callbacks_heap.empty()) {
             return false;
         }
 
@@ -142,17 +146,17 @@ bool DeviceStreamManager::is_idle() const {
     return true;
 }
 
-bool DeviceStreamManager::is_ready(DeviceStream stream) const {
+bool DeviceStreamManager::is_ready(DeviceStream stream) const noexcept {
     KMM_ASSERT(stream < m_streams.size());
     return m_streams[stream].pending_events.empty();
 }
 
-bool DeviceStreamManager::is_ready(DeviceEvent event) const {
+bool DeviceStreamManager::is_ready(DeviceEvent event) const noexcept {
     KMM_ASSERT(event.stream() < m_streams.size());
     return m_streams[event.stream()].first_pending_index > event.index();
 }
 
-bool DeviceStreamManager::is_ready(const DeviceEventSet& events) const {
+bool DeviceStreamManager::is_ready(const DeviceEventSet& events) const noexcept {
     for (DeviceEvent e : events) {
         if (!is_ready(e)) {
             return false;
@@ -162,9 +166,8 @@ bool DeviceStreamManager::is_ready(const DeviceEventSet& events) const {
     return true;
 }
 
-bool DeviceStreamManager::is_ready(DeviceEventSet& events) const {
-    events.remove_completed(*this);
-    return events.begin() == events.end();
+bool DeviceStreamManager::is_ready(DeviceEventSet& events) const noexcept {
+    return events.remove_ready_trailing(*this);
 }
 
 void DeviceStreamManager::attach_callback(DeviceEvent event, NotifyHandle callback) {
@@ -357,7 +360,7 @@ void DeviceEventSet::insert(DeviceEvent e) noexcept {
     static constexpr size_t INVALID_INDEX = std::numeric_limits<size_t>::max();
     size_t found_index = INVALID_INDEX;
 
-    if (e == DeviceEvent {}) {
+    if (e.is_null()) {
         return;
     }
 
@@ -398,12 +401,13 @@ void DeviceEventSet::insert(const DeviceEventSet& that) noexcept {
 void DeviceEventSet::insert(DeviceEventSet&& that) noexcept {
     if (m_events.is_empty()) {
         m_events = std::move(that.m_events);
-    } else {
-        insert(that);
+        return;
     }
+
+    insert(that);
 }
 
-void DeviceEventSet::remove_completed(const DeviceStreamManager& m) {
+bool DeviceEventSet::remove_ready(const DeviceStreamManager& m) noexcept {
     size_t old_size = m_events.size();
     size_t new_size = 0;
 
@@ -416,7 +420,24 @@ void DeviceEventSet::remove_completed(const DeviceStreamManager& m) {
         }
     }
 
-    m_events.resize(new_size);
+    m_events.truncate(new_size);
+    return new_size > 0;
+}
+
+bool DeviceEventSet::remove_ready_trailing(const DeviceStreamManager& m) noexcept {
+    for (size_t new_size = m_events.size(); new_size > 0; new_size--) {
+        auto event = m_events[new_size - 1];
+
+        // event is not ready, truncate events up to `new_size`.
+        if (!m.is_ready(event)) {
+            m_events.truncate(new_size);
+            return false;
+        }
+    }
+
+    // all events are ready
+    m_events.clear();
+    return true;
 }
 
 void DeviceEventSet::clear() noexcept {
@@ -435,7 +456,7 @@ const DeviceEvent* DeviceEventSet::end() const noexcept {
     return m_events.end();
 }
 
-DeviceEventSet operator|(const DeviceEventSet& a, const DeviceEventSet& b) {
+DeviceEventSet operator|(const DeviceEventSet& a, const DeviceEventSet& b) noexcept {
     DeviceEventSet result = a;
     result.insert(b);
     return result;
@@ -467,7 +488,7 @@ std::ostream& operator<<(std::ostream& f, const DeviceEventSet& events) {
 
     for (auto e : sorted_events) {
         // Skip empty events
-        if (e == DeviceEvent {}) {
+        if (e.is_null()) {
             continue;
         }
 

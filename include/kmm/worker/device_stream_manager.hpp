@@ -32,10 +32,10 @@ class DeviceStreamManager {
     void wait_until_ready(const DeviceEventSet& events) const;
 
     bool is_idle() const;
-    bool is_ready(DeviceStream stream) const;
-    bool is_ready(DeviceEvent event) const;
-    bool is_ready(const DeviceEventSet& events) const;
-    bool is_ready(DeviceEventSet& events) const;
+    bool is_ready(DeviceStream stream) const noexcept;
+    bool is_ready(DeviceEvent event) const noexcept;
+    bool is_ready(const DeviceEventSet& events) const noexcept;
+    bool is_ready(DeviceEventSet& events) const noexcept;
 
     void attach_callback(DeviceEvent event, NotifyHandle callback);
     void attach_callback(DeviceStream stream, NotifyHandle callback);
@@ -99,6 +99,10 @@ class DeviceEvent {
         m_event_and_stream = (uint64_t(stream.get()) << 56) | index;
     }
 
+    bool is_null() const noexcept {
+        return m_event_and_stream == 0;
+    }
+
     DeviceStream stream() const noexcept {
         return static_cast<uint8_t>(m_event_and_stream >> 56);
     }
@@ -136,17 +140,58 @@ class DeviceEventSet {
     DeviceEventSet& operator=(DeviceEventSet&&) noexcept = default;
     DeviceEventSet& operator=(std::initializer_list<DeviceEvent>);
 
+    /**
+     * Insert the given event into the set.
+     */
     void insert(DeviceEvent e) noexcept;
+
+    /**
+     * Insert all events from `that` into this set.
+     */
     void insert(const DeviceEventSet& that) noexcept;
+
+    /**
+     * Insert all events from `that` into this set.
+     */
     void insert(DeviceEventSet&& that) noexcept;
-    void remove_completed(const DeviceStreamManager&);
+
+    /**
+     * Remove all events from the list for which the manager indicates that they are ready.
+     *
+     * @return true if all events were ready, false otherwise.
+     */
+    bool remove_ready(const DeviceStreamManager&) noexcept;
+
+    /**
+     * Remove events from the list for which the manager indicates that they are ready. This
+     * differs from `remove_ready` in that it only remove sthe events at the end of the list and
+     * does not reorder the leading events in the list.
+     *
+     * @return true if all events were ready, false otherwise.
+     */
+    bool remove_ready_trailing(const DeviceStreamManager&) noexcept;
+
+    /**
+     * Remove all events.
+     */
     void clear() noexcept;
 
+    /**
+     * Returns `true` if the set is empty, `false` otherwise.
+     */
     bool is_empty() const noexcept;
+
+    /**
+     * Returns pointer to the first event.
+     */
     const DeviceEvent* begin() const noexcept;
+
+    /**
+     * Returns pointer to one past the last event.
+     */
     const DeviceEvent* end() const noexcept;
 
-    friend DeviceEventSet operator|(const DeviceEventSet& a, const DeviceEventSet& b);
+    friend DeviceEventSet operator|(const DeviceEventSet& a, const DeviceEventSet& b) noexcept;
     friend std::ostream& operator<<(std::ostream&, const DeviceEventSet& e);
 
   private:

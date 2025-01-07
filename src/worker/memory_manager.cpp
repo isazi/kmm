@@ -794,7 +794,7 @@ void MemoryManager::prepare_access_to_buffer(
     make_entry_valid(memory_id, buffer, deps_out);
 
     if (is_writer) {
-        invalidate_other_entries(memory_id, buffer, deps_out);
+        make_entry_exclusive(memory_id, buffer, deps_out);
     }
 
     if (is_exclusive) {
@@ -870,11 +870,14 @@ void MemoryManager::make_entry_valid(MemoryId memory_id, Buffer& buffer, DeviceE
     entry.is_valid = true;
 }
 
-void MemoryManager::invalidate_other_entries(
+void MemoryManager::make_entry_exclusive(
     MemoryId memory_id,
     Buffer& buffer,
     DeviceEventSet* deps_out
 ) {
+    make_entry_valid(memory_id, buffer, deps_out);
+
+    // invalidate host if necessary
     if (memory_id != MemoryId::host()) {
         buffer.host_entry.is_valid = false;
         deps_out->insert(buffer.host_entry.access_events);
@@ -882,12 +885,13 @@ void MemoryManager::invalidate_other_entries(
 
     // Invalidate all _other_ device entries
     for (size_t i = 0; i < MAX_DEVICES; i++) {
-        auto& peer_entry = buffer.device_entry[i];
-
         if (memory_id != MemoryId(DeviceId(i))) {
-            peer_entry.is_valid = false;
-            deps_out->insert(peer_entry.access_events);
+            continue;
         }
+
+        auto& peer_entry = buffer.device_entry[i];
+        peer_entry.is_valid = false;
+        deps_out->insert(peer_entry.access_events);
     }
 }
 
