@@ -13,6 +13,9 @@
 namespace kmm {
 
 struct DeviceState {
+    KMM_NOT_COPYABLE_OR_MOVABLE(DeviceState)
+
+  public:
     GPUContextHandle context;
     DeviceStream stream;
     DeviceEvent last_event;
@@ -54,7 +57,7 @@ class Executor {
 
     DeviceState& device_state(DeviceId id, const DeviceEventSet& hint_deps = {});
 
-    DeviceStreamManager& stream_manager() {
+    DeviceStreamManager& stream_manager() noexcept {
         return *m_stream_manager;
     }
 

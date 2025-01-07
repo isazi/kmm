@@ -44,8 +44,7 @@ class HostJob: public Executor::Job {
                 m_status = Status::Waiting;
             } catch (const std::exception& e) {
                 executor.poison_buffers(m_buffers, m_id, e);
-                scheduler.set_complete(m_id);
-                m_status = Status::Completed;
+                m_status = Status::Completing;
             }
         }
 
@@ -60,13 +59,11 @@ class HostJob: public Executor::Job {
                 }
 
                 m_future = submit(executor, executor.access_requests(m_requests));
-            } catch (...) {
-                auto promise = std::promise<void>();
-                promise.set_exception(std::current_exception());
-                m_future = promise.get_future();
+                m_status = Status::Running;
+            } catch (const std::exception& e) {
+                executor.poison_buffers(m_buffers, m_id, e);
+                m_status = Status::Completing;
             }
-
-            m_status = Status::Running;
         }
 
         if (m_status == Status::Running) {
@@ -74,10 +71,15 @@ class HostJob: public Executor::Job {
                 if (m_future.wait_for(std::chrono::seconds(0)) == std::future_status::timeout) {
                     return Poll::Pending;
                 }
+
+                m_status = Status::Completing;
             } catch (const std::exception& e) {
                 executor.poison_buffers(m_buffers, m_id, e);
+                m_status = Status::Completing;
             }
+        }
 
+        if (m_status == Status::Completing) {
             executor.release_requests(m_requests);
             scheduler.set_complete(m_id);
             m_status = Status::Completed;
@@ -90,7 +92,7 @@ class HostJob: public Executor::Job {
     virtual std::future<void> submit(Executor& executor, std::vector<BufferAccessor> accessors) = 0;
 
   private:
-    enum struct Status { Init, Waiting, Running, Completed };
+    enum struct Status { Init, Waiting, Running, Completing, Completed };
 
     Status m_status = Status::Init;
     EventId m_id;
@@ -120,8 +122,7 @@ class DeviceJob: public Executor::Job {
                 m_status = Status::Pending;
             } catch (const std::exception& e) {
                 executor.poison_buffers(m_buffers, m_id, e);
-                scheduler.set_complete(m_id);
-                m_status = Status::Completed;
+                m_status = Status::Completing;
             }
         }
 
@@ -132,24 +133,26 @@ class DeviceJob: public Executor::Job {
                 }
 
                 auto& state = executor.device_state(m_device_id, m_dependencies);
-                executor.stream_manager().wait_for_events(state.stream, m_dependencies);
 
                 try {
                     GPUContextGuard guard {state.context};
+                    executor.stream_manager().wait_for_events(state.stream, m_dependencies);
                     submit(state.device, executor.access_requests(m_requests));
-                } catch (...) {
+                    m_event = executor.stream_manager().record_event(state.stream);
+                } catch (const std::exception& e) {
                     executor.stream_manager().wait_until_ready(state.stream);
+                    throw;
                 }
 
-                m_event = executor.stream_manager().record_event(state.stream);
                 state.last_event = m_event;
+                scheduler.set_scheduled(m_id, m_event);
+                executor.release_requests(m_requests, m_event);
+                m_status = Status::Running;
             } catch (const std::exception& e) {
                 executor.poison_buffers(m_buffers, m_id, e);
+                executor.release_requests(m_requests);
+                m_status = Status::Completing;
             }
-
-            scheduler.set_scheduled(m_id, m_event);
-            executor.release_requests(m_requests, m_event);
-            m_status = Status::Running;
         }
 
         if (m_status == Status::Running) {
@@ -157,6 +160,10 @@ class DeviceJob: public Executor::Job {
                 return Poll::Pending;
             }
 
+            m_status = Status::Completing;
+        }
+
+        if (m_status == Status::Completing) {
             scheduler.set_complete(m_id);
             m_status = Status::Completed;
         }
@@ -168,7 +175,7 @@ class DeviceJob: public Executor::Job {
     virtual void submit(DeviceContext& device, std::vector<BufferAccessor> accessors) = 0;
 
   private:
-    enum struct Status { Init, Pending, Running, Completed };
+    enum struct Status { Init, Pending, Running, Completing, Completed };
 
     Status m_status = Status::Init;
     EventId m_id;
