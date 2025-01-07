@@ -684,6 +684,8 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
         std::move(device_entry.access_events)
     );
 
+    device_at(device_id).remove_from_lru(buffer);
+
     device_entry.is_allocated = false;
     device_entry.is_valid = false;
     device_entry.epoch_event.clear();
@@ -691,7 +693,6 @@ void MemoryManager::deallocate_device_async(DeviceId device_id, Buffer& buffer) 
     device_entry.access_events.clear();
     device_entry.data = 0;
 
-    device_at(device_id).remove_from_lru(buffer);
     check_consistency();
 }
 
@@ -885,7 +886,7 @@ void MemoryManager::make_entry_exclusive(
 
     // Invalidate all _other_ device entries
     for (size_t i = 0; i < MAX_DEVICES; i++) {
-        if (memory_id != MemoryId(DeviceId(i))) {
+        if (memory_id == MemoryId(DeviceId(i))) {
             continue;
         }
 
