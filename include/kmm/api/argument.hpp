@@ -51,15 +51,6 @@ struct ArgumentHandler {
     T m_value;
 };
 
-template<typename T>
-struct ArgumentHandler<T&>: ArgumentHandler<T> {};
-
-template<typename T>
-struct ArgumentHandler<const T&>: ArgumentHandler<T> {};
-
-template<typename T>
-struct ArgumentHandler<T&&>: ArgumentHandler<T> {};
-
 template<ExecutionSpace Space, typename T>
 struct ArgumentUnpack<Space, Argument<T>> {
     static auto unpack(TaskContext& context, Argument<T>& data) {
@@ -68,16 +59,16 @@ struct ArgumentUnpack<Space, Argument<T>> {
 };
 
 template<typename T>
-using packed_argument_t = typename ArgumentHandler<T>::type;
+using packed_argument_t = typename ArgumentHandler<std::decay_t<T>>::type;
 
 template<typename T>
 packed_argument_t<T> pack_argument(TaskBuilder& builder, T&& arg) {
-    return ArgumentHandler<T>(std::forward<T>(arg)).process_chunk(builder);
+    return ArgumentHandler<std::decay_t<T>>(std::forward<T>(arg)).process_chunk(builder);
 }
 
 template<ExecutionSpace execution_space, typename T>
 auto unpack_argument(TaskContext& builder, T&& arg) {
-    return ArgumentUnpack<execution_space, T>::unpack(builder, std::forward<T>(arg));
+    return ArgumentUnpack<execution_space, std::decay_t<T>>::unpack(builder, std::forward<T>(arg));
 }
 
 }  // namespace kmm
