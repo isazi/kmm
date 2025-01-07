@@ -67,7 +67,7 @@ class Array: public ArrayBase {
     }
 
     const DataDistribution<N>& distribution() const {
-        return handle().worker();
+        return handle().distribution();
     }
 
     Size<N> chunk_size() const {
@@ -84,7 +84,7 @@ class Array: public ArrayBase {
 
     void synchronize() const {
         if (m_handle) {
-            m_handle->distribution().synchronize();
+            m_handle->synchronize();
         }
     }
 
