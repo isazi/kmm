@@ -66,7 +66,7 @@ int main() {
         kmm::Host(initialize_images),
         width,
         height,
-        write(images, access(_0, _, _))
+        write(images(_0, _, _))
     );
 
     rt.synchronize();
@@ -81,8 +81,8 @@ int main() {
         kmm::GPUKernel(calculate_histogram, block_size),
         width,
         height,
-        read(images, access(i, j, image_id)),
-        reduce(kmm::Reduction::Sum, histogram, privatize(image_id), access(_))
+        images(i, j, image_id),
+        reduce(kmm::Reduction::Sum, privatize(image_id), histogram(_))
     );
 
     rt.synchronize();

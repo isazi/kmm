@@ -80,7 +80,7 @@ int main() {
         1.0F
     );
 
-    for (size_t repeat = 0; repeat < 10; repeat++) {
+    for (size_t repeat = 0; repeat < 1; repeat++) {
         C.reset();
 
         rt.parallel_submit(
@@ -90,9 +90,9 @@ int main() {
             n,
             m,
             k,
-            reduce(kmm::Reduction::Sum, C, access(_1, _2)),
-            read(A, access(_1, _0)),
-            read(B, access(_0, _2))
+            reduce(kmm::Reduction::Sum, C, slice(_1, _2)),
+            A(_1, _0),
+            B(_0, _2)
         );
 
         rt.synchronize();

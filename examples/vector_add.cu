@@ -50,7 +50,7 @@ int main() {
         {n},
         {chunk_size},
         kmm::GPUKernel(initialize_range, block_size),
-        write(A, access(_x))
+        write(A[_x])
     );
 
     rt.parallel_submit(
@@ -58,16 +58,16 @@ int main() {
         {chunk_size},
         kmm::GPUKernel(fill_range, block_size),
         float(1.0),
-        write(B, access(_x))
+        write(B[_x])
     );
 
     rt.parallel_submit(
         {n},
         {chunk_size},
         kmm::GPUKernel(vector_add, block_size),
-        write(C, access(_x)),
-        read(A, access(_x)),
-        read(B, access(_x))
+        write(C[_x]),
+        A[_x],
+        B[_x]
     );
 
     std::vector<float> result(n);

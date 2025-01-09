@@ -92,8 +92,40 @@ class Array: public ArrayBase {
         m_handle = nullptr;
     }
 
+    template<typename M = All>
+    Access<Array<T, N>, Read<std::decay_t<M>>> access(M&& mapper = {}) {
+        return {*this, {mapper}};
+    }
+
+    template<typename M = All>
+    Access<const Array<T, N>, Read<std::decay_t<M>>> access(M&& mapper = {}) const {
+        return {*this, {mapper}};
+    }
+
+    template<typename M>
+    Access<Array<T, N>, Read<std::decay_t<M>>> operator[](M&& mapper) {
+        return access(mapper);
+    }
+
+    template<typename M>
+    Access<const Array<T, N>, Read<std::decay_t<M>>> operator[](M&& mapper) const {
+        return access(mapper);
+    }
+
+    template<typename... Is>
+    Access<Array<T, N>, Read<MultiIndexMap<N>>> operator()(const Is&... index) {
+        return access(slice(index...));
+    }
+
+    template<typename... Is>
+    Access<const Array<T, N>, Read<MultiIndexMap<N>>> operator()(const Is&... index) const {
+        return access(slice(index...));
+    }
+
     void copy_bytes_to(void* output, size_t num_bytes) const {
-        KMM_ASSERT(num_bytes % sizeof(T) == 0 && compare_equal(num_bytes / sizeof(T), size()));
+        KMM_ASSERT(num_bytes % sizeof(T) == 0);
+        KMM_ASSERT(compare_equal(num_bytes / sizeof(T), size()));
+
         handle().copy_bytes(output, sizeof(T));
     }
 
@@ -118,21 +150,6 @@ class Array: public ArrayBase {
         return output;
     }
 
-    template<typename A = All>
-    Write<Array<T, N>, A> write(A mapper = {}) {
-        return {*this, mapper};
-    }
-
-    template<typename A = All>
-    Read<Array<T, N>, A> read(A mapper = {}) const {
-        return {*this, mapper};
-    }
-
-    template<typename... Is>
-    Read<Array<T, N>, MultiIndexMap<N>> operator()(const Is&... index) const {
-        return read(access(index...));
-    }
-
   private:
     std::shared_ptr<ArrayHandle<N>> m_handle;
     Index<N> m_offset;  // Unused for now, always zero
@@ -143,13 +160,13 @@ template<typename T>
 using Scalar = Array<T, 0>;
 
 template<typename T, size_t N>
-struct ArgumentHandler<Read<Array<T, N>>> {
+struct ArgumentHandler<Access<const Array<T, N>, Read<All>>> {
     using type = ArrayArgument<const T, views::dynamic_domain<N>>;
 
-    ArgumentHandler(Read<Array<T, N>> arg) :
-        m_handle(arg.argument.handle().shared_from_this()),
+    ArgumentHandler(Access<const Array<T, N>, Read<All>> access) :
+        m_handle(access.argument.handle().shared_from_this()),
         m_chunk(m_handle->distribution().chunk(0)) {
-        m_handle->distribution().region_to_chunk_index(arg.argument.sizes()
+        m_handle->distribution().region_to_chunk_index(access.argument.sizes()
         );  // Check if it is in-bounds
     }
 
@@ -173,12 +190,20 @@ struct ArgumentHandler<Read<Array<T, N>>> {
 };
 
 template<typename T, size_t N>
-struct ArgumentHandler<Write<Array<T, N>>> {
+struct ArgumentHandler<Array<T, N>>: ArgumentHandler<Access<const Array<T, N>, Read<All>>> {
+    ArgumentHandler(const Array<T, N>& arg) :  //
+        ArgumentHandler<Access<const Array<T, N>, Read<All>>>(  //
+            Access<const Array<T, N>, Read<All>>(arg)
+        ) {}
+};
+
+template<typename T, size_t N>
+struct ArgumentHandler<Access<Array<T, N>, Write<All>>> {
     using type = ArrayArgument<T, views::dynamic_domain<N>>;
 
-    ArgumentHandler(Write<Array<T, N>> arg) :
-        m_array(arg.argument),
-        m_builder(arg.argument.sizes(), DataLayout::for_type<T>()) {
+    ArgumentHandler(Access<Array<T, N>, Write<All>> access) :
+        m_array(access.argument),
+        m_builder(access.argument.sizes(), DataLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -207,37 +232,32 @@ struct ArgumentHandler<Write<Array<T, N>>> {
     ArrayBuilder<N> m_builder;
 };
 
-template<typename T, size_t N>
-struct ArgumentHandler<Array<T, N>>: public ArgumentHandler<Read<Array<T, N>>> {
-    ArgumentHandler(Array<T, N> arg) : ArgumentHandler<Read<Array<T, N>>>(read(arg)) {}
-};
-
-template<typename T, size_t N, typename A>
-struct ArgumentHandler<Read<Array<T, N>, A>> {
+template<typename T, size_t N, typename M>
+struct ArgumentHandler<Access<const Array<T, N>, Read<M>>> {
     using type = ArrayArgument<const T, views::dynamic_subdomain<N>>;
 
     static_assert(
-        is_dimensionality_accepted_by_mapper<A, N>,
+        is_dimensionality_accepted_by_mapper<M, N>,
         "mapper of 'read' must return N-dimensional region"
     );
 
-    ArgumentHandler(Read<Array<T, N>, A> arg) :
-        m_handle(arg.argument.handle().shared_from_this()),
-        m_access_mapper(arg.access_mapper) {}
+    ArgumentHandler(Access<const Array<T, N>, Read<M>> access) :
+        m_handle(access.argument.handle().shared_from_this()),
+        m_access_mapper(access.mode.access_mapper) {}
 
     void initialize(const TaskGroupInfo& init) {}
 
     type process_chunk(TaskInstance& task) {
         auto array_size = m_handle->distribution().array_size();
         auto access_region = m_access_mapper(task.chunk, Range<N>(array_size));
-        auto index = m_handle->distribution().region_to_chunk_index(access_region);
+        auto chunk_index = m_handle->distribution().region_to_chunk_index(access_region);
 
         auto buffer_index = task.add_buffer_requirement(BufferRequirement {
-            .buffer_id = m_handle->buffer(index),
+            .buffer_id = m_handle->buffer(chunk_index),
             .memory_id = task.memory_id,
             .access_mode = AccessMode::Read});
 
-        auto chunk = m_handle->distribution().chunk(index);
+        auto chunk = m_handle->distribution().chunk(chunk_index);
         auto domain = views::dynamic_subdomain<N> {chunk.offset, chunk.size};
         return {buffer_index, domain};
     }
@@ -246,22 +266,29 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
 
   private:
     std::shared_ptr<const ArrayHandle<N>> m_handle;
-    A m_access_mapper;
+    M m_access_mapper;
 };
 
-template<typename T, size_t N, typename A>
-struct ArgumentHandler<Write<Array<T, N>, A>> {
+template<typename T, size_t N, typename M>
+struct ArgumentHandler<Access<Array<T, N>, Read<M>>>: //
+    public ArgumentHandler<Access<const Array<T, N>, Read<M>>> { //
+    ArgumentHandler(Access<Array<T, N>, Read<M>> access) :  //
+        ArgumentHandler<Access<const Array<T, N>, Read<M>>>(access) {}
+};
+
+template<typename T, size_t N, typename M>
+struct ArgumentHandler<Access<Array<T, N>, Write<M>>> {
     using type = ArrayArgument<T, views::dynamic_subdomain<N>>;
 
     static_assert(
-        is_dimensionality_accepted_by_mapper<A, N>,
+        is_dimensionality_accepted_by_mapper<M, N>,
         "mapper of 'write' must return N-dimensional region"
     );
 
-    ArgumentHandler(Write<Array<T, N>, A> arg) :
-        m_array(arg.argument),
-        m_access_mapper(arg.access_mapper),
-        m_builder(arg.argument.sizes(), DataLayout::for_type<T>()) {
+    ArgumentHandler(Access<Array<T, N>, Write<M>> access) :
+        m_array(access.argument),
+        m_access_mapper(access.mode.access_mapper),
+        m_builder(access.argument.sizes(), DataLayout::for_type<T>()) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -280,24 +307,27 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
     }
 
     void finalize(const TaskGroupResult& result) {
-        auto handle =
-            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
+        auto handle = std::make_shared<ArrayHandle<N>>(  //
+            result.worker,
+            m_builder.build(result.graph)
+        );
+
         m_array = Array<T, N>(handle);
     }
 
   private:
     Array<T, N>& m_array;
-    A m_access_mapper;
+    M m_access_mapper;
     ArrayBuilder<N> m_builder;
 };
 
 template<typename T, size_t N>
-struct ArgumentHandler<Reduce<Array<T, N>>> {
+struct ArgumentHandler<Access<Array<T, N>, Reduce<>>> {
     using type = ArrayArgument<T, views::dynamic_domain<N>>;
 
-    ArgumentHandler(Reduce<Array<T, N>> arg) :
-        m_array(arg.argument),
-        m_builder(arg.argument.sizes(), DataType::of<T>(), arg.op) {
+    ArgumentHandler(Access<Array<T, N>, Reduce<>> access) :
+        m_array(access.argument),
+        m_builder(access.argument.sizes(), DataType::of<T>(), access.mode.op) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -316,85 +346,39 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
     }
 
     void finalize(const TaskGroupResult& result) {
-        auto handle =
-            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
-        m_array = Array<T, N>(handle);
-    }
-
-  private:
-    Array<T, N>& m_array;
-    ArrayReductionBuilder<N> m_builder;
-};
-
-template<typename T, size_t N, typename P>
-struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
-    static constexpr size_t K = mapper_dimensionality<P>;
-    static_assert(
-        is_dimensionality_accepted_by_mapper<P, K>,
-        "private mapper of 'reduce' must return N-dimensional region"
-    );
-
-    using type = ArrayArgument<T, views::dynamic_subdomain<K + N>>;
-
-    ArgumentHandler(Reduce<Array<T, N>, All, P> arg) :
-        m_array(arg.argument),
-        m_builder(arg.argument.sizes(), DataType::of<T>(), arg.op),
-        m_private_mapper(arg.private_mapper) {
-        if (m_array.is_valid()) {
-            throw std::runtime_error("array has already been written to, cannot overwrite array");
-        }
-    }
-
-    void initialize(const TaskGroupInfo& init) {}
-
-    type process_chunk(TaskInstance& task) {
-        auto access_region = Range<N>(m_builder.sizes());
-        auto private_region = m_private_mapper(task.chunk);
-        auto rep = private_region.size();
-        auto buffer_index = task.add_buffer_requirement(
-            m_builder.add_chunk(task.graph, task.memory_id, access_region, rep)
+        auto handle = std::make_shared<ArrayHandle<N>>(  //
+            result.worker,
+            m_builder.build(result.graph)
         );
 
-        auto domain = views::dynamic_subdomain<K + N> {
-            private_region.offset.concat(access_region.offset),
-            private_region.sizes.concat(access_region.sizes),
-        };
-
-        return {buffer_index, domain};
-    }
-
-    void finalize(const TaskGroupResult& result) {
-        auto handle =
-            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
     }
 
   private:
     Array<T, N>& m_array;
     ArrayReductionBuilder<N> m_builder;
-    P m_private_mapper;
 };
 
-template<typename T, size_t N, typename A, typename P>
-struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
+template<typename T, size_t N, typename M, typename P>
+struct ArgumentHandler<Access<Array<T, N>, Reduce<M, P>>> {
     static constexpr size_t K = mapper_dimensionality<P>;
     using type = ArrayArgument<T, views::dynamic_subdomain<K + N>>;
 
     static_assert(
-        is_dimensionality_accepted_by_mapper<A, N>,
+        is_dimensionality_accepted_by_mapper<M, N>,
         "mapper of 'reduce' must return N-dimensional region"
     );
 
     static_assert(
         is_dimensionality_accepted_by_mapper<P, K>,
-        "private mapper of 'reduce' must return N-dimensional region"
+        "private mapper of 'reduce' must return K-dimensional region"
     );
 
-    ArgumentHandler(Reduce<Array<T, N>, A, P> arg) :
-        m_array(arg.argument),
-        m_builder(arg.argument.sizes(), DataType::of<T>(), arg.op),
-        m_access_mapper(arg.access_mapper),
-        m_private_mapper(arg.private_mapper) {
+    ArgumentHandler(Access<Array<T, N>, Reduce<M, P>> access) :
+        m_array(access.argument),
+        m_builder(access.argument.sizes(), DataType::of<T>(), access.mode.op),
+        m_access_mapper(access.mode.access_mapper),
+        m_private_mapper(access.mode.private_mapper) {
         if (m_array.is_valid()) {
             throw std::runtime_error("array has already been written to, cannot overwrite array");
         }
@@ -403,8 +387,8 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
     void initialize(const TaskGroupInfo& init) {}
 
     type process_chunk(TaskInstance& task) {
-        auto private_region = m_private_mapper(task.chunk);
         auto access_region = m_access_mapper(task.chunk, Range<N>(m_builder.sizes()));
+        auto private_region = m_private_mapper(task.chunk);
         auto rep = private_region.size();
         size_t buffer_index = task.add_buffer_requirement(
             m_builder.add_chunk(task.graph, task.memory_id, access_region, rep)
@@ -419,15 +403,18 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
     }
 
     void finalize(const TaskGroupResult& result) {
-        auto handle =
-            std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
+        auto handle = std::make_shared<ArrayHandle<N>>(  //
+            result.worker,
+            m_builder.build(result.graph)
+        );
+
         m_array = Array<T, N>(handle);
     }
 
   private:
     Array<T, N>& m_array;
     ArrayReductionBuilder<N> m_builder;
-    A m_access_mapper;
+    M m_access_mapper;
     P m_private_mapper;
 };
 

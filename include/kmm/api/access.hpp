@@ -3,64 +3,88 @@
 #include "kmm/api/mapper.hpp"
 
 namespace kmm {
-template<typename T, typename I = All>
+
+template<typename Arg, typename Mode>
+struct Access {
+    Arg& argument;
+    Mode mode = {};
+
+    template<typename U, typename = std::enable_if_t<std::is_convertible_v<U, Arg>>>
+    Access(U& argument, Mode mode = {}) : argument(argument), mode(mode) {}
+
+    template<typename U>
+    Access(Access<U, Mode> access = {}) : argument(access.argument), mode(access.mode) {}
+};
+
+template<typename M = All>
 struct Read {
-    T argument;
-    I access_mapper = {};
+    M access_mapper = {};
 };
 
-template<typename T, typename I = All>
+template<typename M = All>
 struct Write {
-    T& argument;
-    I access_mapper = {};
+    M access_mapper = {};
 };
 
-template<typename I>
-struct Privatize {
-    I access_mapper;
-};
-
-template<typename T, typename I = All, typename R = MultiIndexMap<0>>
+template<typename M = All, typename P = MultiIndexMap<0>>
 struct Reduce {
-    T& argument;
     Reduction op;
-    I access_mapper = {};
-    R private_mapper = {};
+    M access_mapper = {};
+    P private_mapper = {};
 };
 
-template<typename I = All, typename T>
-Read<T, I> read(T argument, I access_mapper = {}) {
-    return {argument, access_mapper};
+template<typename M = All, typename Arg>
+Access<Arg, Read<M>> read(Arg& argument, M access_mapper = {}) {
+    return {argument, {access_mapper}};
 }
 
-template<typename I = All, typename T>
-Write<T, I> write(T& argument, I access_mapper = {}) {
-    return {argument, access_mapper};
+template<typename M = All, typename Arg>
+Access<Arg, Write<M>> write(Arg& argument, M access_mapper = {}) {
+    return {argument, {access_mapper}};
 }
+
+template<typename Arg, typename M>
+Access<Arg, Write<M>> write(Access<Arg, Read<M>> access) {
+    return {access.argument, {access.mode.access_mapper}};
+}
+
+template<typename M>
+struct Privatize {
+    M access_mapper;
+};
 
 template<typename... Is>
 Privatize<MultiIndexMap<sizeof...(Is)>> privatize(const Is&... slices) {
     return {into_index_map(slices)...};
 }
 
-template<typename T>
-Reduce<T> reduce(Reduction op, T& argument) {
-    return {argument, op};
+template<typename M = All, typename Arg>
+Access<Arg, Reduce<M>> reduce(Reduction op, Arg& argument, M access_mapper = {}) {
+    return {argument, {op, access_mapper}};
 }
 
-template<typename T, typename I>
-Reduce<T, I> reduce(Reduction op, T& argument, I access_mapper) {
-    return {argument, op, access_mapper};
+template<typename M = All, typename Arg, typename P>
+Access<Arg, Reduce<M, P>> reduce(
+    Reduction op,
+    Privatize<P> private_mapper,
+    Arg& argument,
+    M access_mapper = {}
+) {
+    return {argument, {op, access_mapper, private_mapper.access_mapper}};
 }
 
-template<typename T, typename I, typename P>
-Reduce<T, I, P> reduce(Reduction op, T& argument, Privatize<P> private_mapper, I access_mapper) {
-    return {argument, op, access_mapper, private_mapper.access_mapper};
+template<typename M = All, typename Arg>
+Access<Arg, Reduce<M>> reduce(Reduction op, Access<Arg, Read<M>> access) {
+    return {access.argument, {op, access.mode.access_mapper}};
 }
 
-template<typename T, typename P>
-Reduce<T, All, P> reduce(Reduction op, T& argument, Privatize<P> private_mapper) {
-    return {argument, op, All {}, private_mapper.access_mapper};
+template<typename M = All, typename Arg, typename P>
+Access<Arg, Reduce<M, P>> reduce(
+    Reduction op,
+    Privatize<P> private_mapper,
+    Access<Arg, Read<M>> access
+) {
+    return {access.argument, {op, access.mode.access_mapper, private_mapper.access_mapper}};
 }
 
 }  // namespace kmm

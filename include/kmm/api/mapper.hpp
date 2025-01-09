@@ -202,7 +202,7 @@ inline IndexMap into_index_map(All m) {
 }
 
 template<typename... Is>
-MultiIndexMap<sizeof...(Is)> access(const Is&... slices) {
+MultiIndexMap<sizeof...(Is)> slice(const Is&... slices) {
     return {into_index_map(slices)...};
 }
 

@@ -67,7 +67,7 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::GPUKernel(initialize_matrix_kernel, {16, 16}),
-        write(matrix, access(_y, _x))
+        write(matrix, slice(_y, _x))
     );
 
     rt.synchronize();
@@ -80,8 +80,8 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::GPUKernel(sum_total_kernel, {16, 16}),
-        read(matrix, access(_y, _x)),
-        reduce(kmm::Reduction::Sum, total_sum, privatize(_y, _x))
+        matrix(_y, _x),
+        reduce(kmm::Reduction::Sum, privatize(_y, _x), total_sum)
     );
 
     rt.synchronize();
@@ -90,8 +90,8 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::GPUKernel(sum_rows_kernel, {16, 16}),
-        read(matrix, access(_y, _x)),
-        reduce(kmm::Reduction::Sum, rows_sum, privatize(_y), access(_x))
+        matrix(_y, _x),
+        reduce(kmm::Reduction::Sum, privatize(_y), rows_sum(_x))
     );
 
     rt.synchronize();
@@ -100,8 +100,8 @@ int main() {
         {width, height},
         {chunk_width, chunk_height},
         kmm::GPUKernel(sum_cols_kernel, {16, 16}),
-        read(matrix, access(_y, _x)),
-        reduce(kmm::Reduction::Sum, cols_sum, privatize(_x), access(_y))
+        matrix(_y, _x),
+        reduce(kmm::Reduction::Sum, privatize(_x), cols_sum(_y))
     );
 
     rt.synchronize();

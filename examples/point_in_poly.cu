@@ -78,17 +78,17 @@ int main() {
         {npoints},
         {npoints_per_chunk},
         kmm::GPUKernel(init_points, block_size),
-        write(points, access(_x))
+        write(points(_x))
     );
 
     rt.parallel_submit(
         {npoints},
         {npoints_per_chunk},
         kmm::GPUKernel(cn_pnpoly, block_size),
-        write(bitmap, access(_x)),
-        read(points, access(_x)),
+        write(bitmap(_x)),
+        points(_x),
         nvertices,
-        read(vertices)
+        vertices
     );
 
     rt.synchronize();

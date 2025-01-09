@@ -300,7 +300,7 @@ bool in_range(const T& value) {
 
 /**
  * Returns `true` if the given value of integral type `T` is in the range `0`...`length` (not
- * inclusive). Useful for checking if an value can be used to index into an array of size `length`.
+ * included `length`). Useful to check if `value` can be used as index into array of size `length`.
  */
 template<typename U, typename T>
 constexpr bool in_range(const T& value, const U& length) {
