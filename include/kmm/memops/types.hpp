@@ -63,7 +63,7 @@ struct ReductionDef {
     DataType data_type;
     size_t num_outputs;
     size_t num_inputs_per_output = 1;
-    size_t input_stride_elements = num_inputs_per_output;
+    size_t input_stride_elements = num_outputs;
     size_t input_offset_elements = 0;
     size_t output_offset_elements = 0;
 };

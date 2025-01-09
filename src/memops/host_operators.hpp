@@ -52,7 +52,6 @@ struct ReductionOperator<T, Reduction::Min, std::enable_if_t<std::numeric_limits
 template<typename T>
 struct ReductionOperator<T, Reduction::Max, std::enable_if_t<std::numeric_limits<T>::is_specialized>> {
     static constexpr T MIN_VALUE = std::numeric_limits<T>::lowest();
-    ;
 
     static KMM_HOST_DEVICE T identity() {
         return MIN_VALUE;
