@@ -123,7 +123,7 @@ EventId parallel_submit_impl(
     return worker.with_task_graph([&](TaskGraph& graph) {
         EventList events;
 
-        auto init = TaskSetInit {
+        auto init = TaskGroupInfo {
             .worker = worker,  //
             .graph = graph,
             .partition = partition};
@@ -133,7 +133,7 @@ EventId parallel_submit_impl(
         for (const WorkChunk& chunk : partition.chunks) {
             ProcessorId processor_id = chunk.owner_id;
 
-            auto builder = TaskBuilder {
+            auto instance = TaskInstance {
                 .worker = worker,
                 .graph = graph,
                 .chunk = chunk,
@@ -144,20 +144,20 @@ EventId parallel_submit_impl(
             auto task = std::make_shared<TaskImpl<Launcher, packed_argument_t<Args>...>>(
                 chunk,
                 launcher,
-                std::get<Is>(handlers).process_chunk(builder)...
+                std::get<Is>(handlers).process_chunk(instance)...
             );
 
             EventId event_id = graph.insert_task(
                 processor_id,
                 std::move(task),
-                std::move(builder.buffers),
-                std::move(builder.dependencies)
+                std::move(instance.buffers),
+                std::move(instance.dependencies)
             );
 
             events.push_back(event_id);
         }
 
-        auto result = TaskSetResult {
+        auto result = TaskGroupResult {
             .worker = worker,  //
             .graph = graph,
             .events = std::move(events)};

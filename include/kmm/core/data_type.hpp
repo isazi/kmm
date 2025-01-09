@@ -33,12 +33,12 @@ enum struct ScalarKind : uint8_t {
 };
 
 template<typename T>
-struct DataTypeMap;
+struct DataTypeOf;
 
 struct DataType {
     template<typename T>
     static DataType of() {
-        return DataTypeMap<T>()();
+        return DataTypeOf<T>::value;
     }
 
     DataType(ScalarKind ty = ScalarKind::Invalid) : m_kind(ty) {}
@@ -66,7 +66,7 @@ struct DataType {
 
 #define KMM_DEFINE_SCALAR_ALIAS(S, T) \
     template<>                        \
-    struct DataTypeMap<T>: std::integral_constant<ScalarKind, ScalarKind::S> {};
+    struct DataTypeOf<T>: std::integral_constant<ScalarKind, ScalarKind::S> {};
 
 KMM_DEFINE_SCALAR_ALIAS(Int8, int8_t)
 KMM_DEFINE_SCALAR_ALIAS(Int16, int16_t)

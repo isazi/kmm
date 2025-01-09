@@ -8,13 +8,13 @@ namespace kmm {
 class Worker;
 class TaskGraph;
 
-struct TaskSetInit {
+struct TaskGroupInfo {
     Worker& worker;
     TaskGraph& graph;
     const WorkPartition& partition;
 };
 
-struct TaskBuilder {
+struct TaskInstance {
     Worker& worker;
     TaskGraph& graph;
     WorkChunk chunk;
@@ -29,7 +29,7 @@ struct TaskBuilder {
     }
 };
 
-struct TaskSetResult {
+struct TaskGroupResult {
     Worker& worker;
     TaskGraph& graph;
     EventList events;

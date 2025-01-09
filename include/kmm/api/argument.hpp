@@ -16,7 +16,7 @@ template<typename T, typename = void>
 struct Argument {
     Argument(T value) : m_value(std::move(value)) {}
 
-    static Argument pack(TaskBuilder& builder, T value) {
+    static Argument pack(TaskInstance& builder, T value) {
         return {std::move(value)};
     }
 
@@ -35,15 +35,15 @@ struct ArgumentHandler {
 
     ArgumentHandler(T value) : m_value(std::move(value)) {}
 
-    void initialize(const TaskSetInit& init) {
+    void initialize(const TaskGroupInfo& init) {
         // Nothing to do
     }
 
-    type process_chunk(TaskBuilder& builder) {
+    type process_chunk(TaskInstance& builder) {
         return Argument<T>::pack(builder, m_value);
     }
 
-    void finalize(const TaskSetResult& result) {
+    void finalize(const TaskGroupResult& result) {
         // Nothing to do
     }
 
@@ -62,8 +62,8 @@ template<typename T>
 using packed_argument_t = typename ArgumentHandler<std::decay_t<T>>::type;
 
 template<typename T>
-packed_argument_t<T> pack_argument(TaskBuilder& builder, T&& arg) {
-    return ArgumentHandler<std::decay_t<T>>(std::forward<T>(arg)).process_chunk(builder);
+packed_argument_t<T> pack_argument(TaskInstance& task, T&& arg) {
+    return ArgumentHandler<std::decay_t<T>>(std::forward<T>(arg)).process_chunk(task);
 }
 
 template<ExecutionSpace execution_space, typename T>

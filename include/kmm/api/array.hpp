@@ -118,6 +118,21 @@ class Array: public ArrayBase {
         return output;
     }
 
+    template<typename A = All>
+    Write<Array<T, N>, A> write(A mapper = {}) {
+        return {*this, mapper};
+    }
+
+    template<typename A = All>
+    Read<Array<T, N>, A> read(A mapper = {}) const {
+        return {*this, mapper};
+    }
+
+    template<typename... Is>
+    Read<Array<T, N>, MultiIndexMap<N>> operator()(const Is&... index) const {
+        return read(access(index...));
+    }
+
   private:
     std::shared_ptr<ArrayHandle<N>> m_handle;
     Index<N> m_offset;  // Unused for now, always zero
@@ -138,10 +153,10 @@ struct ArgumentHandler<Read<Array<T, N>>> {
         );  // Check if it is in-bounds
     }
 
-    void initialize(const TaskSetInit& init) {}
+    void initialize(const TaskGroupInfo& init) {}
 
-    type process_chunk(TaskBuilder& builder) {
-        auto buffer_index = builder.add_buffer_requirement(BufferRequirement {
+    type process_chunk(TaskInstance& task) {
+        auto buffer_index = task.add_buffer_requirement(BufferRequirement {
             .buffer_id = m_handle->buffer(0),
             .memory_id = m_chunk.owner_id,
             .access_mode = AccessMode::Read});
@@ -150,7 +165,7 @@ struct ArgumentHandler<Read<Array<T, N>>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskSetResult& result) {}
+    void finalize(const TaskGroupResult& result) {}
 
   private:
     std::shared_ptr<const ArrayHandle<N>> m_handle;
@@ -169,19 +184,19 @@ struct ArgumentHandler<Write<Array<T, N>>> {
         }
     }
 
-    void initialize(const TaskSetInit& init) {}
+    void initialize(const TaskGroupInfo& init) {}
 
-    type process_chunk(TaskBuilder& builder) {
+    type process_chunk(TaskInstance& task) {
         auto access_region = m_builder.sizes();
-        auto buffer_index = builder.add_buffer_requirement(
-            m_builder.add_chunk(builder.graph, builder.memory_id, access_region)
+        auto buffer_index = task.add_buffer_requirement(
+            m_builder.add_chunk(task.graph, task.memory_id, access_region)
         );
 
         views::dynamic_domain<N> domain = {access_region};
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskSetResult& result) {
+    void finalize(const TaskGroupResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
@@ -210,16 +225,16 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
         m_handle(arg.argument.handle().shared_from_this()),
         m_access_mapper(arg.access_mapper) {}
 
-    void initialize(const TaskSetInit& init) {}
+    void initialize(const TaskGroupInfo& init) {}
 
-    type process_chunk(TaskBuilder& builder) {
+    type process_chunk(TaskInstance& task) {
         auto array_size = m_handle->distribution().array_size();
-        auto access_region = m_access_mapper(builder.chunk, Range<N>(array_size));
+        auto access_region = m_access_mapper(task.chunk, Range<N>(array_size));
         auto index = m_handle->distribution().region_to_chunk_index(access_region);
 
-        auto buffer_index = builder.add_buffer_requirement(BufferRequirement {
+        auto buffer_index = task.add_buffer_requirement(BufferRequirement {
             .buffer_id = m_handle->buffer(index),
-            .memory_id = builder.memory_id,
+            .memory_id = task.memory_id,
             .access_mode = AccessMode::Read});
 
         auto chunk = m_handle->distribution().chunk(index);
@@ -227,7 +242,7 @@ struct ArgumentHandler<Read<Array<T, N>, A>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskSetResult& result) {}
+    void finalize(const TaskGroupResult& result) {}
 
   private:
     std::shared_ptr<const ArrayHandle<N>> m_handle;
@@ -252,19 +267,19 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
         }
     }
 
-    void initialize(const TaskSetInit& init) {}
+    void initialize(const TaskGroupInfo& init) {}
 
-    type process_chunk(TaskBuilder& builder) {
-        auto access_region = m_access_mapper(builder.chunk, Range<N>(m_builder.sizes()));
-        auto buffer_index = builder.add_buffer_requirement(
-            m_builder.add_chunk(builder.graph, builder.memory_id, access_region)
+    type process_chunk(TaskInstance& task) {
+        auto access_region = m_access_mapper(task.chunk, Range<N>(m_builder.sizes()));
+        auto buffer_index = task.add_buffer_requirement(
+            m_builder.add_chunk(task.graph, task.memory_id, access_region)
         );
 
         auto domain = views::dynamic_subdomain<N> {access_region.offset, access_region.sizes};
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskSetResult& result) {
+    void finalize(const TaskGroupResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
@@ -278,7 +293,7 @@ struct ArgumentHandler<Write<Array<T, N>, A>> {
 
 template<typename T, size_t N>
 struct ArgumentHandler<Reduce<Array<T, N>>> {
-    using type = ArrayArgument<T, views::dynamic_subdomain<N>>;
+    using type = ArrayArgument<T, views::dynamic_domain<N>>;
 
     ArgumentHandler(Reduce<Array<T, N>> arg) :
         m_array(arg.argument),
@@ -288,19 +303,19 @@ struct ArgumentHandler<Reduce<Array<T, N>>> {
         }
     }
 
-    void initialize(const TaskSetInit& init) {}
+    void initialize(const TaskGroupInfo& init) {}
 
-    type process_chunk(TaskBuilder& builder) {
+    type process_chunk(TaskInstance& task) {
         auto access_region = m_builder.sizes();
-        auto buffer_index = builder.add_buffer_requirement(
-            m_builder.add_chunk(builder.graph, builder.memory_id, access_region)
+        auto buffer_index = task.add_buffer_requirement(
+            m_builder.add_chunk(task.graph, task.memory_id, access_region)
         );
 
-        auto domain = views::dynamic_subdomain<N> {access_region};
+        auto domain = views::dynamic_domain<N> {access_region};
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskSetResult& result) {
+    void finalize(const TaskGroupResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
@@ -330,14 +345,14 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
         }
     }
 
-    void initialize(const TaskSetInit& init) {}
+    void initialize(const TaskGroupInfo& init) {}
 
-    type process_chunk(TaskBuilder& builder) {
+    type process_chunk(TaskInstance& task) {
         auto access_region = Range<N>(m_builder.sizes());
-        auto private_region = m_private_mapper(builder.chunk);
+        auto private_region = m_private_mapper(task.chunk);
         auto rep = private_region.size();
-        auto buffer_index = builder.add_buffer_requirement(
-            m_builder.add_chunk(builder.graph, builder.memory_id, access_region, rep)
+        auto buffer_index = task.add_buffer_requirement(
+            m_builder.add_chunk(task.graph, task.memory_id, access_region, rep)
         );
 
         auto domain = views::dynamic_subdomain<K + N> {
@@ -348,7 +363,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, All, P>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskSetResult& result) {
+    void finalize(const TaskGroupResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
@@ -385,14 +400,14 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
         }
     }
 
-    void initialize(const TaskSetInit& init) {}
+    void initialize(const TaskGroupInfo& init) {}
 
-    type process_chunk(TaskBuilder& builder) {
-        auto private_region = m_private_mapper(builder.chunk);
-        auto access_region = m_access_mapper(builder.chunk, Range<N>(m_builder.sizes()));
+    type process_chunk(TaskInstance& task) {
+        auto private_region = m_private_mapper(task.chunk);
+        auto access_region = m_access_mapper(task.chunk, Range<N>(m_builder.sizes()));
         auto rep = private_region.size();
-        size_t buffer_index = builder.add_buffer_requirement(
-            m_builder.add_chunk(builder.graph, builder.memory_id, access_region, rep)
+        size_t buffer_index = task.add_buffer_requirement(
+            m_builder.add_chunk(task.graph, task.memory_id, access_region, rep)
         );
 
         views::dynamic_subdomain<K + N> domain = {
@@ -403,7 +418,7 @@ struct ArgumentHandler<Reduce<Array<T, N>, A, P>> {
         return {buffer_index, domain};
     }
 
-    void finalize(const TaskSetResult& result) {
+    void finalize(const TaskGroupResult& result) {
         auto handle =
             std::make_shared<ArrayHandle<N>>(result.worker, m_builder.build(result.graph));
         m_array = Array<T, N>(handle);
