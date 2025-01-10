@@ -1,254 +1,220 @@
-#include <functional>
-#include <stdexcept>
-#include <utility>
+#include <thread>
 
-#include "fmt/ranges.h"
 #include "spdlog/spdlog.h"
 
-#include "kmm/panic.hpp"
-#include "kmm/utils/scope_guard.hpp"
-#include "kmm/worker/jobs.hpp"
-#include "kmm/worker/memory_manager.hpp"
+#include "kmm/allocators/arena.hpp"
+#include "kmm/allocators/device.hpp"
+#include "kmm/allocators/system.hpp"
 #include "kmm/worker/worker.hpp"
 
 namespace kmm {
 
-Worker::Worker(std::vector<std::shared_ptr<DeviceHandle>> devices, std::unique_ptr<Memory> memory) :
-    m_shared_poll_queue {std::make_shared<SharedJobQueue>()},
-    m_state {devices, std::make_shared<MemoryManager>(std::move(memory)), BlockManager()} {}
+bool Worker::query_event(EventId event_id, std::chrono::system_clock::time_point deadline) {
+    static constexpr auto TIMEOUT = std::chrono::microseconds {100};
 
-void Worker::make_progress(std::chrono::time_point<std::chrono::system_clock> deadline) {
-    while (true) {
-        {
-            std::unique_lock guard {m_lock};
-            if (make_progress_impl()) {
-                return;
-            }
-        }
+    std::unique_lock guard {m_mutex};
+    flush_events_impl();
 
-        if (!m_shared_poll_queue->wait_until(deadline)) {
-            return;
-        }
-    }
-}
-
-void Worker::wakeup(std::shared_ptr<Job> job, bool allow_progress) {
-    auto id = job->id();
-
-    if (allow_progress) {
-        if (auto guard = std::unique_lock {m_lock, std::try_to_lock}) {
-            bool result = m_local_poll_queue.push(std::move(job));
-            spdlog::debug("add local poll id={} result={}", id, result);
-            make_progress_impl();
-            return;
-        }
+    if (m_scheduler.is_completed(event_id)) {
+        return true;
     }
 
-    m_shared_poll_queue->push_job(std::move(job));
-}
-
-void Worker::submit_barrier(EventId id) {
-    submit_command(id, EmptyCommand {}, m_scheduler.active_tasks());
-}
-
-void Worker::submit_command(EventId id, Command command, EventList dependencies) {
-    std::unique_lock guard {m_lock};
-
-    if (m_shutdown) {
-        throw std::runtime_error("cannot submit new commands after shutdown");
-    }
-
-    spdlog::debug("submit command id={} dependencies={} command={}", id, dependencies, command);
-    m_scheduler.insert(id, std::move(command), std::move(dependencies));
-    make_progress_impl();
-}
-
-bool Worker::query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline) {
-    std::unique_lock<std::mutex> guard {m_lock};
+    auto next_update = std::chrono::system_clock::now();
 
     while (true) {
-        if (m_scheduler.is_completed(id)) {
+        make_progress_impl();
+
+        if (m_scheduler.is_completed(event_id)) {
             return true;
         }
 
-        if (m_shutdown || deadline == decltype(deadline)()) {
+        auto now = std::chrono::system_clock::now();
+        next_update += TIMEOUT;
+
+        if (next_update < now) {
+            next_update = now;
+        }
+
+        if (next_update > deadline) {
             return false;
         }
 
-        if (m_job_completion.wait_until(guard, deadline) == std::cv_status::timeout) {
-            return false;
-        }
+        guard.unlock();
+        std::this_thread::sleep_until(next_update);
+        guard.lock();
     }
+}
+
+bool Worker::is_idle() {
+    std::lock_guard guard {m_mutex};
+    flush_events_impl();
+    return is_idle_impl();
+}
+
+void Worker::trim_memory() {
+    std::lock_guard guard {m_mutex};
+    m_memory_system->trim_host();
+    m_memory_system->trim_device();
+}
+
+void Worker::make_progress() {
+    std::lock_guard guard {m_mutex};
+    flush_events_impl();
+    make_progress_impl();
 }
 
 void Worker::shutdown() {
-    std::unique_lock<std::mutex> guard {m_lock};
-    m_job_completion.notify_all();
-    m_shutdown = true;
-}
-
-bool Worker::is_shutdown() {
-    std::unique_lock<std::mutex> guard {m_lock};
-    return m_shutdown && m_scheduler.is_all_completed();
-}
-
-bool Worker::make_progress_impl() {
-    bool progressed = false;
-
-    while (true) {
-        // First, drain the local poll queue
-        if (auto op = m_local_poll_queue.pop()) {
-            poll_job(**op);
-            progressed = true;
-            continue;
-        }
-
-        // Next, move from the shared poll queue to the local poll queue
-        m_local_poll_queue.push_all(m_shared_poll_queue->pop_all_jobs());
-        if (!m_local_poll_queue.is_empty()) {
-            progressed = true;
-            continue;
-        }
-
-        // Next, check if the scheduler has a job
-        if (auto op = m_scheduler.pop_ready()) {
-            start_job(std::move(*op));
-            progressed = true;
-            continue;
-        }
-
-        break;
-    }
-
-    return progressed;
-}
-
-void Worker::start_job(std::shared_ptr<Scheduler::Node> node) {
-    auto&& command = node->take_command();
-
-    // For empty commands, bypass the regular job procedure and immediately complete it.
-    if (std::holds_alternative<EmptyCommand>(command)) {
-        m_scheduler.complete(std::move(node));
-        m_job_completion.notify_all();
+    std::unique_lock guard {m_mutex};
+    if (m_has_shutdown) {
         return;
     }
 
-    spdlog::debug("start job id={}", node->id());
-    auto job = build_job_for_command(node->id(), std::move(command));
+    m_has_shutdown = true;
 
-    KMM_ASSERT(job->status == Job::Status::Created);
-    job->status = Job::Status::Running;
-    job->worker = weak_from_this();
-    job->completion = std::move(node);
-    job->start(m_state);
-    poll_job(*job);
+    m_graph.shutdown();
+    flush_events_impl();
+
+    while (!is_idle_impl()) {
+        make_progress_impl();
+
+        guard.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds {10});
+        guard.lock();
+    }
+
+    m_stream_manager->wait_until_idle();
 }
 
-void Worker::poll_job(Job& job) {
-    if (job.status == Job::Status::Running) {
-        spdlog::debug("poll job id={}", job.id());
-
-        if (job.poll(m_state) == PollResult::Ready) {
-            stop_job(job);
-        }
+void Worker::flush_events_impl() {
+    // Flush all events from the DAG builder to the scheduler
+    for (auto event : m_graph.flush()) {
+        m_scheduler.insert_event(event.id, std::move(event.command), std::move(event.dependencies));
     }
 }
 
-void Worker::stop_job(Job& job) {
-    spdlog::debug("stop job id={}", job.id());
-    job.status = Job::Status::Done;
-    job.stop(m_state);
+void Worker::make_progress_impl() {
+    m_stream_manager->make_progress();
+    m_memory_system->make_progress();
+    m_executor.make_progress(m_scheduler);
 
-    m_scheduler.complete(std::move(job.completion));
-    m_job_completion.notify_all();
+    DeviceEventSet deps;
+    while (auto cmd = m_scheduler.pop_ready(&deps)) {
+        m_executor.execute_command((*cmd)->id(), (*cmd)->get_command(), std::move(deps));
+    }
 }
 
-void Worker::create_block(
-    BlockId block_id,
-    MemoryId memory_id,
-    std::unique_ptr<BlockHeader> header,
-    const void* src_data,
-    size_t num_bytes) {
-    std::unique_lock guard {m_lock};
+bool Worker::is_idle_impl() {
+    return m_stream_manager->is_idle() && m_executor.is_idle() && m_scheduler.is_idle();
+}
 
-    auto layout = header->layout();
-    auto waker = std::make_shared<ThreadWaker>();
-    auto buffer_id = std::optional<BufferId> {};
+Worker::~Worker() {
+    shutdown();
+}
 
-    if (layout.num_bytes > 0) {
-        buffer_id = m_state.memory_manager->create_buffer(layout);
+SystemInfo make_system_info(const std::vector<GPUContextHandle>& contexts) {
+    spdlog::info("detected {} GPU device(s):", contexts.size());
+    std::vector<DeviceInfo> device_infos;
 
-        try {
-            auto transaction = m_state.memory_manager->create_transaction(waker);
-            auto request = m_state.memory_manager->create_request(  //
-                *buffer_id,
-                memory_id,
-                AccessMode::Write,
-                transaction);
+    for (size_t i = 0; i < contexts.size(); i++) {
+        auto info = DeviceInfo(DeviceId(i), contexts[i]);
+        auto memory_gb = static_cast<double>(info.total_memory_size()) / 1e9;
 
-            ScopeGuard delete_on_exit = [&] { m_state.memory_manager->delete_request(request); };
+        spdlog::info(" - {} ({:.2} GB)", info.name(), memory_gb);
+        device_infos.push_back(info);
+    }
 
-            guard.unlock();
+    return device_infos;
+}
 
-            while (m_state.memory_manager->poll_request(request) == PollResult::Pending) {
-                waker->wait();
+Worker::Worker(
+    std::vector<GPUContextHandle> contexts,
+    std::shared_ptr<DeviceStreamManager> stream_manager,
+    std::shared_ptr<MemorySystem> memory_system
+) :
+    m_info(make_system_info(contexts)),
+    m_scheduler(contexts.size()),
+    m_executor(contexts, stream_manager, memory_system),
+    m_stream_manager(stream_manager),
+    m_memory_system(memory_system) {}
+
+std::shared_ptr<Worker> make_worker(const WorkerConfig& config) {
+    std::unique_ptr<AsyncAllocator> host_mem;
+    std::vector<std::unique_ptr<AsyncAllocator>> device_mems;
+
+    auto stream_manager = std::make_shared<DeviceStreamManager>();
+    auto contexts = std::vector<GPUContextHandle>();
+    auto devices = get_gpu_devices();
+
+    if (!devices.empty()) {
+        for (size_t i = 0; i < devices.size(); i++) {
+            std::unique_ptr<AsyncAllocator> device_mem;
+
+            auto context = GPUContextHandle::retain_primary_context_for_device(devices[i]);
+            contexts.push_back(context);
+
+            switch (config.device_memory_kind) {
+                case DeviceMemoryKind::NoPool:
+                    device_mem = std::make_unique<DeviceMemoryAllocator>(
+                        context,
+                        stream_manager,
+                        config.device_memory_limit
+                    );
+                    break;
+
+                case DeviceMemoryKind::DefaultPool:
+                    device_mem = std::make_unique<DevicePoolAllocator>(
+                        context,
+                        stream_manager,
+                        DevicePoolKind::Default,
+                        config.device_memory_limit
+                    );
+                    break;
+
+                case DeviceMemoryKind::PrivatePool:
+                    device_mem = std::make_unique<DevicePoolAllocator>(
+                        context,
+                        stream_manager,
+                        DevicePoolKind::Create,
+                        config.device_memory_limit
+                    );
+                    break;
             }
 
-            auto* alloc = m_state.memory_manager->view_buffer(request);
-            alloc->copy_from_host_sync(src_data, 0, num_bytes);
-        } catch (...) {
-            m_state.memory_manager->delete_buffer(*buffer_id);
-            throw;
+            device_mems.push_back(std::move(device_mem));
+        }
+
+        host_mem = std::make_unique<PinnedMemoryAllocator>(
+            contexts.at(0),
+            stream_manager,
+            config.host_memory_limit
+        );
+    } else {
+        host_mem = std::make_unique<SystemAllocator>(stream_manager, config.host_memory_limit);
+    }
+
+    if (config.host_memory_block_size > 0) {
+        host_mem = std::make_unique<ArenaAllocator>(  //
+            std::move(host_mem),
+            config.host_memory_block_size
+        );
+    }
+
+    if (config.device_memory_block_size > 0) {
+        for (size_t i = 0; i < devices.size(); i++) {
+            device_mems[i] = std::make_unique<ArenaAllocator>(
+                std::move(device_mems[i]),
+                config.device_memory_block_size
+            );
         }
     }
 
-    m_state.block_manager.insert_block(block_id, std::move(header), memory_id, buffer_id);
+    auto memory_system = std::make_shared<MemorySystem>(
+        stream_manager,
+        contexts,
+        std::move(host_mem),
+        std::move(device_mems)
+    );
+
+    return std::make_shared<Worker>(contexts, stream_manager, memory_system);
 }
-
-std::shared_ptr<BlockHeader> Worker::read_block_header(BlockId block_id) {
-    std::lock_guard guard {m_lock};
-    const auto& meta = m_state.block_manager.get_block(block_id);
-    return meta.header;
-}
-
-std::shared_ptr<BlockHeader> Worker::read_block(
-    BlockId block_id,
-    std::optional<MemoryId> preferred_memory_id,
-    void* dst_data,
-    size_t num_bytes) {
-    std::unique_lock guard {m_lock};
-    const auto& meta = m_state.block_manager.get_block(block_id);
-    auto header = meta.header;
-    auto buffer_id = meta.buffer_id;
-    size_t buffer_size = buffer_id.has_value() ? buffer_id->num_bytes() : 0;
-
-    if (buffer_size != num_bytes) {
-        throw std::invalid_argument("invalid buffer size");
-    }
-
-    if (!buffer_id.has_value() || buffer_id->num_bytes() == 0) {
-        return header;
-    }
-
-    auto memory_id = preferred_memory_id.has_value() ? *preferred_memory_id : meta.home_memory;
-
-    auto waker = std::make_shared<ThreadWaker>();
-    auto transaction = m_state.memory_manager->create_transaction(waker);
-    auto request = m_state.memory_manager
-                       ->create_request(*buffer_id, memory_id, AccessMode::Read, transaction);
-
-    ScopeGuard delete_on_exit = [&] { m_state.memory_manager->delete_request(request); };
-
-    guard.unlock();
-
-    while (m_state.memory_manager->poll_request(request) == PollResult::Pending) {
-        waker->wait();
-    }
-
-    const auto* alloc = m_state.memory_manager->view_buffer(request);
-    alloc->copy_to_host_sync(0, dst_data, num_bytes);
-
-    return header;
-}
-
 }  // namespace kmm

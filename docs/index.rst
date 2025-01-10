@@ -36,10 +36,7 @@ This example shows how to run a CUDA kernel implementing a vector add operation 
 
    #include "spdlog/spdlog.h"
 
-   #include "kmm/array.hpp"
-   #include "kmm/cuda/cuda.hpp"
-   #include "kmm/host/host.hpp"
-   #include "kmm/runtime_handle.hpp"
+   #include "kmm/kmm.hpp"
 
    #define SIZE 65536000
 
@@ -94,7 +91,7 @@ This example shows how to run a CUDA kernel implementing a vector add operation 
            manager.submit(kmm::Host(), initialize, write(A), write(B));
 
            // Execute the function on the device.
-           manager.submit(kmm::CudaKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), n);
+           manager.submit(kmm::GPUKernel(n_blocks, threads_per_block), vector_add, A, B, write(C), n);
 
            // Verify the result on the host.
            auto verify_event = manager.submit(kmm::Host(), verify, C);

@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
         build_type: [Debug]
         cpp_compiler: [g++, clang++]
             
@@ -52,4 +52,4 @@ jobs:
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: ./kmmTest
+      run: ./test/kmmTest

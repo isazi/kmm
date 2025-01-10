@@ -1,0 +1,1 @@
+namespace kmm {}  // namespace kmm

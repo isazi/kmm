@@ -1,5 +1,5 @@
 AccessModifierOffset: -2
-AlignAfterOpenBracket: AlwaysBreak
+AlignAfterOpenBracket: BlockIndent
 AlignConsecutiveMacros: Consecutive
 AlignConsecutiveAssignments: None
 AlignConsecutiveDeclarations: None

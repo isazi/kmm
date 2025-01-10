@@ -1,82 +1,80 @@
 #pragma once
 
-#include <chrono>
-#include <memory>
+#include <mutex>
 
-#include "kmm/device.hpp"
-#include "kmm/event_list.hpp"
-#include "kmm/identifiers.hpp"
-#include "kmm/memory.hpp"
-#include "kmm/worker/block_manager.hpp"
-#include "kmm/worker/command.hpp"
-#include "kmm/worker/job.hpp"
-#include "kmm/worker/memory_manager.hpp"
-#include "kmm/worker/scheduler.hpp"
+#include "executor.hpp"
+#include "scheduler.hpp"
+#include "task_graph.hpp"
+
+#include "kmm/core/config.hpp"
+#include "kmm/core/system_info.hpp"
 
 namespace kmm {
 
-class WorkerState {
-  public:
-    std::vector<std::shared_ptr<DeviceHandle>> devices;
-    std::shared_ptr<MemoryManager> memory_manager;
-    BlockManager block_manager;
-};
-
-struct BlockReadGuard {
-    std::shared_ptr<Worker> worker;
-    MemoryRequest request;
-    std::shared_ptr<BlockHeader> header;
-    const MemoryAllocation* alloc;
-};
-
-struct BlockWriteGuard {
-    std::shared_ptr<Worker> worker;
-    MemoryRequest request;
-    std::shared_ptr<BlockHeader> header;
-    MemoryAllocation* alloc;
-};
+struct BufferGuard;
 
 class Worker: public std::enable_shared_from_this<Worker> {
+    KMM_NOT_COPYABLE_OR_MOVABLE(Worker)
+
   public:
-    Worker(std::vector<std::shared_ptr<DeviceHandle>> devices, std::unique_ptr<Memory> memory);
+    Worker(
+        std::vector<GPUContextHandle> contexts,
+        std::shared_ptr<DeviceStreamManager> stream_manager,
+        std::shared_ptr<MemorySystem> memory_system
+    );
+    ~Worker();
 
-    void make_progress(std::chrono::time_point<std::chrono::system_clock> deadline = {});
-
-    void create_block(
-        BlockId block_id,
-        MemoryId memory_id,
-        std::unique_ptr<BlockHeader> header,
-        const void* src_data,
-        size_t num_bytes);
-    std::shared_ptr<BlockHeader> read_block(
-        BlockId block_id,
-        std::optional<MemoryId> preferred_memory_id,
-        void* dst_data,
-        size_t num_bytes);
-    std::shared_ptr<BlockHeader> read_block_header(BlockId block_id);
-
-    void submit_barrier(EventId id);
-    void submit_command(EventId id, Command command, EventList dependencies);
-    bool query_event(EventId id, std::chrono::time_point<std::chrono::system_clock> deadline = {});
-    void wakeup(std::shared_ptr<Job> job, bool allow_progress = false);
+    bool query_event(EventId event_id, std::chrono::system_clock::time_point deadline);
+    bool is_idle();
+    void trim_memory();
+    void make_progress();
     void shutdown();
-    bool is_shutdown();
+
+    template<typename F>
+    auto with_task_graph(F fun) {
+        std::lock_guard guard {m_mutex};
+
+        if (m_has_shutdown) {
+            throw std::runtime_error("cannot submit work, worker has been shut down");
+        }
+
+        try {
+            if constexpr (std::is_void<decltype(fun(m_graph))>::value) {
+                fun(m_graph);
+                m_graph.commit();
+            } else {
+                auto result = fun(m_graph);
+                m_graph.commit();
+                return result;
+            }
+        } catch (...) {
+            m_graph.rollback();
+            throw;
+        }
+    }
+
+    const SystemInfo& system_info() const {
+        return m_info;
+    }
 
   private:
-    bool make_progress_impl();
+    friend class BufferGuardTracker;
 
-    void start_job(std::shared_ptr<Scheduler::Node> node);
-    void poll_job(Job& job);
-    void stop_job(Job& job);
+    void flush_events_impl();
+    void make_progress_impl();
+    bool is_idle_impl();
 
-    std::shared_ptr<SharedJobQueue> m_shared_poll_queue;
-
-    std::mutex m_lock;
-    std::condition_variable m_job_completion;
-    JobQueue m_local_poll_queue;
+    mutable std::mutex m_mutex;
+    mutable bool m_has_shutdown = false;
+    SystemInfo m_info;
     Scheduler m_scheduler;
-    WorkerState m_state;
-    bool m_shutdown = false;
+    Executor m_executor;
+    TaskGraph m_graph;
+
+    std::shared_ptr<DeviceStreamManager> m_stream_manager;
+    std::shared_ptr<MemorySystem> m_memory_system;
 };
+
+std::shared_ptr<Worker> make_worker(const WorkerConfig& config);
 
 }  // namespace kmm
