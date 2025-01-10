@@ -97,7 +97,7 @@ class TaskImpl: public Task {
         m_launcher(
             exec,
             m_chunk,
-            ArgumentUnpack<execution_space, Args>::unpack(context, std::get<Is>(m_args))...
+            ArgumentUnpack<execution_space, Args>::call(context, std::get<Is>(m_args))...
         );
     }
 
@@ -117,8 +117,8 @@ EventId parallel_submit_impl(
     Launcher launcher,
     Args&&... args
 ) {
-    std::tuple<ArgumentHandler<std::decay_t<Args>>...> handlers = {
-        ArgumentHandler<std::decay_t<Args>> {std::forward<Args>(args)}...};
+    std::tuple<typename ArgumentHandlerDispatch<Args>::type...> handlers = {
+        ArgumentHandlerDispatch<Args>::call(std::forward<Args>(args))...};
 
     return worker.with_task_graph([&](TaskGraph& graph) {
         EventList events;

@@ -13,6 +13,38 @@ template<ExecutionSpace, typename T>
 struct ArgumentUnpack;
 
 template<typename T, typename = void>
+struct ArgumentHandlerDispatch {
+    using type = ArgumentHandler<std::decay_t<T>>;
+
+    template<typename U>
+    static type call(U&& value) {
+        return {std::forward<U>(value)};
+    }
+};
+
+template<typename T>
+struct ArgumentHandlerDispatch<const T&>: ArgumentHandlerDispatch<T> {};
+
+template<typename T>
+struct ArgumentHandlerDispatch<T&>: ArgumentHandlerDispatch<const T&> {};
+
+template<typename T>
+struct ArgumentHandlerDispatch<T&&>: ArgumentHandlerDispatch<T> {};
+
+template<typename T>
+using packed_argument_t = typename ArgumentHandlerDispatch<T>::type::type;
+
+template<typename T>
+packed_argument_t<T> pack_argument(TaskInstance& task, T&& arg) {
+    return ArgumentHandlerDispatch<T>::call(std::forward<T>(arg)).process_chunk(task);
+}
+
+template<ExecutionSpace execution_space, typename T>
+auto unpack_argument(TaskContext& context, T&& arg) {
+    return ArgumentUnpack<execution_space, std::decay_t<T>>::call(context, std::forward<T>(arg));
+}
+
+template<typename T, typename = void>
 struct Argument {
     Argument(T value) : m_value(std::move(value)) {}
 
@@ -53,22 +85,9 @@ struct ArgumentHandler {
 
 template<ExecutionSpace Space, typename T>
 struct ArgumentUnpack<Space, Argument<T>> {
-    static auto unpack(TaskContext& context, Argument<T>& data) {
+    static auto call(TaskContext& context, Argument<T>& data) {
         return data.template unpack<Space>(context);
     }
 };
-
-template<typename T>
-using packed_argument_t = typename ArgumentHandler<std::decay_t<T>>::type;
-
-template<typename T>
-packed_argument_t<T> pack_argument(TaskInstance& task, T&& arg) {
-    return ArgumentHandler<std::decay_t<T>>(std::forward<T>(arg)).process_chunk(task);
-}
-
-template<ExecutionSpace execution_space, typename T>
-auto unpack_argument(TaskContext& builder, T&& arg) {
-    return ArgumentUnpack<execution_space, std::decay_t<T>>::unpack(builder, std::forward<T>(arg));
-}
 
 }  // namespace kmm

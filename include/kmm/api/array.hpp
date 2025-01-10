@@ -190,12 +190,8 @@ struct ArgumentHandler<Access<const Array<T, N>, Read<All>>> {
 };
 
 template<typename T, size_t N>
-struct ArgumentHandler<Array<T, N>>: ArgumentHandler<Access<const Array<T, N>, Read<All>>> {
-    ArgumentHandler(const Array<T, N>& arg) :  //
-        ArgumentHandler<Access<const Array<T, N>, Read<All>>>(  //
-            Access<const Array<T, N>, Read<All>>(arg)
-        ) {}
-};
+struct ArgumentHandlerDispatch<Array<T, N>>:
+    ArgumentHandlerDispatch<Access<const Array<T, N>, Read<All>>> {};
 
 template<typename T, size_t N>
 struct ArgumentHandler<Access<Array<T, N>, Write<All>>> {
@@ -267,13 +263,6 @@ struct ArgumentHandler<Access<const Array<T, N>, Read<M>>> {
   private:
     std::shared_ptr<const ArrayHandle<N>> m_handle;
     M m_access_mapper;
-};
-
-template<typename T, size_t N, typename M>
-struct ArgumentHandler<Access<Array<T, N>, Read<M>>>: //
-    public ArgumentHandler<Access<const Array<T, N>, Read<M>>> { //
-    ArgumentHandler(Access<Array<T, N>, Read<M>> access) :  //
-        ArgumentHandler<Access<const Array<T, N>, Read<M>>>(access) {}
 };
 
 template<typename T, size_t N, typename M>
